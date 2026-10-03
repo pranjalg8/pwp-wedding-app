@@ -7,8 +7,8 @@
 
   <key>ProgramArguments</key>
   <array>
-    <string>/usr/bin/env</string>
-    <string>node</string>
+    <!-- REPLACE with the absolute path from `which node` (launchd has no nvm PATH) -->
+    <string>/Users/REPLACE_ME/.nvm/versions/node/vX.Y.Z/bin/node</string>
     <string>sync.mjs</string>
   </array>
 
@@ -16,15 +16,22 @@
   <key>WorkingDirectory</key>
   <string>/Users/REPLACE_ME/workplace/pwp-wedding-app/sync</string>
 
+  <!-- wacli must be on PATH; Homebrew installs it under /opt/homebrew/bin -->
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+  </dict>
+
   <key>StartInterval</key>
   <integer>1800</integer>
 
-  <key>StandardOutPath</key>
-  <string>/tmp/pwpsync.log</string>
-  <key>StandardErrorPath</key>
-  <string>/tmp/pwpsync.err.log</string>
-
   <key>RunAtLoad</key>
   <true/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/REPLACE_ME/Library/Logs/pwpsync.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/REPLACE_ME/Library/Logs/pwpsync.err.log</string>
 </dict>
 </plist>

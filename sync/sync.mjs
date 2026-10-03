@@ -108,14 +108,16 @@ async function main() {
 
   saveCursors(cursors);
 
-  const { error: auditError } = await supabase.from('audit_log').insert({
-    actor_type: 'sync',
-    actor_name: 'wacli',
-    table_name: 'messages',
-    action: 'insert',
-    after: { total_new: totalNew, per_group: perGroupCounts },
-  });
-  if (auditError) console.error('Failed to write audit_log row:', auditError.message);
+  if (totalNew > 0) {
+    const { error: auditError } = await supabase.from('audit_log').insert({
+      actor_type: 'sync',
+      actor_name: 'wacli',
+      table_name: 'messages',
+      action: 'insert',
+      after: { total_new: totalNew, per_group: perGroupCounts },
+    });
+    if (auditError) console.error('Failed to write audit_log row:', auditError.message);
+  }
 
   console.log(`Synced ${totalNew} new messages across ${perGroupCounts.length} groups.`);
   if (perGroupCounts.length) console.log(perGroupCounts.join('\n'));
