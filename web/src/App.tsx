@@ -10,6 +10,7 @@ import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { TopicDetail } from './pages/TopicDetail';
 import { Activity } from './pages/Activity';
+import { Budget } from './pages/Budget';
 
 function Shell({ children }: { children: React.ReactNode }) {
   const { profile } = useProfile();
@@ -23,6 +24,9 @@ function Shell({ children }: { children: React.ReactNode }) {
                 PwP Wedding Planner
               </Link>
             </Title>
+            <Button component={Link} to="/budget" variant="subtle" size="sm">
+              Budget
+            </Button>
             <Button component={Link} to="/activity" variant="subtle" size="sm">
               Activity
             </Button>
@@ -71,6 +75,7 @@ function AuthedApp() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/topics/:topicKey" element={<TopicDetail />} />
+          <Route path="/budget" element={<Budget />} />
           <Route path="/activity" element={<Activity />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
