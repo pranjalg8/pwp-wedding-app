@@ -5,11 +5,12 @@ import '@mantine/notifications/styles.css'
 import { MantineProvider } from '@mantine/core'
 import { Notifications } from '@mantine/notifications'
 import './index.css'
+import { theme } from './theme.ts'
 import App from './App.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <MantineProvider defaultColorScheme="auto">
+    <MantineProvider theme={theme} defaultColorScheme="auto">
       <Notifications />
       <App />
     </MantineProvider>

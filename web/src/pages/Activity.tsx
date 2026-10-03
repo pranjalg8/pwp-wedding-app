@@ -4,7 +4,8 @@ import { supabase, type AuditEntry } from '../lib/supabase';
 
 function AuditTable({ entries, kind }: { entries: AuditEntry[]; kind: 'manual' | 'sync' }) {
   return (
-    <Table striped highlightOnHover mt="md">
+    <Table.ScrollContainer minWidth={520} mt="md">
+    <Table striped highlightOnHover>
       <Table.Thead>
         <Table.Tr>
           <Table.Th>When</Table.Th>
@@ -41,6 +42,7 @@ function AuditTable({ entries, kind }: { entries: AuditEntry[]; kind: 'manual' |
         )}
       </Table.Tbody>
     </Table>
+    </Table.ScrollContainer>
   );
 }
 
