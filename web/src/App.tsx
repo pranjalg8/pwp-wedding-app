@@ -11,6 +11,7 @@ import { Dashboard } from './pages/Dashboard';
 import { TopicDetail } from './pages/TopicDetail';
 import { Activity } from './pages/Activity';
 import { Budget } from './pages/Budget';
+import { Vendors } from './pages/Vendors';
 
 function Shell({ children }: { children: React.ReactNode }) {
   const { profile } = useProfile();
@@ -26,6 +27,9 @@ function Shell({ children }: { children: React.ReactNode }) {
             </Title>
             <Button component={Link} to="/budget" variant="subtle" size="sm">
               Budget
+            </Button>
+            <Button component={Link} to="/vendors" variant="subtle" size="sm">
+              Vendors
             </Button>
             <Button component={Link} to="/activity" variant="subtle" size="sm">
               Activity
@@ -76,6 +80,7 @@ function AuthedApp() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/topics/:topicKey" element={<TopicDetail />} />
           <Route path="/budget" element={<Budget />} />
+          <Route path="/vendors" element={<Vendors />} />
           <Route path="/activity" element={<Activity />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
