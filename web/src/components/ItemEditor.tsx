@@ -26,6 +26,11 @@ export function ItemEditor({
   const [type, setType] = useState<string>(item?.type ?? 'note');
   const [status, setStatus] = useState<string>(item?.status ?? 'open');
   const [amount, setAmount] = useState<number | ''>(item?.amount ?? '');
+  const [contactPerson, setContactPerson] = useState(
+    typeof item?.metadata?.contact_person === 'string' ? item.metadata.contact_person : ''
+  );
+  const [phone, setPhone] = useState(typeof item?.metadata?.phone === 'string' ? item.metadata.phone : '');
+  const [email, setEmail] = useState(typeof item?.metadata?.email === 'string' ? item.metadata.email : '');
   const [saving, setSaving] = useState(false);
 
   async function handleSave() {
@@ -37,6 +42,10 @@ export function ItemEditor({
       type,
       status,
       amount: amount === '' ? null : amount,
+      metadata:
+        type === 'vendor'
+          ? { contact_person: contactPerson || null, phone: phone || null, email: email || null }
+          : {},
       created_by: profile?.id ?? null,
     };
 
@@ -86,6 +95,17 @@ export function ItemEditor({
           thousandSeparator=","
           prefix="₹"
         />
+        {type === 'vendor' && (
+          <>
+            <TextInput
+              label="Contact person"
+              value={contactPerson}
+              onChange={(e) => setContactPerson(e.currentTarget.value)}
+            />
+            <TextInput label="Phone" value={phone} onChange={(e) => setPhone(e.currentTarget.value)} />
+            <TextInput label="Email" value={email} onChange={(e) => setEmail(e.currentTarget.value)} />
+          </>
+        )}
         <Text size="xs" c="dimmed">
           Saving this will be recorded in the audit log as a manual change by {profile?.display_name ?? 'you'}.
         </Text>
