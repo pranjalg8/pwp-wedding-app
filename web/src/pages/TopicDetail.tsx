@@ -63,6 +63,22 @@ export function TopicDetail() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topicKey]);
 
+  useEffect(() => {
+    if (!topic) return;
+    const channel = supabase
+      .channel(`planning_items_topic_${topic.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'planning_items', filter: `topic_id=eq.${topic.id}` },
+        load
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [topic?.id]);
+
   async function handleDelete(item: PlanningItem) {
     const { error } = await supabase.from('planning_items').delete().eq('id', item.id);
     if (!error) {

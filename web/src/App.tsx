@@ -5,6 +5,7 @@ import { useProfile } from './hooks/useProfile';
 import { supabase } from './lib/supabase';
 import { EditModeProvider } from './components/EditModeProvider';
 import { PinGateButton } from './components/PinGate';
+import { DeviceNicknameButton } from './components/DeviceNickname';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { TopicDetail } from './pages/TopicDetail';
@@ -31,6 +32,7 @@ function Shell({ children }: { children: React.ReactNode }) {
             </Button>
           </Group>
           <Group>
+            <DeviceNicknameButton />
             <PinGateButton />
             <Text size="sm" c="dimmed">
               {profile?.display_name}
