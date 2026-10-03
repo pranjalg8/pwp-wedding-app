@@ -1,15 +1,36 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Badge, Card, Group, SimpleGrid, Text, Title } from '@mantine/core';
+import { Badge, Box, Card, Group, Paper, RingProgress, SimpleGrid, Stack, Text, Title } from '@mantine/core';
 import { supabase, type PlanningItem, type Topic } from '../lib/supabase';
+import { TOPIC_EMOJI, daysUntilWedding, formatInr } from '../lib/topicMeta';
 
-type Counts = { open: number; decided: number; done: number; total: number; budget: number };
+type Counts = {
+  open: number;
+  settled: number;
+  total: number;
+  committed: number;
+  considering: number;
+};
 type TopicWithCounts = Topic & Counts;
 
-const EMPTY_COUNTS: Counts = { open: 0, decided: 0, done: 0, total: 0, budget: 0 };
+const EMPTY_COUNTS: Counts = { open: 0, settled: 0, total: 0, committed: 0, considering: 0 };
 
-function formatInr(amount: number) {
-  return `₹${amount.toLocaleString('en-IN')}`;
+function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <Paper withBorder p="md">
+      <Text size="xs" tt="uppercase" fw={600} c="dimmed" style={{ letterSpacing: 0.5 }}>
+        {label}
+      </Text>
+      <Text fz={26} fw={700} mt={2}>
+        {value}
+      </Text>
+      {hint && (
+        <Text size="xs" c="dimmed">
+          {hint}
+        </Text>
+      )}
+    </Paper>
+  );
 }
 
 export function Dashboard() {
@@ -24,11 +45,14 @@ export function Dashboard() {
     const counts = new Map<string, Counts>();
     for (const item of (itemsData ?? []) as Pick<PlanningItem, 'topic_id' | 'status' | 'amount'>[]) {
       const c = counts.get(item.topic_id) ?? { ...EMPTY_COUNTS };
+      const settled = item.status === 'decided' || item.status === 'done';
       c.total += 1;
-      if (item.status === 'open' || item.status === 'in_progress') c.open += 1;
-      if (item.status === 'decided') c.decided += 1;
-      if (item.status === 'done') c.done += 1;
-      c.budget += item.amount ?? 0;
+      if (settled) c.settled += 1;
+      else c.open += 1;
+      if (item.amount) {
+        if (settled) c.committed += item.amount;
+        else c.considering += item.amount;
+      }
       counts.set(item.topic_id, c);
     }
 
@@ -51,42 +75,97 @@ export function Dashboard() {
     };
   }, []);
 
-  const grandTotal = topics.reduce((sum, t) => sum + t.budget, 0);
-  const lineItemCount = topics.reduce((sum, t) => sum + t.total, 0);
+  const total = topics.reduce((s, t) => s + t.total, 0);
+  const settled = topics.reduce((s, t) => s + t.settled, 0);
+  const open = topics.reduce((s, t) => s + t.open, 0);
+  const committed = topics.reduce((s, t) => s + t.committed, 0);
+  const considering = topics.reduce((s, t) => s + t.considering, 0);
+  const days = daysUntilWedding();
 
   return (
-    <>
-      <Group justify="space-between" mb="lg" align="flex-end">
-        <Title order={2}>Wedding Planning Dashboard</Title>
-        {grandTotal > 0 && (
-          <Text size="sm" c="dimmed">
-            <Text span fw={700} c="var(--mantine-color-text)">
-              {formatInr(grandTotal)}
-            </Text>{' '}
-            tracked across {lineItemCount} item{lineItemCount === 1 ? '' : 's'}
+    <Stack gap="lg">
+      <Box className="hero" c="white" p={{ base: 'lg', sm: 'xl' }} style={{ borderRadius: 'var(--mantine-radius-xl)' }}>
+        <Text size="sm" fw={600} style={{ letterSpacing: 1, opacity: 0.9 }} tt="uppercase">
+          14–15 February 2027
+        </Text>
+        <Group align="baseline" gap="sm" mt={4}>
+          <Title order={1} c="white" fz={{ base: 48, sm: 64 }} lh={1}>
+            {days}
+          </Title>
+          <Text fz={{ base: 'lg', sm: 'xl' }} fw={500}>
+            days to go
           </Text>
-        )}
-      </Group>
-      <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="md">
-        {topics.map((t) => (
-          <Card key={t.id} component={Link} to={`/topics/${t.key}`} withBorder shadow="sm" radius="md" p="lg">
-            <Group justify="space-between" mb="xs">
-              <Text fw={600}>{t.label}</Text>
-              {t.open > 0 && <Badge color="orange">{t.open} open</Badge>}
-            </Group>
-            <Text size="sm" c="dimmed">
-              {t.total === 0
-                ? 'No items yet'
-                : `${t.decided + t.done} of ${t.total} decided/done`}
-            </Text>
-            {t.budget > 0 && (
-              <Text size="sm" fw={500} mt={4}>
-                {formatInr(t.budget)}
-              </Text>
-            )}
-          </Card>
-        ))}
+        </Group>
+        <Text mt="sm" style={{ opacity: 0.95 }}>
+          {open === 0
+            ? 'Everything is decided. Time to celebrate.'
+            : `${open} thing${open === 1 ? '' : 's'} still open across ${topics.filter((t) => t.open > 0).length} areas.`}
+        </Text>
+      </Box>
+
+      <SimpleGrid cols={{ base: 1, xs: 3 }} spacing="md">
+        <Stat label="Progress" value={total ? `${Math.round((settled / total) * 100)}%` : '—'} hint={`${settled} of ${total} items settled`} />
+        <Stat label="Committed" value={formatInr(committed)} hint="Decided or done" />
+        <Stat label="Still comparing" value={formatInr(considering)} hint="Open quotes, not spent" />
       </SimpleGrid>
-    </>
+
+      <SimpleGrid cols={{ base: 1, xs: 2, md: 3 }} spacing="md">
+        {topics.map((t) => {
+          const pct = t.total ? Math.round((t.settled / t.total) * 100) : 0;
+          return (
+            <Card
+              key={t.id}
+              component={Link}
+              to={`/topics/${t.key}`}
+              withBorder
+              p="lg"
+              className="topic-card"
+              style={{ textDecoration: 'none', color: 'inherit' }}
+            >
+              <Group justify="space-between" wrap="nowrap" align="flex-start">
+                <Stack gap={4}>
+                  <Text fz={28} lh={1}>
+                    {TOPIC_EMOJI[t.key] ?? '✨'}
+                  </Text>
+                  <Text fw={600} mt={6}>
+                    {t.label}
+                  </Text>
+                  <Text size="sm" c="dimmed">
+                    {t.total === 0 ? 'Nothing yet' : `${t.settled} of ${t.total} settled`}
+                  </Text>
+                </Stack>
+                <RingProgress
+                  size={64}
+                  thickness={6}
+                  roundCaps
+                  sections={[{ value: pct, color: pct === 100 ? 'teal' : 'rose' }]}
+                  label={
+                    <Text size="xs" ta="center" fw={600}>
+                      {pct}%
+                    </Text>
+                  }
+                />
+              </Group>
+              <Group justify="space-between" mt="sm" wrap="nowrap">
+                {t.open > 0 ? (
+                  <Badge color="orange" variant="light">
+                    {t.open} open
+                  </Badge>
+                ) : (
+                  <Badge color="teal" variant="light">
+                    All settled
+                  </Badge>
+                )}
+                {t.committed > 0 && (
+                  <Text size="sm" fw={600}>
+                    {formatInr(t.committed)}
+                  </Text>
+                )}
+              </Group>
+            </Card>
+          );
+        })}
+      </SimpleGrid>
+    </Stack>
   );
 }

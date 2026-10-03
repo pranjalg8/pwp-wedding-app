@@ -1,28 +1,14 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import {
-  Accordion,
-  ActionIcon,
-  Badge,
-  Button,
-  Group,
-  Stack,
-  Table,
-  Text,
-  Title,
-} from '@mantine/core';
+import { Link, useParams } from 'react-router-dom';
+import { Accordion, ActionIcon, Anchor, Badge, Button, Group, Paper, Stack, Text, Title } from '@mantine/core';
 import { supabase, type ChatMessage, type PlanningItem, type Topic } from '../lib/supabase';
 import { recordManualChange } from '../lib/audit';
 import { useProfile } from '../hooks/useProfile';
 import { useEditMode } from '../hooks/useEditMode';
 import { ItemEditor } from '../components/ItemEditor';
+import { STATUS_COLOR, STATUS_LABEL, TOPIC_EMOJI, formatInr } from '../lib/topicMeta';
 
-const STATUS_COLOR: Record<string, string> = {
-  open: 'orange',
-  in_progress: 'blue',
-  decided: 'teal',
-  done: 'gray',
-};
+const STATUS_ORDER: Record<string, number> = { open: 0, in_progress: 1, decided: 2, done: 3 };
 
 export function TopicDetail() {
   const { topicKey } = useParams();
@@ -95,44 +81,65 @@ export function TopicDetail() {
 
   if (!topic) return null;
 
+  const sorted = [...items].sort((a, b) => (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9));
+
   return (
-    <Stack>
-      <Group justify="space-between">
-        <Title order={2}>{topic.label}</Title>
+    <Stack gap="md">
+      <Anchor component={Link} to="/" size="sm" c="dimmed">
+        ← All areas
+      </Anchor>
+      <Group justify="space-between" align="center" wrap="nowrap">
+        <Group gap="sm" wrap="nowrap">
+          <Text fz={32} lh={1}>
+            {TOPIC_EMOJI[topic.key] ?? '✨'}
+          </Text>
+          <Title order={2}>{topic.label}</Title>
+        </Group>
         {isUnlocked && <Button onClick={() => setEditingItem('new')}>Add item</Button>}
       </Group>
 
-      <Table striped highlightOnHover>
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>Title</Table.Th>
-            <Table.Th>Type</Table.Th>
-            <Table.Th>Status</Table.Th>
-            <Table.Th>Amount</Table.Th>
-            {isUnlocked && <Table.Th />}
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {items.map((item) => (
-            <Table.Tr key={item.id} onClick={() => isUnlocked && setEditingItem(item)} style={{ cursor: isUnlocked ? 'pointer' : 'default' }}>
-              <Table.Td>
-                <Text fw={500}>{item.title}</Text>
+      {sorted.length === 0 && (
+        <Paper withBorder p="xl" ta="center">
+          <Text c="dimmed">Nothing here yet.</Text>
+        </Paper>
+      )}
+
+      <Stack gap="sm">
+        {sorted.map((item) => (
+          <Paper
+            key={item.id}
+            withBorder
+            p="md"
+            onClick={() => isUnlocked && setEditingItem(item)}
+            style={{
+              cursor: isUnlocked ? 'pointer' : 'default',
+              borderLeft: `4px solid var(--mantine-color-${STATUS_COLOR[item.status]}-5)`,
+            }}
+          >
+            <Group justify="space-between" align="flex-start" wrap="nowrap" gap="sm">
+              <Stack gap={4} style={{ minWidth: 0 }}>
+                <Text fw={600}>{item.title}</Text>
                 {item.detail && (
-                  <Text size="sm" c="dimmed">
+                  <Text size="sm" c="dimmed" style={{ overflowWrap: 'anywhere' }}>
                     {item.detail}
                   </Text>
                 )}
-              </Table.Td>
-              <Table.Td>{item.type}</Table.Td>
-              <Table.Td>
-                <Badge color={STATUS_COLOR[item.status]}>{item.status}</Badge>
-              </Table.Td>
-              <Table.Td>{item.amount ? `₹${item.amount.toLocaleString('en-IN')}` : '—'}</Table.Td>
-              {isUnlocked && (
-                <Table.Td>
+                <Group gap={6} mt={4}>
+                  <Badge color={STATUS_COLOR[item.status]} variant="light">
+                    {STATUS_LABEL[item.status]}
+                  </Badge>
+                  <Badge color="gray" variant="outline">
+                    {item.type.replace('_', ' ')}
+                  </Badge>
+                </Group>
+              </Stack>
+              <Stack gap={4} align="flex-end" style={{ flexShrink: 0 }}>
+                {item.amount != null && <Text fw={700}>{formatInr(item.amount)}</Text>}
+                {isUnlocked && (
                   <ActionIcon
                     color="red"
                     variant="subtle"
+                    aria-label="Delete item"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleDelete(item);
@@ -140,28 +147,21 @@ export function TopicDetail() {
                   >
                     ✕
                   </ActionIcon>
-                </Table.Td>
-              )}
-            </Table.Tr>
-          ))}
-          {items.length === 0 && (
-            <Table.Tr>
-              <Table.Td colSpan={5}>
-                <Text c="dimmed">No items yet.</Text>
-              </Table.Td>
-            </Table.Tr>
-          )}
-        </Table.Tbody>
-      </Table>
+                )}
+              </Stack>
+            </Group>
+          </Paper>
+        ))}
+      </Stack>
 
       {messages.length > 0 && (
-        <Accordion variant="contained">
+        <Accordion variant="contained" radius="lg">
           <Accordion.Item value="source">
             <Accordion.Control>Source WhatsApp messages ({messages.length})</Accordion.Control>
             <Accordion.Panel>
               <Stack gap="xs">
                 {messages.map((m) => (
-                  <Text size="sm" key={m.id}>
+                  <Text size="sm" key={m.id} style={{ overflowWrap: 'anywhere' }}>
                     <Text span fw={600}>
                       {m.from_me ? 'You' : m.sender_name}:
                     </Text>{' '}

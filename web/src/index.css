@@ -1,3 +1,24 @@
 body {
   margin: 0;
 }
+
+[data-mantine-color-scheme='light'] body {
+  background: #fbf6f1;
+}
+
+[data-mantine-color-scheme='dark'] body {
+  background: #1c1719;
+}
+
+.hero {
+  background: linear-gradient(135deg, #c93a5e 0%, #e0674f 55%, #e8a23c 100%);
+}
+
+.topic-card {
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.topic-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--mantine-shadow-md);
+}

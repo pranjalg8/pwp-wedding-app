@@ -44,8 +44,8 @@ export function ItemEditor({
       amount: amount === '' ? null : amount,
       metadata:
         type === 'vendor'
-          ? { contact_person: contactPerson || null, phone: phone || null, email: email || null }
-          : {},
+          ? { ...item?.metadata, contact_person: contactPerson || null, phone: phone || null, email: email || null }
+          : { ...item?.metadata },
       created_by: profile?.id ?? null,
     };
 

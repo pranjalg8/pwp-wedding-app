@@ -1,5 +1,6 @@
-import { HashRouter, Link, Navigate, Route, Routes } from 'react-router-dom';
-import { AppShell, Button, Group, Loader, Text, Title } from '@mantine/core';
+import { HashRouter, Link, NavLink, Navigate, Route, Routes } from 'react-router-dom';
+import { AppShell, Burger, Button, Divider, Drawer, Group, Loader, Stack, Text, Title } from '@mantine/core';
+import { useDisclosure } from '@mantine/hooks';
 import { useAuth } from './hooks/useAuth';
 import { useProfile } from './hooks/useProfile';
 import { supabase } from './lib/supabase';
@@ -13,40 +14,89 @@ import { Activity } from './pages/Activity';
 import { Budget } from './pages/Budget';
 import { Vendors } from './pages/Vendors';
 
+const NAV = [
+  { to: '/', label: 'Dashboard', end: true },
+  { to: '/budget', label: 'Budget' },
+  { to: '/vendors', label: 'Vendors' },
+  { to: '/activity', label: 'Activity' },
+];
+
+function NavLinks({ onNavigate, vertical }: { onNavigate?: () => void; vertical?: boolean }) {
+  const Wrapper = vertical ? Stack : Group;
+  return (
+    <Wrapper gap={vertical ? 'xs' : 4}>
+      {NAV.map((n) => (
+        <NavLink key={n.to} to={n.to} end={n.end} onClick={onNavigate} style={{ textDecoration: 'none' }}>
+          {({ isActive }) => (
+            <Button
+              component="span"
+              variant={isActive ? 'light' : 'subtle'}
+              color={isActive ? 'rose' : 'gray'}
+              size={vertical ? 'md' : 'sm'}
+              fullWidth={vertical}
+              justify={vertical ? 'flex-start' : 'center'}
+            >
+              {n.label}
+            </Button>
+          )}
+        </NavLink>
+      ))}
+    </Wrapper>
+  );
+}
+
 function Shell({ children }: { children: React.ReactNode }) {
   const { profile } = useProfile();
+  const [drawerOpened, { toggle, close }] = useDisclosure(false);
+
+  const actions = (
+    <>
+      <DeviceNicknameButton />
+      <PinGateButton />
+    </>
+  );
+
   return (
-    <AppShell header={{ height: 60 }} padding="md">
+    <AppShell header={{ height: 60 }} padding={{ base: 'sm', sm: 'md', md: 'lg' }}>
       <AppShell.Header>
-        <Group h="100%" px="md" justify="space-between">
-          <Group>
-            <Title order={4}>
+        <Group h="100%" px="md" justify="space-between" wrap="nowrap">
+          <Group wrap="nowrap" gap="md">
+            <Burger opened={drawerOpened} onClick={toggle} hiddenFrom="md" size="sm" aria-label="Menu" />
+            <Title order={4} style={{ whiteSpace: 'nowrap' }}>
               <Link to="/" style={{ textDecoration: 'none', color: 'inherit' }}>
-                PwP Wedding Planner
+                Pranjal <Text span c="rose.6">&amp;</Text> Paridhi
               </Link>
             </Title>
-            <Button component={Link} to="/budget" variant="subtle" size="sm">
-              Budget
-            </Button>
-            <Button component={Link} to="/vendors" variant="subtle" size="sm">
-              Vendors
-            </Button>
-            <Button component={Link} to="/activity" variant="subtle" size="sm">
-              Activity
-            </Button>
+            <Group visibleFrom="md" ml="md">
+              <NavLinks />
+            </Group>
           </Group>
-          <Group>
-            <DeviceNicknameButton />
-            <PinGateButton />
+          <Group visibleFrom="md" gap="xs" wrap="nowrap">
+            {actions}
             <Text size="sm" c="dimmed">
               {profile?.display_name}
             </Text>
-            <Button variant="subtle" size="sm" onClick={() => supabase.auth.signOut()}>
+            <Button variant="subtle" color="gray" size="sm" onClick={() => supabase.auth.signOut()}>
               Sign out
             </Button>
           </Group>
         </Group>
       </AppShell.Header>
+
+      <Drawer opened={drawerOpened} onClose={close} size="xs" title={`Hi, ${profile?.display_name ?? ''}`} hiddenFrom="md">
+        <Stack>
+          <NavLinks vertical onNavigate={close} />
+          <Divider />
+          <Stack gap="xs" align="stretch">
+            {actions}
+          </Stack>
+          <Divider />
+          <Button variant="subtle" color="gray" onClick={() => supabase.auth.signOut()}>
+            Sign out
+          </Button>
+        </Stack>
+      </Drawer>
+
       <AppShell.Main>{children}</AppShell.Main>
     </AppShell>
   );
@@ -58,15 +108,15 @@ function AuthedApp() {
   if (loading) {
     return (
       <Group justify="center" mt={100}>
-        <Loader />
+        <Loader color="rose" />
       </Group>
     );
   }
 
   if (!profile) {
     return (
-      <Group justify="center" mt={100}>
-        <Text>
+      <Group justify="center" mt={100} px="md">
+        <Text ta="center">
           Your account isn't on the allowed list yet. Ask Pranjal to add your profile in Supabase.
         </Text>
       </Group>
@@ -95,7 +145,7 @@ export default function App() {
   if (loading) {
     return (
       <Group justify="center" mt={100}>
-        <Loader />
+        <Loader color="rose" />
       </Group>
     );
   }
