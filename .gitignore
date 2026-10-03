@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.DS_Store
+
+# secrets / local-only
+sync/.env
+sync/cursors.local.json
+*.local.json
