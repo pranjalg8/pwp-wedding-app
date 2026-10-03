@@ -61,17 +61,17 @@ function Shell({ children }: { children: React.ReactNode }) {
       <AppShell.Header>
         <Group h="100%" px="md" justify="space-between" wrap="nowrap">
           <Group wrap="nowrap" gap="md">
-            <Burger opened={drawerOpened} onClick={toggle} hiddenFrom="md" size="sm" aria-label="Menu" />
+            <Burger opened={drawerOpened} onClick={toggle} hiddenFrom="lg" size="sm" aria-label="Menu" />
             <Title order={4} style={{ whiteSpace: 'nowrap' }}>
               <Link to="/" style={{ textDecoration: 'none', color: 'inherit' }}>
                 Pranjal <Text span c="rose.6">&amp;</Text> Paridhi
               </Link>
             </Title>
-            <Group visibleFrom="md" ml="md">
+            <Group visibleFrom="lg" ml="md">
               <NavLinks />
             </Group>
           </Group>
-          <Group visibleFrom="md" gap="xs" wrap="nowrap">
+          <Group visibleFrom="lg" gap="xs" wrap="nowrap">
             {actions}
             <Text size="sm" c="dimmed">
               {profile?.display_name}
@@ -83,7 +83,7 @@ function Shell({ children }: { children: React.ReactNode }) {
         </Group>
       </AppShell.Header>
 
-      <Drawer opened={drawerOpened} onClose={close} size="xs" title={`Hi, ${profile?.display_name ?? ''}`} hiddenFrom="md">
+      <Drawer opened={drawerOpened} onClose={close} size="xs" title={`Hi, ${profile?.display_name ?? ''}`} hiddenFrom="lg">
         <Stack>
           <NavLinks vertical onNavigate={close} />
           <Divider />
