@@ -75,3 +75,32 @@ export type AuditEntry = {
   after: Record<string, unknown> | null;
   created_at: string;
 };
+
+export type SwipeDeck = {
+  id: string;
+  key: string;
+  label: string;
+  description: string | null;
+  sort_order: number;
+};
+
+export type SwipeCard = {
+  id: string;
+  deck_id: string;
+  title: string;
+  subtitle: string | null;
+  detail: string | null;
+  emoji: string | null;
+  category: string | null;
+  image_url: string | null;
+  sort_order: number;
+};
+
+export type SwipeChoice = 'yes' | 'no';
+
+export type Swipe = {
+  id: string;
+  card_id: string;
+  profile_id: string;
+  choice: SwipeChoice;
+};
