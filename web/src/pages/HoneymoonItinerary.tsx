@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Anchor, Badge, Box, Button, Group, Image, Paper, Progress, Select, SimpleGrid, Stack, Text, ThemeIcon, Title, UnstyledButton } from '@mantine/core';
 import { BUDGET_CAP, OPTIONS, getStoredRouteId, plannedTotal, storeRouteId, type TravelOption } from '../data/travelOptions';
+import { useAlternative } from '../hooks/useAlternative';
+import { AlternativeHoneymoon } from './AlternativeHoneymoon';
 
 type Moment = { icon: string; time: string; label: string };
 
@@ -103,7 +105,7 @@ function MomentRow({ moment }: { moment: Moment }) {
   return <Group gap="sm" wrap="nowrap" align="flex-start"><ThemeIcon variant="light" color="rose" radius="xl" size="lg">{moment.icon}</ThemeIcon><div><Text size="xs" c="rose.7" fw={800} tt="uppercase">{moment.time}</Text><Text size="sm" fw={600}>{moment.label}</Text></div></Group>;
 }
 
-export function HoneymoonItinerary() {
+function SamuiView({ flipLabel, onFlip }: { flipLabel?: string; onFlip?: () => void }) {
   const [routeId, setRouteId] = useState(getStoredRouteId);
   const [selected, setSelected] = useState(0);
   const route = OPTIONS.find((o) => o.id === routeId) ?? OPTIONS[0];
@@ -137,7 +139,7 @@ export function HoneymoonItinerary() {
       <Paper withBorder p="md" radius="xl" className="honeymoon-reveal honeymoon-delay-1">
         <Group justify="space-between" align="flex-end" gap="md">
           <Select label="Which way are we getting there?" description="Fares are Google Flights quotes from 4 Oct 2026" value={route.id} onChange={chooseRoute} allowDeselect={false} data={OPTIONS.map((o) => ({ value: o.id, label: `${o.name} · ${rupee(o.budget.flights)} flights` }))} style={{ flex: 1, minWidth: 260 }} />
-          <Button component={Link} to="/travel" variant="light" color="rose" radius="xl">Flight timeline →</Button>
+          <Group gap="xs">{onFlip && <Button variant="filled" color="dark" radius="xl" onClick={onFlip}>🔄 Flip to {flipLabel}</Button>}<Button component={Link} to="/travel" variant="light" color="rose" radius="xl">Flight timeline →</Button></Group>
         </Group>
       </Paper>
 
@@ -159,5 +161,45 @@ export function HoneymoonItinerary() {
       <Paper withBorder p="lg" radius="xl" className="honeymoon-reveal honeymoon-delay-4"><Group justify="space-between" gap="lg" align="center"><div><Title order={3}>The food rule: both of you eat well. 🍜</Title><Text c="dimmed" mt={4}>One veg curry/noodle + one seafood/chicken dish is the default. Ask for no fish sauce or oyster sauce where needed.</Text></div><Group gap="xs"><Badge size="lg" color="green" variant="light">🥬 Veg-friendly</Badge><Badge size="lg" color="orange" variant="light">🦐 Seafood</Badge><Badge size="lg" color="rose" variant="light">🥭 Dessert</Badge></Group></Group></Paper>
       <Group justify="center" gap="md"><Anchor href="https://kasetartstudio.com/" target="_blank" rel="noreferrer">🎨 Art studio</Anchor><Anchor href="https://emuseum-taladnoi.treasury.go.th/en/" target="_blank" rel="noreferrer">🏮 Talat Noi</Anchor></Group>
     </Stack>
+  );
+}
+
+const FLIP_KEY = 'pwp-flipped';
+
+// The Samui plan is the default. If the signed-in person has been granted access to an alternative
+// plan (enforced in the database), a flip button swaps the whole page to it, and back.
+export function HoneymoonItinerary() {
+  const { plan } = useAlternative();
+  const [flipped, setFlipped] = useState(() => {
+    try {
+      return localStorage.getItem(FLIP_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
+
+  function flip() {
+    setFlipped((value) => {
+      const next = !value;
+      try {
+        localStorage.setItem(FLIP_KEY, next ? '1' : '');
+      } catch {
+        // ignore: the side just will not persist
+      }
+      return next;
+    });
+  }
+
+  if (plan && flipped) {
+    return (
+      <Box key="alt" className="honeymoon-flip">
+        <AlternativeHoneymoon plan={plan.data} homeLabel="Samui" onFlip={flip} />
+      </Box>
+    );
+  }
+  return (
+    <Box key="home" className={plan ? 'honeymoon-flip' : undefined}>
+      <SamuiView flipLabel={plan?.label} onFlip={plan ? flip : undefined} />
+    </Box>
   );
 }
