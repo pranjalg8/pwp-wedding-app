@@ -93,6 +93,10 @@ export type SwipeCard = {
   emoji: string | null;
   category: string | null;
   image_url: string | null;
+  image_credit: string | null;
+  image_source_url: string | null;
+  facts: { label: string; value: string }[];
+  links: { label: string; url: string }[];
   sort_order: number;
 };
 

@@ -53,6 +53,10 @@ body {
   cursor: grabbing;
 }
 
+.swipe-card {
+  background-repeat: no-repeat;
+}
+
 .swipe-card .swipe-emoji {
   position: absolute;
   top: 28px;

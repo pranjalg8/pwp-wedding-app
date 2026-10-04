@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { ActionIcon, Badge, Group, Text } from '@mantine/core';
+import { cardImageUrl } from '../lib/cardImage';
 import type { SwipeCard, SwipeChoice } from '../lib/supabase';
 
 const THRESHOLD = 100;
+const TAP_SLOP = 6;
 const EXIT_MS = 220;
 const BG_COUNT = 6;
 
@@ -12,12 +14,26 @@ function bgClass(card: SwipeCard) {
   return `swipe-bg-${hash % BG_COUNT}`;
 }
 
+// A photo gets a dark gradient on top so the text stays readable; no photo falls back to the colour gradient.
+function photoStyle(card: SwipeCard): React.CSSProperties {
+  const img = cardImageUrl(card);
+  if (!img) return {};
+  return {
+    backgroundImage: `linear-gradient(to top, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.35) 42%, rgba(0,0,0,0) 68%), url("${img}")`,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center 35%',
+  };
+}
+
 function CardFace({ card }: { card: SwipeCard }) {
+  const hasPhoto = Boolean(card.image_url);
   return (
     <>
-      <div className="swipe-emoji" aria-hidden>
-        {card.emoji}
-      </div>
+      {!hasPhoto && (
+        <div className="swipe-emoji" aria-hidden>
+          {card.emoji}
+        </div>
+      )}
       <Group gap="xs" mb={6}>
         {card.category && (
           <Badge variant="white" color="dark" size="sm">
@@ -26,6 +42,7 @@ function CardFace({ card }: { card: SwipeCard }) {
         )}
       </Group>
       <Text fw={700} size="xl" lh={1.2} style={{ fontFamily: 'var(--mantine-font-family-headings)' }}>
+        {hasPhoto && card.emoji ? `${card.emoji} ` : ''}
         {card.title}
       </Text>
       {card.subtitle && (
@@ -34,10 +51,13 @@ function CardFace({ card }: { card: SwipeCard }) {
         </Text>
       )}
       {card.detail && (
-        <Text size="sm" mt={8} style={{ opacity: 0.85 }}>
+        <Text size="sm" mt={8} lineClamp={2} style={{ opacity: 0.85 }}>
           {card.detail}
         </Text>
       )}
+      <Text size="xs" mt={8} style={{ opacity: 0.8 }}>
+        Tap for details, photos and links
+      </Text>
     </>
   );
 }
@@ -46,10 +66,12 @@ function TopCard({
   card,
   exit,
   onCommit,
+  onTap,
 }: {
   card: SwipeCard;
   exit: SwipeChoice | null;
   onCommit: (choice: SwipeChoice) => void;
+  onTap: () => void;
 }) {
   const [dx, setDx] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -74,8 +96,12 @@ function TopCard({
   function onPointerUp() {
     if (!dragging) return;
     setDragging(false);
-    if (Math.abs(dx) > THRESHOLD) onCommit(dx > 0 ? 'yes' : 'no');
-    else setDx(0);
+    if (Math.abs(dx) > THRESHOLD) {
+      onCommit(dx > 0 ? 'yes' : 'no');
+    } else {
+      if (Math.abs(dx) < TAP_SLOP) onTap();
+      setDx(0);
+    }
   }
 
   const flying = exit ? (exit === 'yes' ? 1 : -1) * 700 : dx;
@@ -87,6 +113,7 @@ function TopCard({
     <div
       className={`swipe-card ${bgClass(card)}`}
       style={{
+        ...photoStyle(card),
         transform: `translateX(${flying}px) rotate(${rotate}deg)`,
         transition: dragging ? 'none' : `transform ${EXIT_MS}ms ease-out`,
         zIndex: 3,
@@ -112,11 +139,13 @@ export function SwipeDeck({
   canUndo,
   onSwipe,
   onUndo,
+  onDetails,
 }: {
   cards: SwipeCard[];
   canUndo: boolean;
   onSwipe: (card: SwipeCard, choice: SwipeChoice) => void;
   onUndo: () => void;
+  onDetails: (card: SwipeCard) => void;
 }) {
   const [exit, setExit] = useState<SwipeChoice | null>(null);
   const top = cards[0];
@@ -128,6 +157,14 @@ export function SwipeDeck({
     },
     [],
   );
+
+  // Warm the cache for the next few photos so the next card is never blank.
+  useEffect(() => {
+    for (const c of cards.slice(1, 4)) {
+      const url = cardImageUrl(c);
+      if (url) new Image().src = url;
+    }
+  }, [cards]);
 
   function commit(choice: SwipeChoice) {
     if (!top || exit) return;
@@ -142,6 +179,7 @@ export function SwipeDeck({
     function onKey(e: KeyboardEvent) {
       if (e.key === 'ArrowRight') commit('yes');
       else if (e.key === 'ArrowLeft') commit('no');
+      else if (e.key === 'ArrowUp' && top) onDetails(top);
       else if (e.key === 'Backspace' && canUndo) onUndo();
     }
     window.addEventListener('keydown', onKey);
@@ -154,16 +192,16 @@ export function SwipeDeck({
         {cards[2] && (
           <div
             className={`swipe-card ${bgClass(cards[2])}`}
-            style={{ transform: 'scale(0.9) translateY(24px)', zIndex: 1, opacity: 0.6 }}
+            style={{ ...photoStyle(cards[2]), transform: 'scale(0.9) translateY(24px)', zIndex: 1, opacity: 0.6 }}
           />
         )}
         {cards[1] && (
           <div
             className={`swipe-card ${bgClass(cards[1])}`}
-            style={{ transform: 'scale(0.95) translateY(12px)', zIndex: 2, opacity: 0.85 }}
+            style={{ ...photoStyle(cards[1]), transform: 'scale(0.95) translateY(12px)', zIndex: 2, opacity: 0.85 }}
           />
         )}
-        {top && <TopCard key={top.id} card={top} exit={exit} onCommit={commit} />}
+        {top && <TopCard key={top.id} card={top} exit={exit} onCommit={commit} onTap={() => onDetails(top)} />}
       </div>
 
       <Group justify="center" gap="xl" mt="xl">
@@ -190,6 +228,17 @@ export function SwipeDeck({
           <Text size="20px">↩</Text>
         </ActionIcon>
         <ActionIcon
+          size={44}
+          radius="xl"
+          variant="subtle"
+          color="gray"
+          aria-label="Card details"
+          onClick={() => top && onDetails(top)}
+          disabled={!top}
+        >
+          <Text size="20px">ⓘ</Text>
+        </ActionIcon>
+        <ActionIcon
           size={64}
           radius="xl"
           variant="light"
@@ -202,7 +251,7 @@ export function SwipeDeck({
         </ActionIcon>
       </Group>
       <Text ta="center" size="xs" c="dimmed" mt="sm">
-        Drag the card, tap the buttons, or use the arrow keys. Backspace undoes.
+        Drag or tap the card for details. Arrow keys swipe, Backspace undoes.
       </Text>
     </div>
   );
