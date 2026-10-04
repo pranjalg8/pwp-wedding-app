@@ -13,11 +13,13 @@ import { TopicDetail } from './pages/TopicDetail';
 import { Activity } from './pages/Activity';
 import { Budget } from './pages/Budget';
 import { Vendors } from './pages/Vendors';
+import { Swipe } from './pages/Swipe';
 
 const NAV = [
   { to: '/', label: 'Dashboard', end: true },
   { to: '/budget', label: 'Budget' },
   { to: '/vendors', label: 'Vendors' },
+  { to: '/swipe', label: 'Swipe' },
   { to: '/activity', label: 'Activity' },
 ];
 
@@ -131,6 +133,7 @@ function AuthedApp() {
           <Route path="/topics/:topicKey" element={<TopicDetail />} />
           <Route path="/budget" element={<Budget />} />
           <Route path="/vendors" element={<Vendors />} />
+          <Route path="/swipe" element={<Swipe />} />
           <Route path="/activity" element={<Activity />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
