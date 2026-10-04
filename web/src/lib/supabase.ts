@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { DEVICE_NICKNAME_KEY } from './device';
 
 const url = import.meta.env.VITE_SUPABASE_URL;
 const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -7,7 +8,19 @@ if (!url || !anonKey) {
   throw new Error('Missing VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY — copy web/.env.example to web/.env.local');
 }
 
-export const supabase = createClient(url, anonKey);
+// Adds the device nickname to every request so the database audit trigger can record it.
+const fetchWithDeviceName: typeof fetch = (input, init) => {
+  const headers = new Headers(init?.headers);
+  try {
+    const nickname = localStorage.getItem(DEVICE_NICKNAME_KEY);
+    if (nickname) headers.set('x-device-name', nickname);
+  } catch {
+    // storage unavailable: send without a nickname
+  }
+  return fetch(input, { ...init, headers });
+};
+
+export const supabase = createClient(url, anonKey, { global: { fetch: fetchWithDeviceName } });
 
 export type Topic = {
   id: string;
