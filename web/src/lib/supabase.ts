@@ -108,3 +108,33 @@ export type Swipe = {
   profile_id: string;
   choice: SwipeChoice;
 };
+
+export type SuggestionPayload = {
+  type?: PlanningItem['type'];
+  title?: string;
+  detail?: string | null;
+  status?: PlanningItem['status'];
+  amount?: number | null;
+  amount_kind?: PlanningItem['amount_kind'];
+  amount_note?: string | null;
+  metadata?: Record<string, unknown>;
+};
+
+export type Suggestion = {
+  id: string;
+  created_at: string;
+  run_id: string;
+  kind: 'new_item' | 'update_item';
+  topic_id: string;
+  target_item_id: string | null;
+  base_updated_at: string | null;
+  payload: SuggestionPayload;
+  source_msg_ids: string[];
+  confidence: 'high' | 'medium' | 'low';
+  involves_money: boolean;
+  rationale: string | null;
+  status: 'pending' | 'accepted' | 'rejected';
+  decided_by: string | null;
+  decided_at: string | null;
+  decision_note: string | null;
+};

@@ -1,6 +1,6 @@
 import { HashRouter, Link, NavLink, Navigate, Route, Routes } from 'react-router-dom';
 import { useState } from 'react';
-import { AppShell, Burger, Button, Divider, Drawer, Group, Loader, Menu, Stack, Text, Title } from '@mantine/core';
+import { AppShell, Badge, Burger, Button, Divider, Drawer, Group, Loader, Menu, Stack, Text, Title } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useAuth } from './hooks/useAuth';
 import { useProfile } from './hooks/useProfile';
@@ -19,6 +19,9 @@ import { Swipe } from './pages/Swipe';
 import { HoneymoonItinerary } from './pages/HoneymoonItinerary';
 import { Travel } from './pages/Travel';
 import { HoneymoonLayout } from './components/HoneymoonLayout';
+import { ActivityLayout } from './components/ActivityLayout';
+import { Suggestions } from './pages/Suggestions';
+import { usePendingSuggestions } from './hooks/usePendingSuggestions';
 
 const NAV = [
   { to: '/', label: 'Dashboard', end: true },
@@ -28,7 +31,7 @@ const NAV = [
   { to: '/activity', label: 'Activity' },
 ];
 
-function NavLinks({ onNavigate, vertical }: { onNavigate?: () => void; vertical?: boolean }) {
+function NavLinks({ onNavigate, vertical, pending = 0 }: { onNavigate?: () => void; vertical?: boolean; pending?: number }) {
   const Wrapper = vertical ? Stack : Group;
   return (
     <Wrapper gap={vertical ? 'xs' : 2} wrap={vertical ? undefined : 'nowrap'}>
@@ -43,6 +46,7 @@ function NavLinks({ onNavigate, vertical }: { onNavigate?: () => void; vertical?
               px={vertical ? undefined : 10}
               fullWidth={vertical}
               justify={vertical ? 'flex-start' : 'center'}
+              rightSection={n.to === '/activity' && pending > 0 ? <Badge size="xs" circle color="rose">{pending}</Badge> : undefined}
             >
               {n.label}
             </Button>
@@ -58,6 +62,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   const [drawerOpened, { toggle, close }] = useDisclosure(false);
   const [nameOpened, nameHandlers] = useDisclosure(false);
   const [nickname, setNickname] = useState(getDeviceNickname());
+  const pending = usePendingSuggestions();
 
   return (
     <AppShell header={{ height: 60 }} padding={{ base: 'sm', sm: 'md', md: 'lg' }}>
@@ -71,7 +76,7 @@ function Shell({ children }: { children: React.ReactNode }) {
               </Link>
             </Title>
             <Group visibleFrom="lg" ml="md" wrap="nowrap">
-              <NavLinks />
+              <NavLinks pending={pending} />
             </Group>
           </Group>
           <Group visibleFrom="lg" gap="xs" wrap="nowrap">
@@ -97,7 +102,7 @@ function Shell({ children }: { children: React.ReactNode }) {
 
       <Drawer opened={drawerOpened} onClose={close} size="xs" title={`Hi, ${profile?.display_name ?? ''}`} hiddenFrom="lg">
         <Stack>
-          <NavLinks vertical onNavigate={close} />
+          <NavLinks vertical onNavigate={close} pending={pending} />
           <Divider />
           <Stack gap="xs" align="stretch">
             <Button variant="subtle" color="gray" onClick={nameHandlers.open}>
@@ -155,7 +160,10 @@ function AuthedApp() {
           </Route>
           <Route path="/travel" element={<Navigate to="/honeymoon/travel" replace />} />
           <Route path="/swipe" element={<Navigate to="/honeymoon/swipe" replace />} />
-          <Route path="/activity" element={<Activity />} />
+          <Route path="/activity" element={<ActivityLayout />}>
+            <Route index element={<Activity />} />
+            <Route path="suggestions" element={<Suggestions />} />
+          </Route>
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </Shell>
