@@ -26,6 +26,8 @@ export function ItemEditor({
   const [type, setType] = useState<string>(item?.type ?? 'note');
   const [status, setStatus] = useState<string>(item?.status ?? 'open');
   const [amount, setAmount] = useState<number | ''>(item?.amount ?? '');
+  const [amountKind, setAmountKind] = useState<string>(item?.amount_kind ?? 'quote');
+  const [amountNote, setAmountNote] = useState(item?.amount_note ?? '');
   const [contactPerson, setContactPerson] = useState(
     typeof item?.metadata?.contact_person === 'string' ? item.metadata.contact_person : ''
   );
@@ -42,6 +44,8 @@ export function ItemEditor({
       type,
       status,
       amount: amount === '' ? null : amount,
+      amount_kind: amount === '' ? null : amountKind,
+      amount_note: amount === '' ? null : amountNote || null,
       metadata:
         type === 'vendor'
           ? { ...item?.metadata, contact_person: contactPerson || null, phone: phone || null, email: email || null }
@@ -95,6 +99,27 @@ export function ItemEditor({
           thousandSeparator=","
           prefix="₹"
         />
+        {amount !== '' && (
+          <>
+            <Select
+              label="What kind of amount is this?"
+              data={[
+                { value: 'quote', label: 'Quote (an option being compared)' },
+                { value: 'planned', label: 'Planned budget' },
+                { value: 'paid', label: 'Paid already' },
+              ]}
+              value={amountKind}
+              onChange={(v) => v && setAmountKind(v)}
+              allowDeselect={false}
+            />
+            <TextInput
+              label="Where does this number come from?"
+              placeholder="e.g. Tanishq quote at size 24, incl. making"
+              value={amountNote}
+              onChange={(e) => setAmountNote(e.currentTarget.value)}
+            />
+          </>
+        )}
         {type === 'vendor' && (
           <>
             <TextInput

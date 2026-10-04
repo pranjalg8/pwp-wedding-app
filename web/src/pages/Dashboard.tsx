@@ -2,18 +2,9 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Badge, Box, Card, Group, Paper, RingProgress, SimpleGrid, Stack, Text, Title } from '@mantine/core';
 import { supabase, type PlanningItem, type Topic } from '../lib/supabase';
-import { TOPIC_EMOJI, daysUntilWedding, formatInr } from '../lib/topicMeta';
+import { TOPIC_EMOJI, daysUntilWedding, formatInr, formatInrCompact, summarizeMoney } from '../lib/topicMeta';
 
-type Counts = {
-  open: number;
-  settled: number;
-  total: number;
-  committed: number;
-  considering: number;
-};
-type TopicWithCounts = Topic & Counts;
-
-const EMPTY_COUNTS: Counts = { open: 0, settled: 0, total: 0, committed: 0, considering: 0 };
+type MoneyRow = Pick<PlanningItem, 'topic_id' | 'status' | 'amount' | 'amount_kind'>;
 
 function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
@@ -33,35 +24,32 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
   );
 }
 
+function timeAgo(iso: string) {
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs} h ago`;
+  return `${Math.round(hrs / 24)} d ago`;
+}
+
 export function Dashboard() {
-  const [topics, setTopics] = useState<TopicWithCounts[]>([]);
+  const [topics, setTopics] = useState<Topic[]>([]);
+  const [items, setItems] = useState<MoneyRow[]>([]);
+  const [lastSynced, setLastSynced] = useState<string | null>(null);
+  const [lastMessage, setLastMessage] = useState<string | null>(null);
 
   async function load() {
-    const [{ data: topicsData }, { data: itemsData }] = await Promise.all([
+    const [{ data: topicsData }, { data: itemsData }, { data: synced }, { data: latest }] = await Promise.all([
       supabase.from('topics').select('*').order('sort_order'),
-      supabase.from('planning_items').select('topic_id, status, amount'),
+      supabase.from('planning_items').select('topic_id, status, amount, amount_kind'),
+      supabase.from('sync_status').select('last_run_at').limit(1),
+      supabase.from('messages').select('timestamp').order('timestamp', { ascending: false }).limit(1),
     ]);
-
-    const counts = new Map<string, Counts>();
-    for (const item of (itemsData ?? []) as Pick<PlanningItem, 'topic_id' | 'status' | 'amount'>[]) {
-      const c = counts.get(item.topic_id) ?? { ...EMPTY_COUNTS };
-      const settled = item.status === 'decided' || item.status === 'done';
-      c.total += 1;
-      if (settled) c.settled += 1;
-      else c.open += 1;
-      if (item.amount) {
-        if (settled) c.committed += item.amount;
-        else c.considering += item.amount;
-      }
-      counts.set(item.topic_id, c);
-    }
-
-    setTopics(
-      ((topicsData ?? []) as Topic[]).map((t) => ({
-        ...t,
-        ...(counts.get(t.id) ?? EMPTY_COUNTS),
-      }))
-    );
+    setTopics((topicsData ?? []) as Topic[]);
+    setItems((itemsData ?? []) as MoneyRow[]);
+    setLastSynced(synced?.[0]?.last_run_at ?? null);
+    setLastMessage(latest?.[0]?.timestamp ?? null);
   }
 
   useEffect(() => {
@@ -75,12 +63,12 @@ export function Dashboard() {
     };
   }, []);
 
-  const total = topics.reduce((s, t) => s + t.total, 0);
-  const settled = topics.reduce((s, t) => s + t.settled, 0);
-  const open = topics.reduce((s, t) => s + t.open, 0);
-  const committed = topics.reduce((s, t) => s + t.committed, 0);
-  const considering = topics.reduce((s, t) => s + t.considering, 0);
+  const total = items.length;
+  const settled = items.filter((i) => i.status === 'decided' || i.status === 'done').length;
+  const open = total - settled;
+  const money = summarizeMoney(items);
   const days = daysUntilWedding();
+  const openAreas = new Set(items.filter((i) => i.status === 'open' || i.status === 'in_progress').map((i) => i.topic_id)).size;
 
   return (
     <Stack gap="lg">
@@ -99,19 +87,39 @@ export function Dashboard() {
         <Text mt="sm" style={{ opacity: 0.95 }}>
           {open === 0
             ? 'Everything is decided. Time to celebrate.'
-            : `${open} thing${open === 1 ? '' : 's'} still open across ${topics.filter((t) => t.open > 0).length} areas.`}
+            : `${open} thing${open === 1 ? '' : 's'} still open across ${openAreas} area${openAreas === 1 ? '' : 's'}.`}
         </Text>
       </Box>
 
-      <SimpleGrid cols={{ base: 1, xs: 3 }} spacing="md">
-        <Stat label="Progress" value={total ? `${Math.round((settled / total) * 100)}%` : '—'} hint={`${settled} of ${total} items settled`} />
-        <Stat label="Committed" value={formatInr(committed)} hint="Decided or done" />
-        <Stat label="Still comparing" value={formatInr(considering)} hint="Open quotes, not spent" />
+      <SimpleGrid cols={{ base: 1, xs: 2, md: 4 }} spacing="md">
+        <Stat
+          label="Progress"
+          value={total ? `${Math.round((settled / total) * 100)}%` : '—'}
+          hint={`${settled} of ${total} items settled`}
+        />
+        <Stat label="Paid so far" value={formatInr(money.paid)} hint="Money already spent" />
+        <Stat label="Planned & chosen" value={formatInr(money.planned)} hint="Budgets and quotes you picked" />
+        <Stat
+          label="Open quotes"
+          value={
+            money.openCount === 0
+              ? '—'
+              : money.openLow === money.openHigh
+                ? formatInrCompact(money.openLow)
+                : `${formatInrCompact(money.openLow)}–${formatInrCompact(money.openHigh)}`
+          }
+          hint={money.openCount === 0 ? 'None being compared' : `${money.openCount} alternative${money.openCount === 1 ? '' : 's'}, not added up`}
+        />
       </SimpleGrid>
 
       <SimpleGrid cols={{ base: 1, xs: 2, md: 3 }} spacing="md">
         {topics.map((t) => {
-          const pct = t.total ? Math.round((t.settled / t.total) * 100) : 0;
+          const mine = items.filter((i) => i.topic_id === t.id);
+          const done = mine.filter((i) => i.status === 'decided' || i.status === 'done').length;
+          const openN = mine.length - done;
+          const pct = mine.length ? Math.round((done / mine.length) * 100) : 0;
+          const m = summarizeMoney(mine);
+          const fixed = m.paid + m.planned;
           return (
             <Card
               key={t.id}
@@ -131,7 +139,7 @@ export function Dashboard() {
                     {t.label}
                   </Text>
                   <Text size="sm" c="dimmed">
-                    {t.total === 0 ? 'Nothing yet' : `${t.settled} of ${t.total} settled`}
+                    {mine.length === 0 ? 'Nothing yet' : `${done} of ${mine.length} settled`}
                   </Text>
                 </Stack>
                 <RingProgress
@@ -147,18 +155,18 @@ export function Dashboard() {
                 />
               </Group>
               <Group justify="space-between" mt="sm" wrap="nowrap">
-                {t.open > 0 ? (
+                {openN > 0 ? (
                   <Badge color="orange" variant="light">
-                    {t.open} open
+                    {openN} open
                   </Badge>
                 ) : (
                   <Badge color="teal" variant="light">
                     All settled
                   </Badge>
                 )}
-                {t.committed > 0 && (
+                {fixed > 0 && (
                   <Text size="sm" fw={600}>
-                    {formatInr(t.committed)}
+                    {formatInr(fixed)}
                   </Text>
                 )}
               </Group>
@@ -166,6 +174,12 @@ export function Dashboard() {
           );
         })}
       </SimpleGrid>
+
+      <Text size="xs" c="dimmed" ta="center">
+        {lastSynced
+          ? `Chat data synced ${timeAgo(lastSynced)}${lastMessage ? ` · latest message ${new Date(lastMessage).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}` : ''}`
+          : 'No chat data synced yet'}
+      </Text>
     </Stack>
   );
 }

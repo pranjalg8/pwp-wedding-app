@@ -6,7 +6,7 @@ import { recordManualChange } from '../lib/audit';
 import { useProfile } from '../hooks/useProfile';
 import { useEditMode } from '../hooks/useEditMode';
 import { ItemEditor } from '../components/ItemEditor';
-import { STATUS_COLOR, STATUS_LABEL, TOPIC_EMOJI, formatInr } from '../lib/topicMeta';
+import { KIND_LABEL, STATUS_COLOR, STATUS_LABEL, TOPIC_EMOJI, formatAsOf, formatInr } from '../lib/topicMeta';
 
 const STATUS_ORDER: Record<string, number> = { open: 0, in_progress: 1, decided: 2, done: 3 };
 
@@ -18,6 +18,17 @@ export function TopicDetail() {
   const [items, setItems] = useState<PlanningItem[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [editingItem, setEditingItem] = useState<PlanningItem | null | 'new'>(null);
+  const [sources, setSources] = useState<Record<string, ChatMessage>>({});
+  const [openSources, setOpenSources] = useState<Set<string>>(new Set());
+
+  function toggleSources(id: string) {
+    setOpenSources((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   async function load() {
     const { data: topicData } = await supabase.from('topics').select('*').eq('key', topicKey).single();
@@ -30,6 +41,14 @@ export function TopicDetail() {
       .eq('topic_id', topicData.id)
       .order('created_at', { ascending: false });
     setItems(itemsData ?? []);
+
+    const ids = Array.from(new Set((itemsData ?? []).flatMap((i) => i.source_msg_ids ?? [])));
+    if (ids.length) {
+      const { data: srcData } = await supabase.from('messages').select('*').in('msg_id', ids);
+      setSources(Object.fromEntries((srcData ?? []).map((m) => [m.msg_id, m as ChatMessage])));
+    } else {
+      setSources({});
+    }
 
     if (topicData.chat_match) {
       const { data: msgData } = await supabase
@@ -124,6 +143,11 @@ export function TopicDetail() {
                     {item.detail}
                   </Text>
                 )}
+                {item.amount_note && (
+                  <Text size="xs" c="dimmed" fs="italic" style={{ overflowWrap: 'anywhere' }}>
+                    {item.amount_note}
+                  </Text>
+                )}
                 <Group gap={6} mt={4}>
                   <Badge color={STATUS_COLOR[item.status]} variant="light">
                     {STATUS_LABEL[item.status]}
@@ -131,10 +155,60 @@ export function TopicDetail() {
                   <Badge color="gray" variant="outline">
                     {item.type.replace('_', ' ')}
                   </Badge>
+                  {item.as_of && (
+                    <Badge color="gray" variant="transparent" tt="none">
+                      as of {formatAsOf(item.as_of)}
+                    </Badge>
+                  )}
                 </Group>
+                {item.source_msg_ids.length > 0 && (
+                  <Anchor
+                    component="button"
+                    type="button"
+                    size="xs"
+                    c="rose.6"
+                    onClick={(e: React.MouseEvent) => {
+                      e.stopPropagation();
+                      toggleSources(item.id);
+                    }}
+                  >
+                    {openSources.has(item.id) ? 'Hide' : 'Show'} sources ({item.source_msg_ids.length})
+                  </Anchor>
+                )}
+                {openSources.has(item.id) && (
+                  <Stack gap={6} mt={4} onClick={(e) => e.stopPropagation()}>
+                    {item.source_msg_ids
+                      .map((id) => sources[id])
+                      .filter(Boolean)
+                      .sort((a, b) => a.timestamp.localeCompare(b.timestamp))
+                      .map((m) => (
+                        <Paper key={m.id} p="xs" bg="var(--mantine-color-default-hover)" radius="md">
+                          <Text size="xs" c="dimmed">
+                            {m.from_me ? 'Pranjal' : (m.sender_name ?? 'Someone')} ·{' '}
+                            {new Date(m.timestamp).toLocaleString('en-IN', {
+                              day: 'numeric',
+                              month: 'short',
+                              hour: 'numeric',
+                              minute: '2-digit',
+                              timeZone: 'Asia/Kolkata',
+                            })}{' '}
+                            · {m.chat_name}
+                          </Text>
+                          <Text size="sm" style={{ overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}>
+                            {m.text || `[${m.media_type || 'media'}]`}
+                          </Text>
+                        </Paper>
+                      ))}
+                  </Stack>
+                )}
               </Stack>
               <Stack gap={4} align="flex-end" style={{ flexShrink: 0 }}>
                 {item.amount != null && <Text fw={700}>{formatInr(item.amount)}</Text>}
+                {item.amount != null && item.amount_kind && (
+                  <Badge size="xs" color={item.amount_kind === 'paid' ? 'teal' : item.amount_kind === 'planned' ? 'blue' : 'gray'} variant="light">
+                    {KIND_LABEL[item.amount_kind]}
+                  </Badge>
+                )}
                 {isUnlocked && (
                   <ActionIcon
                     color="red"
