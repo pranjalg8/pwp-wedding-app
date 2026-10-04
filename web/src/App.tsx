@@ -1,12 +1,14 @@
 import { HashRouter, Link, NavLink, Navigate, Route, Routes } from 'react-router-dom';
-import { AppShell, Burger, Button, Divider, Drawer, Group, Loader, Stack, Text, Title } from '@mantine/core';
+import { useState } from 'react';
+import { AppShell, Burger, Button, Divider, Drawer, Group, Loader, Menu, Stack, Text, Title } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useAuth } from './hooks/useAuth';
 import { useProfile } from './hooks/useProfile';
 import { supabase } from './lib/supabase';
 import { EditModeProvider } from './components/EditModeProvider';
 import { PinGateButton } from './components/PinGate';
-import { DeviceNicknameButton } from './components/DeviceNickname';
+import { DeviceNicknameModal } from './components/DeviceNickname';
+import { getDeviceNickname } from './lib/device';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { TopicDetail } from './pages/TopicDetail';
@@ -16,21 +18,20 @@ import { Vendors } from './pages/Vendors';
 import { Swipe } from './pages/Swipe';
 import { HoneymoonItinerary } from './pages/HoneymoonItinerary';
 import { Travel } from './pages/Travel';
+import { HoneymoonLayout } from './components/HoneymoonLayout';
 
 const NAV = [
   { to: '/', label: 'Dashboard', end: true },
   { to: '/budget', label: 'Budget' },
   { to: '/vendors', label: 'Vendors' },
   { to: '/honeymoon', label: 'Honeymoon' },
-  { to: '/travel', label: 'Travel' },
-  { to: '/swipe', label: 'Swipe' },
   { to: '/activity', label: 'Activity' },
 ];
 
 function NavLinks({ onNavigate, vertical }: { onNavigate?: () => void; vertical?: boolean }) {
   const Wrapper = vertical ? Stack : Group;
   return (
-    <Wrapper gap={vertical ? 'xs' : 4}>
+    <Wrapper gap={vertical ? 'xs' : 2} wrap={vertical ? undefined : 'nowrap'}>
       {NAV.map((n) => (
         <NavLink key={n.to} to={n.to} end={n.end} onClick={onNavigate} style={{ textDecoration: 'none' }}>
           {({ isActive }) => (
@@ -39,6 +40,7 @@ function NavLinks({ onNavigate, vertical }: { onNavigate?: () => void; vertical?
               variant={isActive ? 'light' : 'subtle'}
               color={isActive ? 'rose' : 'gray'}
               size={vertical ? 'md' : 'sm'}
+              px={vertical ? undefined : 10}
               fullWidth={vertical}
               justify={vertical ? 'flex-start' : 'center'}
             >
@@ -54,13 +56,8 @@ function NavLinks({ onNavigate, vertical }: { onNavigate?: () => void; vertical?
 function Shell({ children }: { children: React.ReactNode }) {
   const { profile } = useProfile();
   const [drawerOpened, { toggle, close }] = useDisclosure(false);
-
-  const actions = (
-    <>
-      <DeviceNicknameButton />
-      <PinGateButton />
-    </>
-  );
+  const [nameOpened, nameHandlers] = useDisclosure(false);
+  const [nickname, setNickname] = useState(getDeviceNickname());
 
   return (
     <AppShell header={{ height: 60 }} padding={{ base: 'sm', sm: 'md', md: 'lg' }}>
@@ -73,18 +70,27 @@ function Shell({ children }: { children: React.ReactNode }) {
                 Pranjal <Text span c="rose.6">&amp;</Text> Paridhi
               </Link>
             </Title>
-            <Group visibleFrom="lg" ml="md">
+            <Group visibleFrom="lg" ml="md" wrap="nowrap">
               <NavLinks />
             </Group>
           </Group>
           <Group visibleFrom="lg" gap="xs" wrap="nowrap">
-            {actions}
-            <Text size="sm" c="dimmed">
-              {profile?.display_name}
-            </Text>
-            <Button variant="subtle" color="gray" size="sm" onClick={() => supabase.auth.signOut()}>
-              Sign out
-            </Button>
+            <PinGateButton />
+            <Menu position="bottom-end" width={220}>
+              <Menu.Target>
+                <Button variant="subtle" color="gray" size="sm" rightSection={<Text span size="xs">▾</Text>}>
+                  {profile?.display_name}
+                </Button>
+              </Menu.Target>
+              <Menu.Dropdown>
+                <Menu.Label>{nickname ? `This device: ${nickname}` : 'This device is unnamed'}</Menu.Label>
+                <Menu.Item onClick={nameHandlers.open}>{nickname ? 'Rename this device' : 'Name this device'}</Menu.Item>
+                <Menu.Divider />
+                <Menu.Item color="red" onClick={() => supabase.auth.signOut()}>
+                  Sign out
+                </Menu.Item>
+              </Menu.Dropdown>
+            </Menu>
           </Group>
         </Group>
       </AppShell.Header>
@@ -94,7 +100,10 @@ function Shell({ children }: { children: React.ReactNode }) {
           <NavLinks vertical onNavigate={close} />
           <Divider />
           <Stack gap="xs" align="stretch">
-            {actions}
+            <Button variant="subtle" color="gray" onClick={nameHandlers.open}>
+              {nickname ? `Device: ${nickname}` : 'Name this device'}
+            </Button>
+            <PinGateButton />
           </Stack>
           <Divider />
           <Button variant="subtle" color="gray" onClick={() => supabase.auth.signOut()}>
@@ -102,6 +111,8 @@ function Shell({ children }: { children: React.ReactNode }) {
           </Button>
         </Stack>
       </Drawer>
+
+      <DeviceNicknameModal opened={nameOpened} onClose={nameHandlers.close} onSaved={setNickname} />
 
       <AppShell.Main>{children}</AppShell.Main>
     </AppShell>
@@ -137,9 +148,13 @@ function AuthedApp() {
           <Route path="/topics/:topicKey" element={<TopicDetail />} />
           <Route path="/budget" element={<Budget />} />
           <Route path="/vendors" element={<Vendors />} />
-          <Route path="/honeymoon" element={<HoneymoonItinerary />} />
-          <Route path="/travel" element={<Travel />} />
-          <Route path="/swipe" element={<Swipe />} />
+          <Route path="/honeymoon" element={<HoneymoonLayout />}>
+            <Route index element={<HoneymoonItinerary />} />
+            <Route path="travel" element={<Travel />} />
+            <Route path="swipe" element={<Swipe />} />
+          </Route>
+          <Route path="/travel" element={<Navigate to="/honeymoon/travel" replace />} />
+          <Route path="/swipe" element={<Navigate to="/honeymoon/swipe" replace />} />
           <Route path="/activity" element={<Activity />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
