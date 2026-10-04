@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Badge, Card, Group, Loader, Progress, SegmentedControl, Stack, Tabs, Text, Title } from '@mantine/core';
+import { Avatar, Badge, Card, Group, Loader, Progress, SegmentedControl, Stack, Tabs, Text, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
+import { CardDetails } from '../components/CardDetails';
 import { SwipeDeck } from '../components/SwipeDeck';
+import { cardImageUrl } from '../lib/cardImage';
 import { useProfile } from '../hooks/useProfile';
 import {
   supabase,
@@ -13,13 +15,26 @@ import {
 
 type Person = { id: string; display_name: string };
 
-function ResultRow({ card, mine, theirs }: { card: SwipeCard; mine?: SwipeChoice; theirs?: SwipeChoice }) {
+function ResultRow({
+  card,
+  mine,
+  theirs,
+  onOpen,
+}: {
+  card: SwipeCard;
+  mine?: SwipeChoice;
+  theirs?: SwipeChoice;
+  onOpen: (card: SwipeCard) => void;
+}) {
   const color = (c?: SwipeChoice) => (c === 'yes' ? 'teal' : c === 'no' ? 'red' : 'gray');
   const label = (c?: SwipeChoice) => (c === 'yes' ? 'Yes' : c === 'no' ? 'No' : '-');
   return (
-    <Card withBorder p="sm">
+    <Card withBorder p="sm" style={{ cursor: 'pointer' }} onClick={() => onOpen(card)}>
       <Group justify="space-between" wrap="nowrap" align="flex-start">
-        <div>
+        <Avatar src={cardImageUrl(card)} size={52} radius="md" alt="">
+          {card.emoji}
+        </Avatar>
+        <div style={{ flex: 1 }}>
           <Text fw={600}>
             {card.emoji} {card.title}
           </Text>
@@ -51,6 +66,7 @@ export function Swipe() {
   const [partner, setPartner] = useState<Person | null>(null);
   const [loading, setLoading] = useState(true);
   const [history, setHistory] = useState<string[]>([]);
+  const [detailCard, setDetailCard] = useState<SwipeCard | null>(null);
 
   const deck = decks.find((d) => d.key === deckKey) ?? null;
 
@@ -172,7 +188,7 @@ export function Swipe() {
           </Text>
         )}
         {rows.map((c) => (
-          <ResultRow key={c.id} card={c} mine={mineByCard.get(c.id)} theirs={theirsByCard.get(c.id)} />
+          <ResultRow key={c.id} card={c} mine={mineByCard.get(c.id)} theirs={theirsByCard.get(c.id)} onOpen={setDetailCard} />
         ))}
       </Stack>
     );
@@ -208,7 +224,13 @@ export function Swipe() {
             {answered} of {cards.length} answered
           </Text>
           {queue.length > 0 ? (
-            <SwipeDeck cards={queue} canUndo={history.length > 0} onSwipe={handleSwipe} onUndo={handleUndo} />
+            <SwipeDeck
+              cards={queue}
+              canUndo={history.length > 0}
+              onSwipe={handleSwipe}
+              onUndo={handleUndo}
+              onDetails={setDetailCard}
+            />
           ) : (
             <Stack align="center" gap="xs" py="xl">
               <Text size="48px">🎉</Text>
@@ -237,6 +259,7 @@ export function Swipe() {
           </Stack>
         </Tabs.Panel>
       </Tabs>
+      <CardDetails card={detailCard} onClose={() => setDetailCard(null)} />
     </Stack>
   );
 }
