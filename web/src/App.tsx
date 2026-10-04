@@ -15,12 +15,14 @@ import { Budget } from './pages/Budget';
 import { Vendors } from './pages/Vendors';
 import { Swipe } from './pages/Swipe';
 import { HoneymoonItinerary } from './pages/HoneymoonItinerary';
+import { Travel } from './pages/Travel';
 
 const NAV = [
   { to: '/', label: 'Dashboard', end: true },
   { to: '/budget', label: 'Budget' },
   { to: '/vendors', label: 'Vendors' },
   { to: '/honeymoon', label: 'Honeymoon' },
+  { to: '/travel', label: 'Travel' },
   { to: '/swipe', label: 'Swipe' },
   { to: '/activity', label: 'Activity' },
 ];
@@ -136,6 +138,7 @@ function AuthedApp() {
           <Route path="/budget" element={<Budget />} />
           <Route path="/vendors" element={<Vendors />} />
           <Route path="/honeymoon" element={<HoneymoonItinerary />} />
+          <Route path="/travel" element={<Travel />} />
           <Route path="/swipe" element={<Swipe />} />
           <Route path="/activity" element={<Activity />} />
           <Route path="*" element={<Navigate to="/" />} />
