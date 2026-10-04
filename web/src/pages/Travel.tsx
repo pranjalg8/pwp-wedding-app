@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Alert, Badge, Card, Group, List, SimpleGrid, Stack, Text, ThemeIcon, Timeline, Title, UnstyledButton } from '@mantine/core';
-import { KIND_ICON, OPTIONS, type TravelEvent } from '../data/travelOptions';
+import { KIND_ICON, OPTIONS, getStoredRouteId, storeRouteId, type TravelEvent } from '../data/travelOptions';
 
 function groupByDay(events: TravelEvent[]) {
   const days: { day: string; items: TravelEvent[] }[] = [];
@@ -13,7 +13,11 @@ function groupByDay(events: TravelEvent[]) {
 }
 
 export function Travel() {
-  const [selectedId, setSelectedId] = useState(OPTIONS[0].id);
+  const [selectedId, setSelectedId] = useState(getStoredRouteId);
+  const choose = (id: string) => {
+    setSelectedId(id);
+    storeRouteId(id);
+  };
   const option = OPTIONS.find((o) => o.id === selectedId) ?? OPTIONS[0];
   const days = useMemo(() => groupByDay(option.events), [option]);
 
@@ -31,7 +35,7 @@ export function Travel() {
         {OPTIONS.map((o) => {
           const active = o.id === option.id;
           return (
-            <UnstyledButton key={o.id} onClick={() => setSelectedId(o.id)} aria-pressed={active}>
+            <UnstyledButton key={o.id} onClick={() => choose(o.id)} aria-pressed={active}>
               <Card
                 withBorder
                 p="md"

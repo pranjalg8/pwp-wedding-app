@@ -14,9 +14,21 @@ export type TravelEvent = {
   warn?: string;
 };
 
+export type RouteBudget = {
+  flights: number;
+  stays: number;
+  food: number;
+  activities: number;
+  local: number;
+};
+
 export type TravelOption = {
   id: string;
   name: string;
+  routeLine: string;
+  samuiNights: number;
+  bangkokNights: number;
+  budget: RouteBudget;
   tag?: string;
   total: string;
   stats: { label: string; value: string }[];
@@ -94,6 +106,10 @@ const RETURN_FROM_SAMUI_BKK: TravelEvent[] = [
 export const OPTIONS: TravelOption[] = [
   {
     id: 'surat',
+    routeLine: 'Delhi → Surat Thani → ferry → Samui → Kolkata',
+    samuiNights: 4,
+    bangkokNights: 0,
+    budget: { flights: 93000, stays: 60000, food: 40000, activities: 40000, local: 10000 },
     name: 'Surat Thani + ferry',
     tag: 'Cheapest',
     total: 'Rs 0.91-0.95L',
@@ -173,6 +189,10 @@ export const OPTIONS: TravelOption[] = [
   },
   {
     id: 'bkk-night',
+    routeLine: 'Delhi → Bangkok (1 night) → Samui → Bangkok → Kolkata',
+    samuiNights: 4,
+    bangkokNights: 1,
+    budget: { flights: 108000, stays: 65000, food: 40000, activities: 40000, local: 15000 },
     name: 'Bangkok night, then Samui',
     total: 'Rs 1.10-1.17L',
     stats: [
@@ -245,6 +265,10 @@ export const OPTIONS: TravelOption[] = [
   },
   {
     id: 'same-day',
+    routeLine: 'Delhi → Bangkok → Samui → Bangkok → Kolkata',
+    samuiNights: 5,
+    bangkokNights: 0,
+    budget: { flights: 127000, stays: 75000, food: 40000, activities: 40000, local: 15000 },
     name: 'Same day via Bangkok',
     total: 'Rs 1.27L',
     stats: [
@@ -302,6 +326,10 @@ export const OPTIONS: TravelOption[] = [
   },
   {
     id: 'protected',
+    routeLine: 'Delhi → Samui → Kolkata (one ticket each way)',
+    samuiNights: 5,
+    bangkokNights: 0,
+    budget: { flights: 172000, stays: 75000, food: 40000, activities: 40000, local: 15000 },
     name: 'Protected single tickets',
     tag: 'Safest',
     total: 'Rs 1.72L',
@@ -357,3 +385,38 @@ export const OPTIONS: TravelOption[] = [
     ],
   },
 ];
+
+// ---- Shared by the Travel and Honeymoon pages ----
+
+export const BUDGET_CAP = 400000;
+
+export const DEFAULT_ROUTE_ID = 'surat';
+
+export function plannedTotal(o: TravelOption): number {
+  const b = o.budget;
+  return b.flights + b.stays + b.food + b.activities + b.local;
+}
+
+export function lakh(n: number): string {
+  return `Rs ${(n / 100000).toFixed(2).replace(/0$/, '')}L`;
+}
+
+const ROUTE_KEY = 'pwp-route';
+
+export function getStoredRouteId(): string {
+  try {
+    const v = localStorage.getItem(ROUTE_KEY);
+    if (v && OPTIONS.some((o) => o.id === v)) return v;
+  } catch {
+    // storage unavailable: use the default
+  }
+  return DEFAULT_ROUTE_ID;
+}
+
+export function storeRouteId(id: string) {
+  try {
+    localStorage.setItem(ROUTE_KEY, id);
+  } catch {
+    // ignore: the choice just will not persist
+  }
+}
