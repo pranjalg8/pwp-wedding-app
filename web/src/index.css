@@ -37,6 +37,10 @@ body {
 .honeymoon-day-image img { transition: transform 700ms ease; }
 .honeymoon-day-detail:hover .honeymoon-day-image img { transform: scale(1.04); }
 .honeymoon-booking-card { background: linear-gradient(145deg, #9f304f 0%, #d65970 53%, #e99259 100%); box-shadow: var(--mantine-shadow-lg); }
+.honeymoon-moment-gallery > div { transition: transform 240ms ease, box-shadow 240ms ease; }
+.honeymoon-moment-gallery > div:hover { transform: translateY(-6px) rotate(-0.6deg); box-shadow: var(--mantine-shadow-lg); }
+.honeymoon-moment-gallery img { transition: transform 700ms ease; }
+.honeymoon-moment-gallery > div:hover img { transform: scale(1.08); }
 .honeymoon-reveal { animation: honeymoon-rise 560ms cubic-bezier(.2,.8,.2,1) both; }
 .honeymoon-delay-1 { animation-delay: 70ms; }.honeymoon-delay-2 { animation-delay: 130ms; }.honeymoon-delay-3 { animation-delay: 190ms; }.honeymoon-delay-4 { animation-delay: 250ms; }
 @keyframes honeymoon-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
