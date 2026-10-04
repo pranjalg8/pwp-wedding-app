@@ -53,10 +53,10 @@ function exportMessagesSince(jid, afterIso, tmpDir) {
   return parsed?.data?.messages ?? [];
 }
 
-function toRow(m) {
+function toRow(m, chatName) {
   return {
     chat_jid: m.ChatJID,
-    chat_name: m.ChatName,
+    chat_name: chatName,
     msg_id: m.MsgID,
     sender_name: m.SenderName || null,
     from_me: !!m.FromMe,
@@ -87,10 +87,13 @@ async function main() {
     for (const g of groups) {
       const jid = g.JID;
       const after = cursors[jid];
+      // wacli's per-message ChatName is sometimes the raw JID; the group list has the real name.
+      await supabase.from('messages').update({ chat_name: g.Name }).eq('chat_jid', jid).neq('chat_name', g.Name);
+
       const messages = exportMessagesSince(jid, after, tmpDir);
       if (messages.length === 0) continue;
 
-      const rows = messages.map(toRow);
+      const rows = messages.map((m) => toRow(m, g.Name));
       const { error } = await supabase.from('messages').upsert(rows, { onConflict: 'msg_id' });
       if (error) {
         console.error(`Upsert failed for ${g.Name}:`, error.message);
@@ -107,6 +110,11 @@ async function main() {
   }
 
   saveCursors(cursors);
+
+  const { error: statusError } = await supabase
+    .from('sync_status')
+    .upsert({ id: 1, last_run_at: new Date().toISOString(), last_new_messages: totalNew });
+  if (statusError) console.error('Failed to write sync_status:', statusError.message);
 
   if (totalNew > 0) {
     const { error: auditError } = await supabase.from('audit_log').insert({

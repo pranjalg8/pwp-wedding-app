@@ -28,6 +28,10 @@ export type PlanningItem = {
   currency: string | null;
   metadata: Record<string, unknown>;
   source: 'manual' | 'sync';
+  source_msg_ids: string[];
+  amount_note: string | null;
+  as_of: string | null;
+  amount_kind: 'paid' | 'planned' | 'quote' | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
