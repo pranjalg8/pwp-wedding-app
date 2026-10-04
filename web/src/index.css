@@ -15,11 +15,33 @@ body {
 }
 
 .honeymoon-hero {
-  border-radius: var(--mantine-radius-xl);
-  background:
-    radial-gradient(circle at 87% 20%, rgba(255, 231, 174, 0.34), transparent 28%),
-    linear-gradient(135deg, #167c79 0%, #2c9b91 47%, #e4974b 100%);
+  position: relative;
+  min-height: 410px;
 }
+
+.honeymoon-hero::after {
+  position: absolute;
+  inset: 0;
+  content: '';
+  background: linear-gradient(90deg, rgba(12, 37, 44, 0.8) 0%, rgba(12, 37, 44, 0.45) 46%, rgba(12, 37, 44, 0.08) 78%);
+}
+
+.honeymoon-hero-copy { position: absolute; z-index: 1; left: clamp(24px, 6vw, 64px); bottom: clamp(28px, 8vw, 64px); }
+.honeymoon-fact { transition: transform 180ms ease, box-shadow 180ms ease; }
+.honeymoon-fact:hover { transform: translateY(-4px) rotate(-0.4deg); box-shadow: var(--mantine-shadow-md); }
+.honeymoon-day-rail { display: flex; gap: 10px; overflow-x: auto; padding: 3px 2px 10px; scrollbar-width: thin; }
+.honeymoon-day-chip { min-width: 104px; padding: 11px 10px; border: 1px solid var(--mantine-color-gray-3); border-radius: var(--mantine-radius-lg); background: var(--mantine-color-body); text-align: center; transition: transform 180ms ease, border-color 180ms ease, background 180ms ease; }
+.honeymoon-day-chip:hover { transform: translateY(-2px); }
+.honeymoon-day-chip.is-selected { border-color: var(--mantine-color-rose-6); background: var(--mantine-color-rose-0); transform: translateY(-3px); }
+.honeymoon-day-image { overflow: hidden; background: #1b5455; }
+.honeymoon-day-image img { transition: transform 700ms ease; }
+.honeymoon-day-detail:hover .honeymoon-day-image img { transform: scale(1.04); }
+.honeymoon-booking-card { background: linear-gradient(145deg, #9f304f 0%, #d65970 53%, #e99259 100%); box-shadow: var(--mantine-shadow-lg); }
+.honeymoon-reveal { animation: honeymoon-rise 560ms cubic-bezier(.2,.8,.2,1) both; }
+.honeymoon-delay-1 { animation-delay: 70ms; }.honeymoon-delay-2 { animation-delay: 130ms; }.honeymoon-delay-3 { animation-delay: 190ms; }.honeymoon-delay-4 { animation-delay: 250ms; }
+@keyframes honeymoon-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+@media (max-width: 48em) { .honeymoon-hero::after { background: linear-gradient(0deg, rgba(12, 37, 44, 0.87), rgba(12, 37, 44, 0.18)); }.honeymoon-hero-copy { right: 24px; } }
+@media (prefers-reduced-motion: reduce) { .honeymoon-reveal { animation: none; }.honeymoon-fact, .honeymoon-day-chip, .honeymoon-day-image img { transition: none; } }
 
 .topic-card {
   transition: transform 120ms ease, box-shadow 120ms ease;

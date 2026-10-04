@@ -1,225 +1,56 @@
-import { Accordion, Anchor, Badge, Box, Divider, Group, Paper, SimpleGrid, Stack, Text, ThemeIcon, Timeline, Title } from '@mantine/core';
+import { useState } from 'react';
+import { Anchor, Badge, Box, Button, Group, Image, Paper, Progress, SimpleGrid, Stack, Text, ThemeIcon, Title, UnstyledButton } from '@mantine/core';
 
-type DayPlan = {
+type TripDay = {
+  day: string;
   date: string;
   place: string;
+  emoji: string;
   title: string;
-  mood: string;
-  times: Array<{ time: string; plan: string }>;
+  note: string;
+  moments: Array<{ icon: string; time: string; label: string }>;
   dinner: string;
 };
 
-const DAYS: DayPlan[] = [
-  {
-    date: 'Sat, 20 Feb',
-    place: 'Koh Samui',
-    title: 'Arrive and exhale',
-    mood: 'Sunset, dinner, an early night',
-    times: [
-      { time: 'Morning / afternoon', plan: 'Delhi → Koh Samui via a protected Bangkok connection. Check bags through to USM.' },
-      { time: 'Arrival', plan: 'Hotel transfer, check-in, shower, and a phone-light first two hours.' },
-      { time: 'Golden hour', plan: 'Hotel beach or pool only — the first portraits without chasing a landmark.' },
-    ],
-    dinner: 'Relaxed Bophut dinner, then back by 22:00.',
-  },
-  {
-    date: 'Sun, 21 Feb',
-    place: 'Bophut',
-    title: 'Village, beach, and no rush',
-    mood: 'Fisherman’s Village + a beach afternoon',
-    times: [
-      { time: '09:00', plan: 'Long hotel breakfast; no early alarm.' },
-      { time: '10:45–12:30', plan: 'Fisherman’s Village: shophouses, small galleries, and a slow browse.' },
-      { time: '14:30–17:00', plan: 'Pool, book, nap, or loose sketching back at the hotel.' },
-      { time: '17:15', plan: 'Barefoot Bophut beach walk and golden-hour portraits.' },
-    ],
-    dinner: 'Market grazing if a current Sunday market is on; otherwise, an easy Thai sit-down dinner.',
-  },
-  {
-    date: 'Mon, 22 Feb',
-    place: 'Bophut + Mae Nam',
-    title: 'Make something',
-    mood: 'A painting keepsake + a calm island loop',
-    times: [
-      { time: '09:30', plan: 'Late breakfast and a slow start.' },
-      { time: '11:00–13:00', plan: 'Reserve a two-hour watercolour, acrylic, or mandala session. Materials included.' },
-      { time: '15:30–17:30', plan: 'Short car-led loop: Wat Plai Laem for colour and geometry, then a seaside coffee.' },
-    ],
-    dinner: 'Thai sharing meal: one vegetarian curry/noodle, one seafood or chicken main, greens and rice.',
-  },
-  {
-    date: 'Tue, 23 Feb',
-    place: 'Koh Samui',
-    title: 'Views and a proper celebration',
-    mood: 'One gentle outing + sunset dinner',
-    times: [
-      { time: '09:30', plan: 'Breakfast and an easy pack for tomorrow.' },
-      { time: '11:00–13:00', plan: 'A driver-led viewpoint and southern-beach lunch, paced to the day’s weather and light.' },
-      { time: '15:30–17:15', plan: 'Return for a pool, nap, or massage — no second excursion.' },
-      { time: '17:45', plan: 'Sunset portraits at the hotel or a nearby west-facing beach.' },
-    ],
-    dinner: 'Celebration dinner with a reserved waterside/sunset table and vegetarian requirements flagged in advance.',
-  },
-  {
-    date: 'Wed, 24 Feb',
-    place: 'Bangkok',
-    title: 'Texture, street food, and a city night',
-    mood: 'Samui breakfast → Talat Noi → Chinatown',
-    times: [
-      { time: 'Morning', plan: 'Breakfast, final beach walk, checkout, then an afternoon USM → BKK flight.' },
-      { time: '17:30–19:00', plan: 'Talat Noi photo walk: old Chinese-Thai streets, riverside details, and workshops.' },
-      { time: '19:15–21:00', plan: 'Yaowarat / Chinatown food walk, with a vegetarian choice identified in advance.' },
-    ],
-    dinner: 'Share a few small plates and dessert; keep the night gentle rather than turning it into nightlife.',
-  },
-  {
-    date: 'Thu, 25 Feb',
-    place: 'Bangkok → Kolkata',
-    title: 'Finish deliciously',
-    mood: 'Food market breakfast, then home',
-    times: [
-      { time: '08:00', plan: 'Checkout and store luggage.' },
-      { time: '09:00–10:30', plan: 'Or Tor Kor Market for fruit, snacks, Thai ingredients, and one last market wander.' },
-      { time: 'Airport buffer', plan: 'Collect bags and leave central Bangkok at least 3.5–4 hours before the international flight.' },
-    ],
-    dinner: 'BKK → CCU, with enough margin to end the trip feeling easy.',
-  },
+const DAYS: TripDay[] = [
+  { day: 'Day 1', date: 'Sat · 20 Feb', place: 'Koh Samui', emoji: '✈️', title: 'Land, breathe, sunset.', note: 'No itinerary to chase. Just check in, dip in, and let the wedding disappear for a minute.', moments: [{ icon: '🧳', time: 'Arrive', label: 'Hotel transfer & check-in' }, { icon: '🌅', time: 'Golden hour', label: 'Beach / pool portraits' }, { icon: '🍜', time: 'Dinner', label: 'Easy Bophut table' }], dinner: 'Sleep early. Tomorrow starts slow.' },
+  { day: 'Day 2', date: 'Sun · 21 Feb', place: 'Bophut', emoji: '🧺', title: 'Shophouses, sand, snacks.', note: 'A pretty village morning, then the kind of afternoon with nowhere to be.', moments: [{ icon: '📸', time: '10:45', label: 'Fisherman’s Village stroll' }, { icon: '🏖️', time: '14:30', label: 'Pool + nap + sketchbook' }, { icon: '✨', time: '17:15', label: 'Barefoot sunset walk' }], dinner: 'Market grazing if one is on; Thai dinner if not.' },
+  { day: 'Day 3', date: 'Mon · 22 Feb', place: 'Bophut + Mae Nam', emoji: '🎨', title: 'Make a honeymoon keepsake.', note: 'A day that leaves you with more than photos: paint something together, then see just enough island.', moments: [{ icon: '🖌️', time: '11:00', label: '2-hour art / mandala session' }, { icon: '🛺', time: '15:30', label: 'Short island car loop' }, { icon: '☕', time: '17:00', label: 'Seaside coffee' }], dinner: 'Thai sharing plates: one veg curry, one seafood/chicken main.' },
+  { day: 'Day 4', date: 'Tue · 23 Feb', place: 'Koh Samui', emoji: '🥂', title: 'The view day. The nice-dinner day.', note: 'One gentle outing, one long lunch, then get dressed up only once—at sunset.', moments: [{ icon: '🗺️', time: '11:00', label: 'Driver-led viewpoint' }, { icon: '💆', time: '15:30', label: 'Pool, nap or massage' }, { icon: '🌇', time: '17:45', label: 'Sunset portraits' }], dinner: 'Reserved waterside celebration table. Flag vegetarian needs in advance.' },
+  { day: 'Day 5', date: 'Wed · 24 Feb', place: 'Bangkok', emoji: '🏮', title: 'A city night with crunch.', note: 'The connection becomes a bonus: old lanes, lanterns, small plates and a completely different set of photos.', moments: [{ icon: '✈️', time: 'Afternoon', label: 'Samui → Bangkok' }, { icon: '🏮', time: '17:30', label: 'Talat Noi photo stroll' }, { icon: '🥭', time: '19:15', label: 'Chinatown food walk' }], dinner: 'Order small, share everything, save room for dessert.' },
+  { day: 'Day 6', date: 'Thu · 25 Feb', place: 'Bangkok → Kolkata', emoji: '🛍️', title: 'One last delicious morning.', note: 'Market breakfast, gifts that fit in a carry-on, then home with enough energy for family.', moments: [{ icon: '🍍', time: '09:00', label: 'Or Tor Kor Market' }, { icon: '🎁', time: '10:45', label: 'Tiny edible gifts' }, { icon: '🏠', time: 'Flight', label: 'BKK → CCU' }], dinner: 'Home sweet Kolkata.' },
 ];
 
-const budget = [
-  ['Flights with bags', '₹1.25L'],
-  ['Hotels', '₹99k'],
-  ['Food & cafés', '₹42k'],
-  ['Transfers', '₹18k'],
-  ['Art, massage & contingency', '₹36k'],
-];
+const COSTS = [['✈️', 'Flights', '₹1.25L'], ['🏨', 'Stays', '₹99k'], ['🍜', 'Food', '₹42k'], ['🚕', 'Local', '₹18k'], ['✨', 'Flex', '₹36k']];
+
+function Moment({ moment }: { moment: TripDay['moments'][number] }) {
+  return <Group gap="sm" wrap="nowrap" align="flex-start"><ThemeIcon variant="light" color="rose" radius="xl" size="lg">{moment.icon}</ThemeIcon><div><Text size="xs" c="rose.7" fw={800} tt="uppercase">{moment.time}</Text><Text size="sm" fw={600}>{moment.label}</Text></div></Group>;
+}
 
 export function HoneymoonItinerary() {
+  const [selected, setSelected] = useState(0);
+  const current = DAYS[selected];
+  const isBangkok = selected >= 4;
+  const image = isBangkok ? '/pwp-wedding-app/honeymoon/bangkok-lanterns.png' : '/pwp-wedding-app/honeymoon/samui-sunset.png';
+
   return (
-    <Stack gap="lg" maw={1040} mx="auto">
-      <Box className="honeymoon-hero" c="white" p={{ base: 'lg', sm: 'xl' }}>
-        <Group justify="space-between" align="flex-start" gap="md">
-          <Stack gap={6} maw={650}>
-            <Text size="sm" fw={700} tt="uppercase" style={{ letterSpacing: 1.1, opacity: 0.9 }}>
-              20–25 February 2027
-            </Text>
-            <Title order={1} c="white" fz={{ base: 38, sm: 54 }} lh={1.05}>
-              Koh Samui + Bangkok
-            </Title>
-            <Text fz={{ base: 'md', sm: 'lg' }} style={{ opacity: 0.95 }}>
-              A soft landing after the wedding: views, painting, markets, Thai food, and room to do absolutely nothing.
-            </Text>
-          </Stack>
-          <Badge color="dark" variant="white" size="lg">
-            ₹4L all-in cap
-          </Badge>
-        </Group>
-      </Box>
+    <Stack gap="xl" maw={1120} mx="auto" pb="xl">
+      <Paper className="honeymoon-hero honeymoon-reveal" radius="xl" style={{ overflow: 'hidden' }} shadow="lg"><Image src="/pwp-wedding-app/honeymoon/samui-sunset.png" alt="Golden-hour Koh Samui beach" h={{ base: 410, sm: 470 }} fit="cover" /><Box className="honeymoon-hero-copy"><Badge color="dark" variant="filled" size="lg">20–25 FEB 2027 · 5 NIGHTS</Badge><Title c="white" fz={{ base: 42, sm: 68 }} lh={0.96} mt="md">Honeymoon,<br />but make it easy. 🌴</Title><Text c="white" fz={{ base: 'md', sm: 'lg' }} mt="md" maw={520}>Koh Samui + Bangkok: sunsets, sketchbooks, markets, Thai food and zero pressure to “do it all”.</Text><Group mt="lg" gap="xs"><Badge variant="white" color="dark" size="lg">🏝️ 4 nights Samui</Badge><Badge variant="white" color="dark" size="lg">🏮 1 night Bangkok</Badge></Group></Box></Paper>
 
-      <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
-        <Paper withBorder p="lg">
-          <Text size="xs" tt="uppercase" fw={700} c="dimmed">Route</Text>
-          <Text fw={700} mt={6}>Delhi → Samui → Bangkok → Kolkata</Text>
-          <Text size="sm" c="dimmed" mt={4}>Protected connections only; no tight self-transfer.</Text>
-        </Paper>
-        <Paper withBorder p="lg">
-          <Text size="xs" tt="uppercase" fw={700} c="dimmed">Stay</Text>
-          <Text fw={700} mt={6}>4 nights Bophut + 1 night Bangkok</Text>
-          <Text size="sm" c="dimmed" mt={4}>Boutique, walkable, pool and breakfast first.</Text>
-        </Paper>
-        <Paper withBorder p="lg">
-          <Text size="xs" tt="uppercase" fw={700} c="dimmed">Pace</Text>
-          <Text fw={700} mt={6}>One beautiful anchor per day</Text>
-          <Text size="sm" c="dimmed" mt={4}>No watersports, no rushed sightseeing, no guilt.</Text>
-        </Paper>
+      <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md" className="honeymoon-reveal honeymoon-delay-1">
+        <Paper withBorder p="lg" className="honeymoon-fact"><Text fz={30}>🧭</Text><Text fw={800} mt={4}>The route</Text><Text size="sm" c="dimmed">Delhi → Samui → Bangkok → Kolkata</Text></Paper>
+        <Paper withBorder p="lg" className="honeymoon-fact"><Text fz={30}>🫶</Text><Text fw={800} mt={4}>The pace</Text><Text size="sm" c="dimmed">One lovely thing a day. Afternoons stay free.</Text></Paper>
+        <Paper withBorder p="lg" className="honeymoon-fact"><Text fz={30}>💸</Text><Text fw={800} mt={4}>The plan</Text><Text size="sm" c="dimmed">₹3.20L planned · ₹80k breathing room</Text></Paper>
       </SimpleGrid>
 
-      <div>
-        <Title order={2}>The plan</Title>
-        <Text c="dimmed" mt={4}>Open a day for the exact rhythm. Every afternoon has protected unstructured time.</Text>
-      </div>
+      <div className="honeymoon-reveal honeymoon-delay-2"><Group justify="space-between" align="flex-end" mb="sm"><div><Title order={2}>Pick a day 👇</Title><Text c="dimmed">The whole trip at a glance. Tap for the tiny details.</Text></div><Badge color="rose" size="lg" variant="light">{selected + 1} / {DAYS.length}</Badge></Group><div className="honeymoon-day-rail">{DAYS.map((day, index) => <UnstyledButton key={day.day} onClick={() => setSelected(index)} className={`honeymoon-day-chip ${selected === index ? 'is-selected' : ''}`} aria-pressed={selected === index}><Text fz={24}>{day.emoji}</Text><Text size="xs" fw={800}>{day.day}</Text><Text size="xs" c={selected === index ? 'rose.8' : 'dimmed'}>{day.place}</Text></UnstyledButton>)}</div></div>
 
-      <Accordion variant="separated" radius="lg" defaultValue="Sat, 20 Feb">
-        {DAYS.map((day) => (
-          <Accordion.Item key={day.date} value={day.date}>
-            <Accordion.Control>
-              <Group justify="space-between" gap="sm" wrap="nowrap" pr="sm">
-                <div>
-                  <Text fw={700}>{day.date} · {day.title}</Text>
-                  <Text size="sm" c="dimmed">{day.place} · {day.mood}</Text>
-                </div>
-                <ThemeIcon variant="light" color="rose" radius="xl" size="lg" aria-hidden="true">♥</ThemeIcon>
-              </Group>
-            </Accordion.Control>
-            <Accordion.Panel>
-              <Timeline bulletSize={18} lineWidth={2} color="rose" active={day.times.length} mb="md">
-                {day.times.map((item) => (
-                  <Timeline.Item key={item.time} title={item.time}>
-                    <Text size="sm" c="dimmed">{item.plan}</Text>
-                  </Timeline.Item>
-                ))}
-              </Timeline>
-              <Paper bg="var(--mantine-color-rose-0)" p="md" radius="md">
-                <Text size="xs" tt="uppercase" fw={700} c="rose.7">Evening note</Text>
-                <Text size="sm" mt={4}>{day.dinner}</Text>
-              </Paper>
-            </Accordion.Panel>
-          </Accordion.Item>
-        ))}
-      </Accordion>
+      <Paper withBorder radius="xl" style={{ overflow: 'hidden' }} className="honeymoon-day-detail honeymoon-reveal honeymoon-delay-3"><SimpleGrid cols={{ base: 1, md: 2 }} spacing={0}><Box className="honeymoon-day-image"><Image src={image} alt={isBangkok ? 'Bangkok lantern-lit riverfront' : 'Koh Samui sunset'} h={{ base: 260, md: 390 }} fit="cover" /></Box><Stack p={{ base: 'lg', sm: 'xl' }} gap="lg"><Group justify="space-between"><Badge color={isBangkok ? 'orange' : 'teal'} size="lg" variant="light">{current.date}</Badge><Text fz={32}>{current.emoji}</Text></Group><div><Title order={2} fz={{ base: 30, sm: 38 }}>{current.title}</Title><Text c="dimmed" mt="xs">{current.note}</Text></div><Stack gap="md">{current.moments.map((moment) => <Moment key={`${current.day}-${moment.time}`} moment={moment} />)}</Stack><Paper bg="var(--mantine-color-rose-0)" p="sm" radius="md"><Text size="sm">🍽️ <Text span fw={700}>Tonight:</Text> {current.dinner}</Text></Paper></Stack></SimpleGrid></Paper>
 
-      <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
-        <Paper withBorder p="lg">
-          <Title order={3}>Food, for both of you</Title>
-          <Stack gap="sm" mt="md">
-            <Text size="sm"><Text span fw={700}>Vegetarian confidence:</Text> choose a dedicated vegetarian/Jay restaurant once, and ask for no fish sauce or oyster sauce in Thai dishes.</Text>
-            <Text size="sm"><Text span fw={700}>Shared meals:</Text> one vegetarian curry or noodles plus one seafood/chicken main makes Thai food easy without compromise.</Text>
-            <Text size="sm"><Text span fw={700}>Not to miss:</Text> mango sticky rice, coconut ice cream, curries, fruit, and an unplanned market snack.</Text>
-          </Stack>
-        </Paper>
-        <Paper withBorder p="lg">
-          <Title order={3}>Budget guardrail</Title>
-          <Stack gap={7} mt="md">
-            {budget.map(([label, amount]) => (
-              <Group key={label} justify="space-between">
-                <Text size="sm" c="dimmed">{label}</Text>
-                <Text size="sm" fw={700}>{amount}</Text>
-              </Group>
-            ))}
-            <Divider my="xs" />
-            <Group justify="space-between">
-              <Text fw={700}>Planned total</Text>
-              <Text fw={800}>₹3.20L</Text>
-            </Group>
-            <Text size="sm" c="teal.7" fw={600}>₹80k buffer for a better hotel, flight timing, or a splurge.</Text>
-          </Stack>
-        </Paper>
-      </SimpleGrid>
+      <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="lg" className="honeymoon-reveal honeymoon-delay-4"><Paper withBorder p="xl" radius="xl"><Group justify="space-between"><div><Text size="xs" fw={800} c="rose.7" tt="uppercase">Easy budget</Text><Title order={2}>₹3.20L planned</Title></div><Text fz={40}>💸</Text></Group><Progress value={80} color="rose" size="lg" radius="xl" mt="lg" /><Text size="sm" c="dimmed" mt={6}>80% assigned · ₹80k still free for a dreamy room, a better flight time, or a little splurge.</Text><SimpleGrid cols={2} spacing="xs" mt="lg">{COSTS.map(([icon, label, amount]) => <Paper key={label} bg="var(--mantine-color-default-hover)" p="sm" radius="md"><Text size="sm">{icon} {label}</Text><Text fw={800}>{amount}</Text></Paper>)}</SimpleGrid></Paper><Paper className="honeymoon-booking-card" p="xl" radius="xl" c="white"><Text size="xs" fw={800} tt="uppercase" style={{ letterSpacing: 1 }}>Three things to lock first</Text><Stack mt="lg" gap="md"><Text><Text span fw={800}>1. ✈️ Flights</Text><br /><Text span size="sm">Protected multi-city: DEL→USM, USM→BKK, BKK→CCU.</Text></Text><Text><Text span fw={800}>2. 🏨 Samui stay</Text><br /><Text span size="sm">Bophut. Pool, breakfast, walkable beach. Four nights.</Text></Text><Text><Text span fw={800}>3. 🥂 Celebration dinner</Text><br /><Text span size="sm">Reserve the 23 Feb waterside table after flights are fixed.</Text></Text></Stack><Button component="a" href="https://newdelhi.thaiembassy.org/en/page/visa" target="_blank" rel="noreferrer" variant="white" color="dark" radius="xl" mt="xl">Check Thailand entry rules ↗</Button></Paper></SimpleGrid>
 
-      <Paper withBorder p="lg">
-        <Title order={3}>Book in this order</Title>
-        <Timeline bulletSize={22} lineWidth={2} color="rose" active={5} mt="md">
-          <Timeline.Item title="Flights">Book DEL→USM, USM→BKK and BKK→CCU as a protected multi-city itinerary.</Timeline.Item>
-          <Timeline.Item title="Samui stay">Four refundable Bophut nights: breakfast, pool, easy beach access, no steep or isolated location.</Timeline.Item>
-          <Timeline.Item title="Bangkok stay">One refundable Charoenkrung/Riverside night for Talat Noi and Chinatown.</Timeline.Item>
-          <Timeline.Item title="Transfers">Add airport transfers and a short 23 Feb car only after flights are fixed.</Timeline.Item>
-          <Timeline.Item title="Keep the flex">Confirm the art session and sunset dinner 2–4 weeks out, once schedules are live.</Timeline.Item>
-        </Timeline>
-      </Paper>
-
-      <Paper p="lg" bg="var(--mantine-color-default-hover)">
-        <Group justify="space-between" align="flex-end" gap="md">
-          <div>
-            <Title order={3}>Helpful live references</Title>
-            <Text size="sm" c="dimmed" mt={4}>Check entry rules, hours, menus, and weather again before paying.</Text>
-          </div>
-          <Group gap="md">
-            <Anchor href="https://newdelhi.thaiembassy.org/en/page/visa" target="_blank" rel="noreferrer">Thai entry rules</Anchor>
-            <Anchor href="https://kasetartstudio.com/" target="_blank" rel="noreferrer">Art studio</Anchor>
-            <Anchor href="https://emuseum-taladnoi.treasury.go.th/en/" target="_blank" rel="noreferrer">Talat Noi</Anchor>
-          </Group>
-        </Group>
-      </Paper>
+      <Paper withBorder p="lg" radius="xl" className="honeymoon-reveal honeymoon-delay-4"><Group justify="space-between" gap="lg" align="center"><div><Title order={3}>The food rule: both of you eat well. 🍜</Title><Text c="dimmed" mt={4}>One veg curry/noodle + one seafood/chicken dish is the default. Ask for no fish sauce or oyster sauce where needed.</Text></div><Group gap="xs"><Badge size="lg" color="green" variant="light">🥬 Veg-friendly</Badge><Badge size="lg" color="orange" variant="light">🦐 Seafood</Badge><Badge size="lg" color="rose" variant="light">🥭 Dessert</Badge></Group></Group></Paper>
+      <Group justify="center" gap="md"><Anchor href="https://kasetartstudio.com/" target="_blank" rel="noreferrer">🎨 Art studio</Anchor><Anchor href="https://emuseum-taladnoi.treasury.go.th/en/" target="_blank" rel="noreferrer">🏮 Talat Noi</Anchor></Group>
     </Stack>
   );
 }
