@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Accordion, ActionIcon, Anchor, Badge, Button, Group, Paper, Stack, Text, Title } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
 import { supabase, type ChatMessage, type PlanningItem, type Topic } from '../lib/supabase';
-import { recordManualChange } from '../lib/audit';
-import { useProfile } from '../hooks/useProfile';
 import { useEditMode } from '../hooks/useEditMode';
 import { ItemEditor } from '../components/ItemEditor';
 import { KIND_LABEL, STATUS_COLOR, STATUS_LABEL, TOPIC_EMOJI, formatAsOf, formatInr } from '../lib/topicMeta';
@@ -12,7 +11,6 @@ const STATUS_ORDER: Record<string, number> = { open: 0, in_progress: 1, decided:
 
 export function TopicDetail() {
   const { topicKey } = useParams();
-  const { profile } = useProfile();
   const { isUnlocked } = useEditMode();
   const [topic, setTopic] = useState<Topic | null>(null);
   const [items, setItems] = useState<PlanningItem[]>([]);
@@ -86,16 +84,11 @@ export function TopicDetail() {
 
   async function handleDelete(item: PlanningItem) {
     const { error } = await supabase.from('planning_items').delete().eq('id', item.id);
-    if (!error) {
-      await recordManualChange({
-        actorName: profile?.display_name ?? 'unknown',
-        tableName: 'planning_items',
-        recordId: item.id,
-        action: 'delete',
-        before: item,
-      });
-      load();
+    if (error) {
+      notifications.show({ color: 'red', title: 'Could not delete', message: error.message });
+      return;
     }
+    load();
   }
 
   if (!topic) return null;

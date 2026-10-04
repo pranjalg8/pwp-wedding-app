@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Badge, Table, Tabs, Text, Title } from '@mantine/core';
 import { supabase, type AuditEntry } from '../lib/supabase';
+import { describeDevice } from '../lib/device';
 
 function AuditTable({ entries, kind }: { entries: AuditEntry[]; kind: 'manual' | 'sync' }) {
   return (
@@ -27,7 +28,9 @@ function AuditTable({ entries, kind }: { entries: AuditEntry[]; kind: 'manual' |
             {kind === 'manual' && (
               <Table.Td>
                 <Text size="xs" c="dimmed">
-                  {(e.device_info?.nickname as string) || (e.device_info?.platform as string) || '—'}
+                  {[e.device_info?.nickname as string, describeDevice(e.device_info?.user_agent as string)]
+                    .filter(Boolean)
+                    .join(' — ') || '—'}
                 </Text>
               </Table.Td>
             )}

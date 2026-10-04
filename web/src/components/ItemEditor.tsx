@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button, Group, Modal, NumberInput, Select, Stack, Text, Textarea, TextInput } from '@mantine/core';
 import { supabase, type PlanningItem } from '../lib/supabase';
-import { recordManualChange } from '../lib/audit';
+import { notifications } from '@mantine/notifications';
 import { useProfile } from '../hooks/useProfile';
 
 const TYPE_OPTIONS = ['decision', 'todo', 'vendor', 'budget_line', 'note'];
@@ -53,32 +53,16 @@ export function ItemEditor({
       created_by: profile?.id ?? null,
     };
 
-    if (item) {
-      const { error } = await supabase.from('planning_items').update(payload).eq('id', item.id);
-      if (!error) {
-        await recordManualChange({
-          actorName: profile?.display_name ?? 'unknown',
-          tableName: 'planning_items',
-          recordId: item.id,
-          action: 'update',
-          before: item,
-          after: { ...item, ...payload },
-        });
-      }
-    } else {
-      const { data, error } = await supabase.from('planning_items').insert(payload).select().single();
-      if (!error && data) {
-        await recordManualChange({
-          actorName: profile?.display_name ?? 'unknown',
-          tableName: 'planning_items',
-          recordId: data.id,
-          action: 'insert',
-          after: data,
-        });
-      }
-    }
+    // The database audit trigger records who/what/device for this write.
+    const { error } = item
+      ? await supabase.from('planning_items').update(payload).eq('id', item.id)
+      : await supabase.from('planning_items').insert(payload);
 
     setSaving(false);
+    if (error) {
+      notifications.show({ color: 'red', title: 'Could not save', message: error.message });
+      return;
+    }
     onSaved();
     onClose();
   }
