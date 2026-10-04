@@ -131,3 +131,8 @@ body {
 .swipe-bg-3 { background: linear-gradient(160deg, #e0674f, #f2c14e); }
 .swipe-bg-4 { background: linear-gradient(160deg, #2f7d5b, #9bd16b); }
 .swipe-bg-5 { background: linear-gradient(160deg, #35538f, #7aa7e8); }
+
+/* Flip between honeymoon destinations */
+.honeymoon-flip { animation: honeymoon-flip 520ms cubic-bezier(.2,.8,.2,1) both; transform-origin: center top; overflow-x: clip; }
+@keyframes honeymoon-flip { from { opacity: 0; transform: perspective(1400px) rotateY(-70deg) scale(.96); } to { opacity: 1; transform: perspective(1400px) rotateY(0) scale(1); } }
+@media (prefers-reduced-motion: reduce) { .honeymoon-flip { animation: none; } }
