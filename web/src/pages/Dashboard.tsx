@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { usePendingSuggestions } from '../hooks/usePendingSuggestions';
 import { Badge, Box, Card, Group, Paper, RingProgress, SimpleGrid, Stack, Text, Title } from '@mantine/core';
 import { supabase, type PlanningItem, type Topic } from '../lib/supabase';
 import { TOPIC_EMOJI, daysUntilWedding, formatInr, formatInrCompact, summarizeMoney } from '../lib/topicMeta';
@@ -34,6 +35,7 @@ function timeAgo(iso: string) {
 }
 
 export function Dashboard() {
+  const pendingSuggestions = usePendingSuggestions();
   const [topics, setTopics] = useState<Topic[]>([]);
   const [items, setItems] = useState<MoneyRow[]>([]);
   const [lastSynced, setLastSynced] = useState<string | null>(null);
@@ -90,6 +92,24 @@ export function Dashboard() {
             : `${open} thing${open === 1 ? '' : 's'} still open across ${openAreas} area${openAreas === 1 ? '' : 's'}.`}
         </Text>
       </Box>
+
+      {pendingSuggestions > 0 && (
+        <Paper withBorder p="md" component={Link} to="/activity/suggestions" style={{ textDecoration: 'none', color: 'inherit', borderLeft: '4px solid var(--mantine-color-rose-5)' }}>
+          <Group justify="space-between" wrap="nowrap">
+            <div>
+              <Text fw={700}>
+                {pendingSuggestions} suggestion{pendingSuggestions === 1 ? '' : 's'} to review
+              </Text>
+              <Text size="sm" c="dimmed">
+                New chat activity was turned into proposed changes. Nothing is applied until you accept it.
+              </Text>
+            </div>
+            <Text c="rose.6" fw={600}>
+              Review →
+            </Text>
+          </Group>
+        </Paper>
+      )}
 
       <SimpleGrid cols={{ base: 1, xs: 2, md: 4 }} spacing="md">
         <Stat
