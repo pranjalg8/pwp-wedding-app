@@ -14,8 +14,9 @@ Goal: turn new chat messages and images into **suggestions** in the `suggestions
 3. **Redact.** Store business facts only: vendor, item, weight, rate, amount, date, deadline, terms. Never store customer addresses, phone numbers of private people, nominee names, ID or card numbers, or signatures. A vendor's business contact (name, business phone/email) is fine.
 4. **Never guess.** If a number, date or handwriting is unclear, say so in `rationale` and lower `confidence`. Never invent a source.
 5. **Don't duplicate.** Compare with the current items in the packet. Update an existing item when the facts belong to it; create a new one only for genuinely new facts.
-6. **Respect decisions already made in the app** (statuses people set). Propose, don't override.
-7. Only topic chats are processed. Ignore banter, stickers and reels.
+6. **One pending suggestion per item.** If a pending suggestion already targets the same item, extend that suggestion (update its `payload`, add the new `source_msg_ids`, note the update in `rationale`) instead of writing a second one; two suggestions on one item go stale as soon as the first is accepted.
+7. **Respect decisions already made in the app** (statuses people set). Propose, don't override.
+8. Only topic chats are processed. Ignore banter, stickers and reels.
 
 ## Steps
 
