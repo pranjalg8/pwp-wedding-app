@@ -7,11 +7,11 @@ const rupee = (n: number) => {
   return abs >= 100000 ? `₹${(abs / 100000).toFixed(2).replace(/\.?0+$/, '')}L` : `₹${Math.round(abs / 1000)}k`;
 };
 
-const OPTION_KEY = 'pwp-alt-option';
+const optionStorageKey = (planKey: string) => `pwp-alt-option-${planKey}`;
 
-function storedOption(plan: AltPlan): string {
+function storedOption(plan: AltPlan, planKey: string): string {
   try {
-    const v = localStorage.getItem(OPTION_KEY);
+    const v = localStorage.getItem(optionStorageKey(planKey));
     if (v && plan.options.some((o) => o.id === v)) return v;
   } catch {
     // storage unavailable: use the default
@@ -37,8 +37,8 @@ function MomentRow({ moment }: { moment: AltMoment }) {
   );
 }
 
-export function AlternativeHoneymoon({ plan, homeLabel, onFlip }: { plan: AltPlan; homeLabel: string; onFlip: () => void }) {
-  const [optionId, setOptionId] = useState(() => storedOption(plan));
+export function AlternativeHoneymoon({ plan, planKey, nextLabel, onFlip }: { plan: AltPlan; planKey: string; nextLabel: string; onFlip: () => void }) {
+  const [optionId, setOptionId] = useState(() => storedOption(plan, planKey));
   const [selected, setSelected] = useState(0);
   const option = plan.options.find((o) => o.id === optionId) ?? plan.options[0];
   const days = option.days;
@@ -63,7 +63,7 @@ export function AlternativeHoneymoon({ plan, homeLabel, onFlip }: { plan: AltPla
     setOptionId(id);
     setSelected(0);
     try {
-      localStorage.setItem(OPTION_KEY, id);
+      localStorage.setItem(optionStorageKey(planKey), id);
     } catch {
       // ignore: the choice just will not persist
     }
@@ -97,7 +97,7 @@ export function AlternativeHoneymoon({ plan, homeLabel, onFlip }: { plan: AltPla
         <Group justify="space-between" align="flex-end" gap="md">
           <Select
             label={`Which version of ${plan.label}?`}
-            description="Flights are Google Flights quotes from 4 Oct 2026"
+            description={plan.priceNote ?? 'Flights are Google Flights quotes from 4 Oct 2026'}
             value={option.id}
             onChange={chooseOption}
             allowDeselect={false}
@@ -105,7 +105,7 @@ export function AlternativeHoneymoon({ plan, homeLabel, onFlip }: { plan: AltPla
             style={{ flex: 1, minWidth: 260 }}
           />
           <Button variant="filled" color="dark" radius="xl" onClick={onFlip}>
-            🔄 Flip back to {homeLabel}
+            🔄 Flip to {nextLabel}
           </Button>
         </Group>
       </Paper>
@@ -268,7 +268,7 @@ export function AlternativeHoneymoon({ plan, homeLabel, onFlip }: { plan: AltPla
             {over
               ? `${rupee(flex)} over the cap. This only works if the package lands at the low end or you shorten the stay.`
               : `${Math.round((planned / plan.cap) * 100)}% assigned · ${rupee(flex)} still free for a dreamier room, a better flight time, or a little splurge.`}{' '}
-            Flights are quotes; the rest are estimates.
+            {plan.budgetNote ?? 'Flights are quotes; the rest are estimates.'}
           </Text>
           <SimpleGrid cols={2} spacing="xs" mt="lg">
             {costs.map(([icon, label, amount]) => (
