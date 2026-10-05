@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Anchor, Badge, Box, Button, Group, Image, Paper, Progress, Select, SimpleGrid, Stack, Text, ThemeIcon, Title, UnstyledButton } from '@mantine/core';
 import { BUDGET_CAP, OPTIONS, getStoredRouteId, plannedTotal, storeRouteId, type TravelOption } from '../data/travelOptions';
-import { useAlternative } from '../hooks/useAlternative';
+import { useAlternatives } from '../hooks/useAlternative';
 import { AlternativeHoneymoon } from './AlternativeHoneymoon';
 
 type Moment = { icon: string; time: string; label: string };
@@ -166,40 +166,46 @@ function SamuiView({ flipLabel, onFlip }: { flipLabel?: string; onFlip?: () => v
 
 const FLIP_KEY = 'pwp-flipped';
 
-// The Samui plan is the default. If the signed-in person has been granted access to an alternative
-// plan (enforced in the database), a flip button swaps the whole page to it, and back.
+// The Samui plan is the default. If the signed-in person has been granted access to alternative
+// plans (enforced in the database), a flip button cycles through them: Samui, then each alternative,
+// then back to Samui.
 export function HoneymoonItinerary() {
-  const { plan } = useAlternative();
-  const [flipped, setFlipped] = useState(() => {
+  const { plans } = useAlternatives();
+  const [side, setSide] = useState<string>(() => {
     try {
-      return localStorage.getItem(FLIP_KEY) === '1';
+      return localStorage.getItem(FLIP_KEY) ?? '';
     } catch {
-      return false;
+      return '';
     }
   });
 
+  const order = ['', ...plans.map((p) => p.key)];
+  // An old stored value of '1' (before there were several alternatives) means the first alternative.
+  const current = side === '1' ? (plans[0]?.key ?? '') : side;
+  const index = Math.max(0, order.indexOf(current));
+  const nextKey = order[(index + 1) % order.length];
+  const labelOf = (key: string) => (key === '' ? 'Samui' : (plans.find((p) => p.key === key)?.label ?? ''));
+
   function flip() {
-    setFlipped((value) => {
-      const next = !value;
-      try {
-        localStorage.setItem(FLIP_KEY, next ? '1' : '');
-      } catch {
-        // ignore: the side just will not persist
-      }
-      return next;
-    });
+    setSide(nextKey);
+    try {
+      localStorage.setItem(FLIP_KEY, nextKey);
+    } catch {
+      // ignore: the side just will not persist
+    }
   }
 
-  if (plan && flipped) {
+  const plan = plans.find((p) => p.key === current);
+  if (plan) {
     return (
-      <Box key="alt" className="honeymoon-flip">
-        <AlternativeHoneymoon plan={plan.data} homeLabel="Samui" onFlip={flip} />
+      <Box key={`alt-${plan.key}`} className="honeymoon-flip">
+        <AlternativeHoneymoon key={plan.key} planKey={plan.key} plan={plan.data} nextLabel={labelOf(nextKey)} onFlip={flip} />
       </Box>
     );
   }
   return (
-    <Box key="home" className={plan ? 'honeymoon-flip' : undefined}>
-      <SamuiView flipLabel={plan?.label} onFlip={plan ? flip : undefined} />
+    <Box key="home" className={plans.length > 0 ? 'honeymoon-flip' : undefined}>
+      <SamuiView flipLabel={plans.length > 0 ? labelOf(nextKey) : undefined} onFlip={plans.length > 0 ? flip : undefined} />
     </Box>
   );
 }

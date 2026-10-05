@@ -47,6 +47,8 @@ export type AltPlan = {
   facts: { icon: string; label: string; value: string }[];
   links: { label: string; url: string }[];
   notes: string[];
+  priceNote?: string;
+  budgetNote?: string;
 };
 
 export type AltRow = { key: string; label: string; data: AltPlan };

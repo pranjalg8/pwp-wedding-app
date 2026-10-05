@@ -2,11 +2,11 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import type { AltRow } from '../data/alternativePlan';
 
-// Returns the alternative plan the signed-in person has been granted access to, or null.
+// Returns every alternative plan the signed-in person has been granted access to (possibly none).
 // Access is enforced by row-level security in the database, so nothing is returned (and nothing
 // is shown in the UI) for people without a grant.
-export function useAlternative() {
-  const [plan, setPlan] = useState<AltRow | null>(null);
+export function useAlternatives() {
+  const [plans, setPlans] = useState<AltRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -14,11 +14,10 @@ export function useAlternative() {
     supabase
       .from('trip_alternatives')
       .select('key, label, data')
-      .limit(1)
-      .maybeSingle()
+      .order('key')
       .then(({ data }) => {
         if (cancelled) return;
-        setPlan((data as AltRow | null) ?? null);
+        setPlans((data as AltRow[] | null) ?? []);
         setLoading(false);
       });
     return () => {
@@ -26,5 +25,5 @@ export function useAlternative() {
     };
   }, []);
 
-  return { plan, loading };
+  return { plans, loading };
 }
