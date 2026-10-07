@@ -82,6 +82,23 @@ sync/       Local WhatsApp -> Supabase sync script, run via launchd
 .github/    Actions workflow that builds web/ and deploys to Pages
 ```
 
+## Notifications (outbox)
+
+The app can email one of you when the other finishes something. The Supabase half is built; the AWS half
+([core-services](https://github.com/pranjalg8/core-services) pub/sub) is not connected yet.
+
+- `notification_outbox` (migration `0016`) is a queue. A trigger on `swipes` queues one event for your partner the
+  first time you answer every card in a deck; `enqueue_weekly_nudges()` (scheduled with pg_cron every Monday
+  04:00 UTC, migration `0017`) queues a reminder if you have not finished a deck your partner started.
+- **Privacy:** an event is only queued for a person who can see that deck, so a hidden destination never shows up in
+  someone else's email.
+- `supabase/functions/send-notifications` reads pending rows and publishes them to core-services. It is **service
+  role only** and is a **dry run** (reports what it would send, changes nothing) until configured with
+  `CORE_PUBSUB_URL` and a sign-in (see the header of `index.ts`).
+- Still needed on the AWS side: a tenant and service user, one pub/sub topic per person (`notify-pranjal`,
+  `notify-paridhi`) with each person's email subscribed and confirmed, and a way for a server to sign in (the
+  Cognito app client only allows SRP today).
+
 ## Data model
 - `topics` — fixed planning areas (jewellery, outfits, decor, ...).
 - `planning_items` — the actual plan: decisions, todos, vendors, budget lines.
