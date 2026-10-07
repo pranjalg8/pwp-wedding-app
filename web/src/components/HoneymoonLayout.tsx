@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { Button, Group, Stack } from '@mantine/core';
+import { DestinationBar } from './DestinationBar';
 
 const SECTIONS = [
   { to: '/honeymoon', label: 'Itinerary', end: true },
@@ -21,6 +22,7 @@ export function HoneymoonLayout() {
           </NavLink>
         ))}
       </Group>
+      <DestinationBar />
       <Outlet />
     </Stack>
   );

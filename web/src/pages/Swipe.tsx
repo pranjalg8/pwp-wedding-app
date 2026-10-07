@@ -5,6 +5,7 @@ import { CardDetails } from '../components/CardDetails';
 import { SwipeDeck } from '../components/SwipeDeck';
 import { cardImageUrl } from '../lib/cardImage';
 import { useProfile } from '../hooks/useProfile';
+import { useDestination } from '../hooks/useDestination';
 import {
   supabase,
   type Swipe,
@@ -68,7 +69,11 @@ export function Swipe() {
   const [history, setHistory] = useState<string[]>([]);
   const [detailCard, setDetailCard] = useState<SwipeCard | null>(null);
 
-  const deck = decks.find((d) => d.key === deckKey) ?? null;
+  const { destKey, ready: destReady } = useDestination();
+  // Decks belong to a destination (Samui is the default); decks without one show for every destination.
+  const wanted = destKey || 'samui';
+  const visibleDecks = useMemo(() => decks.filter((d) => !d.destination || d.destination === wanted), [decks, wanted]);
+  const deck = visibleDecks.find((d) => d.key === deckKey) ?? visibleDecks[0] ?? null;
 
   useEffect(() => {
     (async () => {
@@ -78,7 +83,6 @@ export function Swipe() {
       ]);
       const list = (deckRows ?? []) as Deck[];
       setDecks(list);
-      setDeckKey((k) => k ?? list[0]?.key ?? null);
       setPartner(((people ?? []) as Person[]).find((p) => p.id !== profile?.id) ?? null);
       setLoading(false);
     })();
@@ -163,7 +167,7 @@ export function Swipe() {
     return out;
   }, [cards, mineByCard, theirsByCard]);
 
-  if (loading) {
+  if (loading || !destReady) {
     return (
       <Group justify="center" mt={80}>
         <Loader color="rose" />
@@ -171,7 +175,7 @@ export function Swipe() {
     );
   }
 
-  if (decks.length === 0) {
+  if (visibleDecks.length === 0) {
     return <Text c="dimmed">No swipe decks yet.</Text>;
   }
 
@@ -196,11 +200,11 @@ export function Swipe() {
   return (
     <Stack gap="md" maw={720} mx="auto">
       <Title order={2}>Swipe</Title>
-      {decks.length > 1 && (
+      {visibleDecks.length > 1 && (
         <SegmentedControl
-          value={deckKey ?? ''}
+          value={deck?.key ?? ''}
           onChange={setDeckKey}
-          data={decks.map((d) => ({ value: d.key, label: d.label }))}
+          data={visibleDecks.map((d) => ({ value: d.key, label: d.label }))}
           fullWidth
         />
       )}

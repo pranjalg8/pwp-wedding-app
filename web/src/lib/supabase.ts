@@ -82,6 +82,8 @@ export type SwipeDeck = {
   label: string;
   description: string | null;
   sort_order: number;
+  destination: string | null;
+  feature: string | null;
 };
 
 export type SwipeCard = {
