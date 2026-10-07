@@ -5,7 +5,8 @@
   "scripts": {
     "sync": "node sync.mjs",
     "extract:prepare": "node prepare-extraction.mjs",
-    "extract:finish": "node finish-extraction.mjs"
+    "extract:finish": "node finish-extraction.mjs",
+    "audit": "node audit-grounding.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
