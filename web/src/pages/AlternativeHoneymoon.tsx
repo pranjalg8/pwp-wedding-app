@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Accordion, Anchor, Badge, Box, Button, Card, Group, Image, List, Paper, Progress, Select, SimpleGrid, Stack, Text, ThemeIcon, Title, UnstyledButton } from '@mantine/core';
 import { altImageUrl, altTotal, getAltOptionId, setAltOptionId, type AltMoment, type AltPlan } from '../data/alternativePlan';
+import { usePlanFacts } from '../hooks/usePlanFacts';
+import { formatRange, nightsBetween } from '../lib/planFacts';
 
 const rupee = (n: number) => {
   const abs = Math.abs(n);
@@ -26,6 +28,7 @@ function MomentRow({ moment }: { moment: AltMoment }) {
 }
 
 export function AlternativeHoneymoon({ plan, planKey, nextLabel, onFlip }: { plan: AltPlan; planKey: string; nextLabel: string; onFlip: () => void }) {
+  const { dates } = usePlanFacts();
   const [optionId, setOptionId] = useState(() => getAltOptionId(plan, planKey));
   const [selected, setSelected] = useState(0);
   const option = plan.options.find((o) => o.id === optionId) ?? plan.options[0];
@@ -59,7 +62,7 @@ export function AlternativeHoneymoon({ plan, planKey, nextLabel, onFlip }: { pla
         {heroUrl && <Image src={heroUrl} alt={`${plan.label} lagoon`} h={{ base: 410, sm: 470 }} fit="cover" />}
         <Box className="honeymoon-hero-copy">
           <Badge color="dark" variant="filled" size="lg">
-            20–25 FEB 2027 · 5 NIGHTS
+            {formatRange(dates.honeymoon, { upper: true })} · {nightsBetween(dates.honeymoon)} NIGHTS
           </Badge>
           <Title c="white" fz={{ base: 42, sm: 68 }} lh={0.96} mt="md">
             {plan.title}

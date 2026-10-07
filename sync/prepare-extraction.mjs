@@ -75,7 +75,7 @@ for (const t of topics) {
   const chats = chatsByTopic.get(t.key);
   if (!chats) continue;
   const items = must(
-    await supabase.from('planning_items').select('id, title, type, status, amount, amount_kind, amount_note, detail, updated_at').eq('topic_id', t.id).order('created_at'),
+    await supabase.from('planning_items').select('id, slug, title, type, status, amount, amount_kind, amount_note, detail, metadata, updated_at').eq('topic_id', t.id).order('created_at'),
     'items'
   );
   const messages = [];

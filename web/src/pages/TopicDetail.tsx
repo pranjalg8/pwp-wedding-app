@@ -130,7 +130,10 @@ export function TopicDetail() {
           >
             <Group justify="space-between" align="flex-start" wrap="nowrap" gap="sm">
               <Stack gap={4} style={{ minWidth: 0 }}>
-                <Text fw={600}>{item.title}</Text>
+                <Group gap={6} wrap="nowrap">
+                  <Text fw={600}>{item.title}</Text>
+                  {item.slug && <Badge size="xs" variant="light" color="rose">Shared setting</Badge>}
+                </Group>
                 {item.detail && (
                   <Text size="sm" c="dimmed" style={{ overflowWrap: 'anywhere' }}>
                     {item.detail}
@@ -202,7 +205,7 @@ export function TopicDetail() {
                     {KIND_LABEL[item.amount_kind]}
                   </Badge>
                 )}
-                {isUnlocked && (
+                {isUnlocked && !item.slug && (
                   <ActionIcon
                     color="red"
                     variant="subtle"

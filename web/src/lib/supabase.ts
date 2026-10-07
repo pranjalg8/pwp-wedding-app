@@ -32,6 +32,7 @@ export type Topic = {
 
 export type PlanningItem = {
   id: string;
+  slug: string | null;
   topic_id: string;
   type: 'decision' | 'todo' | 'vendor' | 'budget_line' | 'note';
   title: string;

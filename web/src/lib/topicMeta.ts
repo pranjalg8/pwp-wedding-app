@@ -1,5 +1,3 @@
-export const WEDDING_DATE = new Date('2027-02-14T00:00:00+05:30');
-
 export const TOPIC_EMOJI: Record<string, string> = {
   dates_logistics: '🗓️',
   jewellery: '💍',
@@ -33,11 +31,6 @@ export const STATUS_LABEL: Record<string, string> = {
 
 export function formatInr(amount: number) {
   return `₹${amount.toLocaleString('en-IN')}`;
-}
-
-export function daysUntilWedding() {
-  const ms = WEDDING_DATE.getTime() - Date.now();
-  return Math.max(0, Math.ceil(ms / 86_400_000));
 }
 
 export function formatInrCompact(amount: number) {

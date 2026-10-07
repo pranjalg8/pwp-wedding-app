@@ -387,10 +387,7 @@ export const OPTIONS: TravelOption[] = [
 ];
 
 // ---- Shared by the Travel and Honeymoon pages ----
-
-export const BUDGET_CAP = 400000;
-
-export const DEFAULT_ROUTE_ID = 'surat';
+// The budget cap and the chosen route are not here: they are shared settings in the database (see lib/planFacts.ts).
 
 export function plannedTotal(o: TravelOption): number {
   const b = o.budget;
@@ -399,24 +396,4 @@ export function plannedTotal(o: TravelOption): number {
 
 export function lakh(n: number): string {
   return `Rs ${(n / 100000).toFixed(2).replace(/0$/, '')}L`;
-}
-
-const ROUTE_KEY = 'pwp-route';
-
-export function getStoredRouteId(): string {
-  try {
-    const v = localStorage.getItem(ROUTE_KEY);
-    if (v && OPTIONS.some((o) => o.id === v)) return v;
-  } catch {
-    // storage unavailable: use the default
-  }
-  return DEFAULT_ROUTE_ID;
-}
-
-export function storeRouteId(id: string) {
-  try {
-    localStorage.setItem(ROUTE_KEY, id);
-  } catch {
-    // ignore: the choice just will not persist
-  }
 }

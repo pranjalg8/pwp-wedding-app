@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Anchor, Badge, Box, Button, Group, Image, Paper, Progress, Select, SimpleGrid, Stack, Text, ThemeIcon, Title, UnstyledButton } from '@mantine/core';
-import { BUDGET_CAP, OPTIONS, getStoredRouteId, plannedTotal, storeRouteId, type TravelOption } from '../data/travelOptions';
+import { OPTIONS, plannedTotal, type TravelOption } from '../data/travelOptions';
 import { useDestination } from '../hooks/useDestination';
 import { AlternativeHoneymoon } from './AlternativeHoneymoon';
+import { useRoute } from '../hooks/useRoute';
+import { usePlanFacts } from '../hooks/usePlanFacts';
+import { formatRange, nightsBetween } from '../lib/planFacts';
 
 type Moment = { icon: string; time: string; label: string };
 
@@ -106,7 +109,8 @@ function MomentRow({ moment }: { moment: Moment }) {
 }
 
 function SamuiView({ flipLabel, onFlip }: { flipLabel?: string; onFlip?: () => void }) {
-  const [routeId, setRouteId] = useState(getStoredRouteId);
+  const { routeId, isPreview, select, budgetCap: BUDGET_CAP } = useRoute();
+  const { dates } = usePlanFacts();
   const [selected, setSelected] = useState(0);
   const route = OPTIONS.find((o) => o.id === routeId) ?? OPTIONS[0];
   const days = buildDays(route.id);
@@ -127,18 +131,17 @@ function SamuiView({ flipLabel, onFlip }: { flipLabel?: string; onFlip?: () => v
 
   function chooseRoute(id: string | null) {
     if (!id) return;
-    setRouteId(id);
-    storeRouteId(id);
+    void select(id);
     setSelected(0);
   }
 
   return (
     <Stack gap="xl" maw={1120} mx="auto" pb="xl">
-      <Paper className="honeymoon-hero honeymoon-reveal" radius="xl" style={{ overflow: 'hidden' }} shadow="lg"><Image src="/pwp-wedding-app/honeymoon/samui-sunset.png" alt="Golden-hour Koh Samui beach" h={{ base: 410, sm: 470 }} fit="cover" /><Box className="honeymoon-hero-copy"><Badge color="dark" variant="filled" size="lg">20–25 FEB 2027 · 5 NIGHTS</Badge><Title c="white" fz={{ base: 42, sm: 68 }} lh={0.96} mt="md">Honeymoon,<br />but make it easy. 🌴</Title><Text c="white" fz={{ base: 'md', sm: 'lg' }} mt="md" maw={520}>Koh Samui: sunsets, sketchbooks, markets, Thai food and zero pressure to “do it all”.</Text><Group mt="lg" gap="xs"><Badge variant="white" color="dark" size="lg">🏝️ {route.samuiNights} nights Samui</Badge>{route.bangkokNights > 0 && <Badge variant="white" color="dark" size="lg">🏮 {route.bangkokNights} night Bangkok</Badge>}{route.id === 'surat' && <Badge variant="white" color="dark" size="lg">🌙 Overnight flight</Badge>}</Group></Box></Paper>
+      <Paper className="honeymoon-hero honeymoon-reveal" radius="xl" style={{ overflow: 'hidden' }} shadow="lg"><Image src="/pwp-wedding-app/honeymoon/samui-sunset.png" alt="Golden-hour Koh Samui beach" h={{ base: 410, sm: 470 }} fit="cover" /><Box className="honeymoon-hero-copy"><Badge color="dark" variant="filled" size="lg">{formatRange(dates.honeymoon, { upper: true })} · {nightsBetween(dates.honeymoon)} NIGHTS</Badge><Title c="white" fz={{ base: 42, sm: 68 }} lh={0.96} mt="md">Honeymoon,<br />but make it easy. 🌴</Title><Text c="white" fz={{ base: 'md', sm: 'lg' }} mt="md" maw={520}>Koh Samui: sunsets, sketchbooks, markets, Thai food and zero pressure to “do it all”.</Text><Group mt="lg" gap="xs"><Badge variant="white" color="dark" size="lg">🏝️ {route.samuiNights} nights Samui</Badge>{route.bangkokNights > 0 && <Badge variant="white" color="dark" size="lg">🏮 {route.bangkokNights} night Bangkok</Badge>}{route.id === 'surat' && <Badge variant="white" color="dark" size="lg">🌙 Overnight flight</Badge>}</Group></Box></Paper>
 
       <Paper withBorder p="md" radius="xl" className="honeymoon-reveal honeymoon-delay-1">
         <Group justify="space-between" align="flex-end" gap="md">
-          <Select label="Which way are we getting there?" description="Fares are Google Flights quotes from 4 Oct 2026" value={route.id} onChange={chooseRoute} allowDeselect={false} data={OPTIONS.map((o) => ({ value: o.id, label: `${o.name} · ${rupee(o.budget.flights)} flights` }))} style={{ flex: 1, minWidth: 260 }} />
+          <Select label="Which way are we getting there?" description={isPreview ? 'Previewing only. Unlock edit mode to make this the plan for both of you.' : 'The shared plan. Fares are Google Flights quotes from 4 Oct 2026.'} value={route.id} onChange={chooseRoute} allowDeselect={false} data={OPTIONS.map((o) => ({ value: o.id, label: `${o.name} · ${rupee(o.budget.flights)} flights` }))} style={{ flex: 1, minWidth: 260 }} />
           <Group gap="xs">{onFlip && <Button variant="filled" color="dark" radius="xl" onClick={onFlip}>🔄 Flip to {flipLabel}</Button>}<Button component={Link} to="/travel" variant="light" color="rose" radius="xl">Flight timeline →</Button></Group>
         </Group>
       </Paper>
