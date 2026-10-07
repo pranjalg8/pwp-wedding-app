@@ -1,23 +1,11 @@
 import { useState } from 'react';
 import { Accordion, Anchor, Badge, Box, Button, Card, Group, Image, List, Paper, Progress, Select, SimpleGrid, Stack, Text, ThemeIcon, Title, UnstyledButton } from '@mantine/core';
-import { altImageUrl, altTotal, type AltMoment, type AltPlan } from '../data/alternativePlan';
+import { altImageUrl, altTotal, getAltOptionId, setAltOptionId, type AltMoment, type AltPlan } from '../data/alternativePlan';
 
 const rupee = (n: number) => {
   const abs = Math.abs(n);
   return abs >= 100000 ? `₹${(abs / 100000).toFixed(2).replace(/\.?0+$/, '')}L` : `₹${Math.round(abs / 1000)}k`;
 };
-
-const optionStorageKey = (planKey: string) => `pwp-alt-option-${planKey}`;
-
-function storedOption(plan: AltPlan, planKey: string): string {
-  try {
-    const v = localStorage.getItem(optionStorageKey(planKey));
-    if (v && plan.options.some((o) => o.id === v)) return v;
-  } catch {
-    // storage unavailable: use the default
-  }
-  return plan.defaultOption;
-}
 
 function MomentRow({ moment }: { moment: AltMoment }) {
   return (
@@ -38,7 +26,7 @@ function MomentRow({ moment }: { moment: AltMoment }) {
 }
 
 export function AlternativeHoneymoon({ plan, planKey, nextLabel, onFlip }: { plan: AltPlan; planKey: string; nextLabel: string; onFlip: () => void }) {
-  const [optionId, setOptionId] = useState(() => storedOption(plan, planKey));
+  const [optionId, setOptionId] = useState(() => getAltOptionId(plan, planKey));
   const [selected, setSelected] = useState(0);
   const option = plan.options.find((o) => o.id === optionId) ?? plan.options[0];
   const days = option.days;
@@ -62,11 +50,7 @@ export function AlternativeHoneymoon({ plan, planKey, nextLabel, onFlip }: { pla
     if (!id) return;
     setOptionId(id);
     setSelected(0);
-    try {
-      localStorage.setItem(optionStorageKey(planKey), id);
-    } catch {
-      // ignore: the choice just will not persist
-    }
+    setAltOptionId(planKey, id);
   }
 
   return (

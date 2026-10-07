@@ -1,6 +1,22 @@
 import { useMemo, useState } from 'react';
-import { Alert, Badge, Card, Group, List, SimpleGrid, Stack, Text, ThemeIcon, Timeline, Title, UnstyledButton } from '@mantine/core';
+import { Alert, Badge, Card, Group, List, Loader, SimpleGrid, Stack, Text, ThemeIcon, Timeline, Title, UnstyledButton } from '@mantine/core';
 import { KIND_ICON, OPTIONS, getStoredRouteId, storeRouteId, type TravelEvent } from '../data/travelOptions';
+import { altTotal, getAltOptionId, setAltOptionId, type AltPlan } from '../data/alternativePlan';
+import { useDestination } from '../hooks/useDestination';
+
+export type TravelViewOption = {
+  id: string;
+  name: string;
+  tag?: string;
+  total: string;
+  stats: { label: string; value: string }[];
+  summary: string;
+  pros: string[];
+  cons: string[];
+  checklist: string[];
+  events: TravelEvent[];
+  extra?: { label: string; value: string }[];
+};
 
 function groupByDay(events: TravelEvent[]) {
   const days: { day: string; items: TravelEvent[] }[] = [];
@@ -12,30 +28,38 @@ function groupByDay(events: TravelEvent[]) {
   return days;
 }
 
-export function Travel() {
-  const [selectedId, setSelectedId] = useState(getStoredRouteId);
-  const choose = (id: string) => {
-    setSelectedId(id);
-    storeRouteId(id);
-  };
-  const option = OPTIONS.find((o) => o.id === selectedId) ?? OPTIONS[0];
+function TravelView({
+  title,
+  intro,
+  timeNote,
+  options,
+  selectedId,
+  onSelect,
+}: {
+  title: string;
+  intro: string;
+  timeNote: string;
+  options: TravelViewOption[];
+  selectedId: string;
+  onSelect: (id: string) => void;
+}) {
+  const option = options.find((o) => o.id === selectedId) ?? options[0];
   const days = useMemo(() => groupByDay(option.events), [option]);
 
   return (
     <Stack gap="lg" maw={900} mx="auto" pb="xl">
       <div>
-        <Title order={2}>Getting there</Title>
+        <Title order={2}>{title}</Title>
         <Text c="dimmed" size="sm" mt={4}>
-          Delhi to Koh Samui to Kolkata, 20-25 Feb 2027. Fares are Google Flights quotes for two adults with taxes, taken on 4 Oct 2026.
-          They will move, so re-check before booking.
+          {intro}
         </Text>
       </div>
 
       <SimpleGrid cols={{ base: 1, xs: 2, md: 4 }} spacing="sm">
-        {OPTIONS.map((o) => {
+        {options.map((o) => {
           const active = o.id === option.id;
           return (
-            <UnstyledButton key={o.id} onClick={() => choose(o.id)} aria-pressed={active}>
+            <UnstyledButton key={o.id} onClick={() => onSelect(o.id)} aria-pressed={active}>
               <Card
                 withBorder
                 p="md"
@@ -47,7 +71,7 @@ export function Travel() {
                 }}
               >
                 {o.tag && (
-                  <Badge size="sm" color={o.tag === 'Cheapest' ? 'teal' : 'blue'} variant="light" mb={6}>
+                  <Badge size="sm" color={o.tag === 'Cheapest' ? 'teal' : o.tag === 'Stretch' ? 'orange' : 'blue'} variant="light" mb={6}>
                     {o.tag}
                   </Badge>
                 )}
@@ -117,12 +141,38 @@ export function Travel() {
         </Card>
       </SimpleGrid>
 
+      {option.extra && option.extra.length > 0 && (
+        <Card withBorder p="md">
+          <Text fw={700} mb={6}>
+            Fares and transfers
+          </Text>
+          <Stack gap={6}>
+            {option.extra.map((t) => (
+              <Group key={t.label} gap="xs" wrap="nowrap" align="flex-start">
+                <Text size="sm" fw={600} style={{ minWidth: 130 }}>
+                  {t.label}
+                </Text>
+                <Text size="sm" c="dimmed">
+                  {t.value}
+                </Text>
+              </Group>
+            ))}
+          </Stack>
+        </Card>
+      )}
+
       <Title order={3} mt="sm">
         Timeline
       </Title>
       <Text size="sm" c="dimmed" mt={-8}>
-        Local time at each place. Thailand is 1h30 ahead of India.
+        {timeNote}
       </Text>
+
+      {days.length === 0 && (
+        <Text size="sm" c="dimmed">
+          No timeline for this option yet.
+        </Text>
+      )}
 
       <Stack gap="xl">
         {days.map((d) => (
@@ -182,4 +232,81 @@ export function Travel() {
       </Card>
     </Stack>
   );
+}
+
+const rupee = (n: number) => {
+  const abs = Math.abs(n);
+  return abs >= 100000 ? `₹${(abs / 100000).toFixed(2).replace(/\.?0+$/, '')}L` : `₹${Math.round(abs / 1000)}k`;
+};
+
+function SamuiTravel() {
+  const [selectedId, setSelectedId] = useState(getStoredRouteId);
+  const choose = (id: string) => {
+    setSelectedId(id);
+    storeRouteId(id);
+  };
+  return (
+    <TravelView
+      title="Getting there"
+      intro="Delhi to Koh Samui to Kolkata, 20-25 Feb 2027. Fares are Google Flights quotes for two adults with taxes, taken on 4 Oct 2026. They will move, so re-check before booking."
+      timeNote="Local time at each place. Thailand is 1h30 ahead of India."
+      options={OPTIONS}
+      selectedId={selectedId}
+      onSelect={choose}
+    />
+  );
+}
+
+function AlternativeTravel({ plan, planKey }: { plan: AltPlan; planKey: string }) {
+  const [selectedId, setSelectedId] = useState(() => getAltOptionId(plan, planKey));
+  const choose = (id: string) => {
+    setSelectedId(id);
+    setAltOptionId(planKey, id);
+  };
+  const options: TravelViewOption[] = plan.options.map((o) => {
+    const planned = altTotal(o.budget);
+    const flex = plan.cap - planned;
+    return {
+      id: o.id,
+      name: o.name,
+      tag: o.tag,
+      total: `${rupee(o.budget.flights)} flights`,
+      stats: [
+        { label: 'Flights', value: rupee(o.budget.flights) },
+        { label: 'Trip planned', value: `${rupee(planned)} of ${rupee(plan.cap)}` },
+        { label: flex < 0 ? 'Over the cap' : 'Spare', value: rupee(flex) },
+      ],
+      summary: o.summary,
+      pros: o.pros,
+      cons: o.cons,
+      checklist: [o.lockFirst.flights, o.lockFirst.stay, o.lockFirst.dinner],
+      events: o.timeline ?? [],
+      extra: o.travel,
+    };
+  });
+  const timeNote = `Local time at each place. ${plan.facts.find((f) => f.label === 'Time')?.value ?? ''}`.trim();
+  return (
+    <TravelView
+      title="Getting there"
+      intro={`Delhi to ${plan.label} to Kolkata, 20-25 Feb 2027. ${plan.priceNote ?? 'Flights are Google Flights quotes from 4 Oct 2026; stays and transfers are estimates.'}`}
+      timeNote={timeNote}
+      options={options}
+      selectedId={selectedId}
+      onSelect={choose}
+    />
+  );
+}
+
+// Follows the destination chosen on the Honeymoon tab (and the bar above the tabs).
+export function Travel() {
+  const { plan, ready } = useDestination();
+  if (!ready) {
+    return (
+      <Group justify="center" mt={60}>
+        <Loader color="rose" />
+      </Group>
+    );
+  }
+  if (plan) return <AlternativeTravel key={plan.key} plan={plan.data} planKey={plan.key} />;
+  return <SamuiTravel />;
 }
