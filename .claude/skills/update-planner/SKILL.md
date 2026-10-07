@@ -28,6 +28,7 @@ Goal: turn new chat messages and images into **suggestions** in the `suggestions
    - `source_msg_ids`: the `msg_id`s that support it (include the image messages).
    - `confidence`: high | medium | low. `involves_money`: true if it touches an amount, payment, price or deadline. `rationale`: one or two plain sentences on why, including any doubt.
    - Use `amount_kind = 'paid'` only for money actually paid (receipts stamped paid); `planned` for budgets/caps and chosen quotes; `quote` for options still being compared. Ranges and estimates go in `detail`, not `amount`.
+4b. **Ground-check before you report**: run `npm run audit` (in `sync/`). It checks that every amount in the planner and in pending suggestions appears in the messages it cites. Fix or remove anything marked `UNSUPPORTED` or `NO-SOURCE`. `IMAGE-ONLY` means the number came from a photo: re-open the image and confirm it by eye. The command exits non-zero when it finds a problem.
 5. **Safe direct edits (only these):** attach supporting `msg_id`s to an existing item's `source_msg_ids` and refresh its `as_of`. Do this with the same `app.actor` setting. Nothing else.
 6. **Close the run**: `npm run extract:finish -- <run_id>`. This advances the chat cursors and deletes the private working folder (images included). Do this even if you wrote no suggestions.
 7. **Report**: how many suggestions, by topic, anything unreadable, and that they are waiting in the app.
