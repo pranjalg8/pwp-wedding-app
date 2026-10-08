@@ -1,8 +1,11 @@
 import { useMemo, useState } from 'react';
 import { Alert, Badge, Card, Group, List, Loader, SimpleGrid, Stack, Text, ThemeIcon, Timeline, Title, UnstyledButton } from '@mantine/core';
-import { KIND_ICON, OPTIONS, getStoredRouteId, storeRouteId, type TravelEvent } from '../data/travelOptions';
+import { KIND_ICON, OPTIONS, type TravelEvent } from '../data/travelOptions';
 import { altTotal, getAltOptionId, setAltOptionId, type AltPlan } from '../data/alternativePlan';
 import { useDestination } from '../hooks/useDestination';
+import { useRoute } from '../hooks/useRoute';
+import { usePlanFacts } from '../hooks/usePlanFacts';
+import { formatRange } from '../lib/planFacts';
 
 export type TravelViewOption = {
   id: string;
@@ -240,15 +243,13 @@ const rupee = (n: number) => {
 };
 
 function SamuiTravel() {
-  const [selectedId, setSelectedId] = useState(getStoredRouteId);
-  const choose = (id: string) => {
-    setSelectedId(id);
-    storeRouteId(id);
-  };
+  const { routeId: selectedId, select } = useRoute();
+  const { dates } = usePlanFacts();
+  const choose = (id: string) => void select(id);
   return (
     <TravelView
       title="Getting there"
-      intro="Delhi to Koh Samui to Kolkata, 20-25 Feb 2027. Fares are Google Flights quotes for two adults with taxes, taken on 4 Oct 2026. They will move, so re-check before booking."
+      intro={`Delhi to Koh Samui to Kolkata, ${formatRange(dates.honeymoon)}. Fares are Google Flights quotes for two adults with taxes, taken on 4 Oct 2026. They will move, so re-check before booking.`}
       timeNote="Local time at each place. Thailand is 1h30 ahead of India."
       options={OPTIONS}
       selectedId={selectedId}
@@ -259,6 +260,7 @@ function SamuiTravel() {
 
 function AlternativeTravel({ plan, planKey }: { plan: AltPlan; planKey: string }) {
   const [selectedId, setSelectedId] = useState(() => getAltOptionId(plan, planKey));
+  const { dates } = usePlanFacts();
   const choose = (id: string) => {
     setSelectedId(id);
     setAltOptionId(planKey, id);
@@ -288,7 +290,7 @@ function AlternativeTravel({ plan, planKey }: { plan: AltPlan; planKey: string }
   return (
     <TravelView
       title="Getting there"
-      intro={`Delhi to ${plan.label} to Kolkata, 20-25 Feb 2027. ${plan.priceNote ?? 'Flights are Google Flights quotes from 4 Oct 2026; stays and transfers are estimates.'}`}
+      intro={`Delhi to ${plan.label} to Kolkata, ${formatRange(dates.honeymoon)}. ${plan.priceNote ?? 'Flights are Google Flights quotes from 4 Oct 2026; stays and transfers are estimates.'}`}
       timeNote={timeNote}
       options={options}
       selectedId={selectedId}

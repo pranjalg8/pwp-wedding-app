@@ -36,6 +36,7 @@ Goal: turn new chat messages and images into **suggestions** in the `suggestions
 ## Notes
 
 - Timestamps in the packet are IST. Amounts are INR.
+- Items with a `slug` (dates.*, honeymoon.budget, honeymoon.route) are the shared source of truth the whole app reads. Treat them as settled facts: if chat contradicts one, suggest an `update_item` that changes its `metadata` (dates: `start`/`end` as ISO dates; route: `value`) or amount, with a rationale. Never create a second item for the same fact, and never suggest deleting one.
 - Prices change: always capture the date a figure is from (it comes from the source message's `as_of`).
 - Media older than a few weeks may be expired on WhatsApp; `wacli media retry` can ask the phone to re-upload (it needs `wacli sync` paused). The sync now runs with `--download-media`, so new images are saved on arrival.
 - If `accept_suggestion` is refused as "stale", the item changed after the suggestion was written: the person can apply anyway, or ask for a refreshed suggestion.

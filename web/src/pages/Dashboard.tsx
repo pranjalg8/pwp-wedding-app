@@ -3,7 +3,9 @@ import { Link } from 'react-router-dom';
 import { usePendingSuggestions } from '../hooks/usePendingSuggestions';
 import { Badge, Box, Card, Group, Paper, RingProgress, SimpleGrid, Stack, Text, Title } from '@mantine/core';
 import { supabase, type PlanningItem, type Topic } from '../lib/supabase';
-import { TOPIC_EMOJI, daysUntilWedding, formatInr, formatInrCompact, summarizeMoney } from '../lib/topicMeta';
+import { TOPIC_EMOJI, formatInr, formatInrCompact, summarizeMoney } from '../lib/topicMeta';
+import { usePlanFacts } from '../hooks/usePlanFacts';
+import { daysUntil, formatRange } from '../lib/planFacts';
 
 type MoneyRow = Pick<PlanningItem, 'topic_id' | 'status' | 'amount' | 'amount_kind'>;
 
@@ -69,14 +71,15 @@ export function Dashboard() {
   const settled = items.filter((i) => i.status === 'decided' || i.status === 'done').length;
   const open = total - settled;
   const money = summarizeMoney(items);
-  const days = daysUntilWedding();
+  const { dates } = usePlanFacts();
+  const days = daysUntil(dates.wedding.start);
   const openAreas = new Set(items.filter((i) => i.status === 'open' || i.status === 'in_progress').map((i) => i.topic_id)).size;
 
   return (
     <Stack gap="lg">
       <Box className="hero" c="white" p={{ base: 'lg', sm: 'xl' }} style={{ borderRadius: 'var(--mantine-radius-xl)' }}>
         <Text size="sm" fw={600} style={{ letterSpacing: 1, opacity: 0.9 }} tt="uppercase">
-          14–15 February 2027
+          {formatRange(dates.wedding, { full: true })}
         </Text>
         <Group align="baseline" gap="sm" mt={4}>
           <Title order={1} c="white" fz={{ base: 48, sm: 64 }} lh={1}>

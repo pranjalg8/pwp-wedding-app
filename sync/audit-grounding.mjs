@@ -35,7 +35,7 @@ const must = (res, what) => {
   return res.data;
 };
 
-const items = must(await supabase.from('planning_items').select('id, title, amount, amount_kind, status, source_msg_ids').not('amount', 'is', null), 'items');
+const items = must(await supabase.from('planning_items').select('id, title, amount, amount_kind, status, source_msg_ids').not('amount', 'is', null).is('slug', null), 'items'); // slugged items are shared settings chosen by you (e.g. the honeymoon budget cap), not figures quoted in chat
 const sugg = must(await supabase.from('suggestions').select('id, payload, source_msg_ids, status').eq('status', 'pending'), 'suggestions')
   .filter((s) => s.payload?.amount != null)
   .map((s) => ({ id: s.id, title: `[suggestion] ${s.payload.title ?? '(change)'}`, amount: s.payload.amount, amount_kind: s.payload.amount_kind, status: 'pending', source_msg_ids: s.source_msg_ids }));

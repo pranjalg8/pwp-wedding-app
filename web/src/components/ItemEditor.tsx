@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Button, Group, Modal, NumberInput, Select, Stack, Text, Textarea, TextInput } from '@mantine/core';
+import { Badge, Button, Group, Modal, NumberInput, Select, Stack, Text, Textarea, TextInput } from '@mantine/core';
 import { supabase, type PlanningItem } from '../lib/supabase';
 import { notifications } from '@mantine/notifications';
 import { useProfile } from '../hooks/useProfile';
+import { OPTIONS } from '../data/travelOptions';
 
 const TYPE_OPTIONS = ['decision', 'todo', 'vendor', 'budget_line', 'note'];
 const STATUS_OPTIONS = ['open', 'in_progress', 'decided', 'done'];
@@ -34,6 +35,15 @@ export function ItemEditor({
   const [phone, setPhone] = useState(typeof item?.metadata?.phone === 'string' ? item.metadata.phone : '');
   const [email, setEmail] = useState(typeof item?.metadata?.email === 'string' ? item.metadata.email : '');
   const [saving, setSaving] = useState(false);
+  // Named planner items are the shared source of truth for the whole app (see lib/planFacts.ts).
+  const slug = item?.slug ?? null;
+  const isDateFact = !!slug?.startsWith('dates.');
+  const isRouteFact = slug === 'honeymoon.route';
+  const metaString = (k: string) => (typeof item?.metadata?.[k] === 'string' ? (item.metadata[k] as string) : '');
+  const [startDate, setStartDate] = useState(metaString('start'));
+  const [endDate, setEndDate] = useState(metaString('end'));
+  const [routeValue, setRouteValue] = useState(metaString('value'));
+  const datesInvalid = isDateFact && (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || (endDate !== '' && (!/^\d{4}-\d{2}-\d{2}$/.test(endDate) || endDate < startDate)));
 
   async function handleSave() {
     setSaving(true);
@@ -49,7 +59,11 @@ export function ItemEditor({
       metadata:
         type === 'vendor'
           ? { ...item?.metadata, contact_person: contactPerson || null, phone: phone || null, email: email || null }
-          : { ...item?.metadata },
+          : isDateFact
+            ? { ...item?.metadata, start: startDate, end: endDate || startDate }
+            : isRouteFact
+              ? { ...item?.metadata, value: routeValue }
+              : { ...item?.metadata },
       created_by: profile?.id ?? null,
     };
 
@@ -70,6 +84,12 @@ export function ItemEditor({
   return (
     <Modal opened={opened} onClose={onClose} title={item ? 'Edit item' : 'New item'} centered>
       <Stack>
+        {slug && (
+          <Group gap="xs">
+            <Badge variant="light" color="rose">Shared setting</Badge>
+            <Text size="xs" c="dimmed">Every page, and the WhatsApp extraction, reads this one value.</Text>
+          </Group>
+        )}
         <TextInput label="Title" value={title} onChange={(e) => setTitle(e.currentTarget.value)} required />
         <Textarea label="Detail" value={detail ?? ''} onChange={(e) => setDetail(e.currentTarget.value)} minRows={3} />
         <Group grow>
@@ -104,6 +124,21 @@ export function ItemEditor({
             />
           </>
         )}
+        {isDateFact && (
+          <Group grow align="flex-start">
+            <TextInput label="Starts" type="date" value={startDate} onChange={(e) => setStartDate(e.currentTarget.value)} required />
+            <TextInput label="Ends (same day if blank)" type="date" value={endDate} min={startDate} onChange={(e) => setEndDate(e.currentTarget.value)} />
+          </Group>
+        )}
+        {isRouteFact && (
+          <Select
+            label="Chosen honeymoon route"
+            data={OPTIONS.map((o) => ({ value: o.id, label: o.name }))}
+            value={routeValue}
+            onChange={(v) => v && setRouteValue(v)}
+            allowDeselect={false}
+          />
+        )}
         {type === 'vendor' && (
           <>
             <TextInput
@@ -118,7 +153,7 @@ export function ItemEditor({
         <Text size="xs" c="dimmed">
           Saving this will be recorded in the audit log as a manual change by {profile?.display_name ?? 'you'}.
         </Text>
-        <Button onClick={handleSave} loading={saving} disabled={!title}>
+        <Button onClick={handleSave} loading={saving} disabled={!title || datesInvalid || (isRouteFact && !routeValue)}>
           Save
         </Button>
       </Stack>
