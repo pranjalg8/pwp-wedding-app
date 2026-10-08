@@ -46,6 +46,8 @@ export type PlanningItem = {
   amount_note: string | null;
   as_of: string | null;
   amount_kind: 'paid' | 'planned' | 'quote' | null;
+  owner: 'pranjal' | 'paridhi' | 'both' | null;
+  due_date: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;

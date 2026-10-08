@@ -34,6 +34,8 @@ export function ItemEditor({
   );
   const [phone, setPhone] = useState(typeof item?.metadata?.phone === 'string' ? item.metadata.phone : '');
   const [email, setEmail] = useState(typeof item?.metadata?.email === 'string' ? item.metadata.email : '');
+  const [owner, setOwner] = useState<string | null>(item?.owner ?? null);
+  const [dueDate, setDueDate] = useState(item?.due_date ?? '');
   const [saving, setSaving] = useState(false);
   // Named planner items are the shared source of truth for the whole app (see lib/planFacts.ts).
   const slug = item?.slug ?? null;
@@ -53,6 +55,8 @@ export function ItemEditor({
       detail: detail || null,
       type,
       status,
+      owner,
+      due_date: dueDate || null,
       amount: amount === '' ? null : amount,
       amount_kind: amount === '' ? null : amountKind,
       amount_note: amount === '' ? null : amountNote || null,
@@ -95,6 +99,21 @@ export function ItemEditor({
         <Group grow>
           <Select label="Type" data={TYPE_OPTIONS} value={type} onChange={(v) => v && setType(v)} />
           <Select label="Status" data={STATUS_OPTIONS} value={status} onChange={(v) => v && setStatus(v)} />
+        </Group>
+        <Group grow align="flex-start">
+          <Select
+            label="Who is on it?"
+            placeholder="Not assigned"
+            clearable
+            data={[
+              { value: 'both', label: 'Both of us' },
+              { value: 'pranjal', label: 'Pranjal' },
+              { value: 'paridhi', label: 'Paridhi' },
+            ]}
+            value={owner}
+            onChange={setOwner}
+          />
+          <TextInput label="Due date" type="date" value={dueDate} onChange={(e) => setDueDate(e.currentTarget.value)} />
         </Group>
         <NumberInput
           label="Amount (optional)"
