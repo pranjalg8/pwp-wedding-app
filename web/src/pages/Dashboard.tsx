@@ -7,7 +7,9 @@ import { TOPIC_EMOJI, formatInr, formatInrCompact, summarizeMoney } from '../lib
 import { usePlanFacts } from '../hooks/usePlanFacts';
 import { daysUntil, formatRange } from '../lib/planFacts';
 
-type MoneyRow = Pick<PlanningItem, 'topic_id' | 'status' | 'amount' | 'amount_kind'>;
+type MoneyRow = Pick<PlanningItem, 'id' | 'title' | 'topic_id' | 'status' | 'amount' | 'amount_kind' | 'owner' | 'due_date'>;
+
+const OWNER_LABEL = { both: 'Both of us', pranjal: 'Pranjal', paridhi: 'Paridhi' } as const;
 
 function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
@@ -46,7 +48,7 @@ export function Dashboard() {
   async function load() {
     const [{ data: topicsData }, { data: itemsData }, { data: synced }, { data: latest }] = await Promise.all([
       supabase.from('topics').select('*').order('sort_order'),
-      supabase.from('planning_items').select('topic_id, status, amount, amount_kind'),
+      supabase.from('planning_items').select('id, title, topic_id, status, amount, amount_kind, owner, due_date'),
       supabase.from('sync_status').select('last_run_at').limit(1),
       supabase.from('messages').select('timestamp').order('timestamp', { ascending: false }).limit(1),
     ]);
@@ -74,6 +76,13 @@ export function Dashboard() {
   const { dates } = usePlanFacts();
   const days = daysUntil(dates.wedding.start);
   const openAreas = new Set(items.filter((i) => i.status === 'open' || i.status === 'in_progress').map((i) => i.topic_id)).size;
+
+  const today = new Date().toISOString().slice(0, 10);
+  const topicLabel = (id: string) => topics.find((t) => t.id === id)?.label ?? '';
+  const dueItems = items
+    .filter((i) => i.due_date && i.status !== 'done' && i.status !== 'decided')
+    .sort((a, b) => (a.due_date as string).localeCompare(b.due_date as string))
+    .slice(0, 8);
 
   return (
     <Stack gap="lg">
@@ -111,6 +120,32 @@ export function Dashboard() {
               Review →
             </Text>
           </Group>
+        </Paper>
+      )}
+
+      {dueItems.length > 0 && (
+        <Paper withBorder p="md">
+          <Text fw={700} mb="xs">Our due items</Text>
+          <Stack gap="xs">
+            {dueItems.map((i) => {
+              const overdue = (i.due_date as string) < today;
+              const d = Math.round((new Date(i.due_date as string).getTime() - new Date(today).getTime()) / 86_400_000);
+              return (
+                <Group key={i.id} justify="space-between" wrap="nowrap" align="flex-start">
+                  <div>
+                    <Text size="sm" fw={500}>{i.title}</Text>
+                    <Text size="xs" c="dimmed">
+                      {topicLabel(i.topic_id)}
+                      {i.owner ? ` · ${OWNER_LABEL[i.owner]}` : ''}
+                    </Text>
+                  </div>
+                  <Badge color={overdue ? 'red' : d <= 7 ? 'orange' : 'gray'} variant="light" style={{ flexShrink: 0 }}>
+                    {overdue ? `${Math.abs(d)} d overdue` : d === 0 ? 'Today' : `in ${d} d`}
+                  </Badge>
+                </Group>
+              );
+            })}
+          </Stack>
         </Paper>
       )}
 

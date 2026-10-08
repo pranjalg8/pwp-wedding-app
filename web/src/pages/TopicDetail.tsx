@@ -148,6 +148,16 @@ export function TopicDetail() {
                   <Badge color={STATUS_COLOR[item.status]} variant="light">
                     {STATUS_LABEL[item.status]}
                   </Badge>
+                  {item.owner && (
+                    <Badge variant="outline" color="gray">
+                      {{ both: 'Both of us', pranjal: 'Pranjal', paridhi: 'Paridhi' }[item.owner]}
+                    </Badge>
+                  )}
+                  {item.due_date && (
+                    <Badge variant="outline" color="gray">
+                      Due {new Date(item.due_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                    </Badge>
+                  )}
                   <Badge color="gray" variant="outline">
                     {item.type.replace('_', ' ')}
                   </Badge>
