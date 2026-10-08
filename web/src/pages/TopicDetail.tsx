@@ -97,7 +97,7 @@ export function TopicDetail() {
 
   return (
     <Stack gap="md">
-      <Anchor component={Link} to="/" size="sm" c="dimmed">
+      <Anchor component={Link} to="/areas" size="sm" c="dimmed">
         ← All areas
       </Anchor>
       <Group justify="space-between" align="center" wrap="nowrap">

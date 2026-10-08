@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Anchor, Badge, Button, Card, Group, SimpleGrid, Stack, Text, Title } from '@mantine/core';
 import { supabase, type PlanningItem, type Topic } from '../lib/supabase';
+import { whatsappUrl } from '../lib/whatsapp';
 
 const STATUS_COLOR: Record<string, string> = {
   open: 'orange',
@@ -21,14 +22,6 @@ function metaString(metadata: Record<string, unknown>, key: string) {
 
 const STATUS_LABEL: Record<string, string> = { open: 'Open', in_progress: 'In progress', decided: 'Chosen', done: 'Done' };
 const KIND_LABEL: Record<string, string> = { quote: 'Quote', planned: 'Planned', paid: 'Paid' };
-
-// wa.me needs digits only with the country code; bare 10-digit Indian numbers get 91.
-function whatsappUrl(phone: string) {
-  let digits = phone.replace(/\D/g, '').replace(/^00/, '');
-  if (digits.length === 11 && digits.startsWith('0')) digits = digits.slice(1);
-  if (digits.length === 10) digits = `91${digits}`;
-  return digits.length >= 11 ? `https://wa.me/${digits}` : null;
-}
 
 export function Vendors() {
   const [rows, setRows] = useState<VendorRow[]>([]);
