@@ -155,7 +155,7 @@ export function TopicDetail() {
                   )}
                   {item.due_date && (
                     <Badge variant="outline" color="gray">
-                      Due {new Date(item.due_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                      Due {new Date(`${item.due_date}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
                     </Badge>
                   )}
                   <Badge color="gray" variant="outline">

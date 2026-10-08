@@ -77,7 +77,7 @@ export function Dashboard() {
   const days = daysUntil(dates.wedding.start);
   const openAreas = new Set(items.filter((i) => i.status === 'open' || i.status === 'in_progress').map((i) => i.topic_id)).size;
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = new Date().toLocaleDateString('en-CA'); // local YYYY-MM-DD, not UTC
   const topicLabel = (id: string) => topics.find((t) => t.id === id)?.label ?? '';
   const dueItems = items
     .filter((i) => i.due_date && i.status !== 'done' && i.status !== 'decided')
