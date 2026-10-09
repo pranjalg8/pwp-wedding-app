@@ -16,6 +16,7 @@
     "@mantine/hooks": "^9.6.3",
     "@mantine/notifications": "^9.6.3",
     "@supabase/supabase-js": "^2.117.2",
+    "amazon-cognito-identity-js": "^6.3.20",
     "dayjs": "^1.11.23",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
