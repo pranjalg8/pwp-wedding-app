@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Badge, Button, Card, Group, Modal, Select, Stack, Text, TagsInput, Textarea, TextInput, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
+import { useEditMode } from '../hooks/useEditMode';
 
 type WeddingFunction = {
   id: string;
@@ -66,6 +67,7 @@ function Editor({ fn, onClose, onSaved }: { fn: WeddingFunction; onClose: () => 
 }
 
 export function Functions() {
+  const { isUnlocked } = useEditMode();
   const [rows, setRows] = useState<WeddingFunction[]>([]);
   const [editing, setEditing] = useState<WeddingFunction | null>(null);
 
@@ -116,14 +118,16 @@ export function Functions() {
                   )}
                   {r.notes && <Text size="sm" c="dimmed">{r.notes}</Text>}
                 </Stack>
-                <Button variant="subtle" size="xs" onClick={() => setEditing(r)}>Edit</Button>
+                {isUnlocked && (
+                  <Button variant="subtle" size="xs" onClick={() => setEditing(r)}>Edit</Button>
+                )}
               </Group>
             </Card>
           ))}
         </Stack>
       ))}
       {rows.length === 0 && <Text c="dimmed">No functions yet.</Text>}
-      {editing && <Editor key={editing.id} fn={editing} onClose={() => setEditing(null)} onSaved={load} />}
+      {isUnlocked && editing && <Editor key={editing.id} fn={editing} onClose={() => setEditing(null)} onSaved={load} />}
     </Stack>
   );
 }
