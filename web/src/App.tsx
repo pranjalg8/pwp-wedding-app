@@ -11,6 +11,8 @@ import { DeviceNicknameModal } from './components/DeviceNickname';
 import { getDeviceNickname } from './lib/device';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
+import { Tasks } from './pages/Tasks';
+import { TaskDetail } from './pages/TaskDetail';
 import { TopicDetail } from './pages/TopicDetail';
 import { Activity } from './pages/Activity';
 import { Budget } from './pages/Budget';
@@ -24,7 +26,8 @@ import { Suggestions } from './pages/Suggestions';
 import { usePendingSuggestions } from './hooks/usePendingSuggestions';
 
 const NAV = [
-  { to: '/', label: 'Dashboard', end: true },
+  { to: '/', label: 'Tasks', end: true },
+  { to: '/areas', label: 'Areas' },
   { to: '/budget', label: 'Budget' },
   { to: '/vendors', label: 'Vendors' },
   { to: '/honeymoon', label: 'Honeymoon' },
@@ -149,7 +152,9 @@ function AuthedApp() {
     <EditModeProvider>
       <Shell>
         <Routes>
-          <Route path="/" element={<Dashboard />} />
+          <Route path="/" element={<Tasks />} />
+          <Route path="/tasks/:taskId" element={<TaskDetail />} />
+          <Route path="/areas" element={<Dashboard />} />
           <Route path="/topics/:topicKey" element={<TopicDetail />} />
           <Route path="/budget" element={<Budget />} />
           <Route path="/vendors" element={<Vendors />} />

@@ -48,7 +48,38 @@ export type PlanningItem = {
   amount_kind: 'paid' | 'planned' | 'quote' | null;
   owner: 'pranjal' | 'paridhi' | 'both' | null;
   due_date: string | null;
+  task_id: string | null;
+  option_id: string | null;
   created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Task = {
+  id: string;
+  title: string;
+  topic_id: string | null;
+  owner: 'pranjal' | 'paridhi' | 'both' | null;
+  priority: 'high' | 'normal' | 'low';
+  due_date: string | null;
+  status: 'open' | 'in_progress' | 'decided' | 'done';
+  summary: string | null;
+  sort_order: number;
+  source_msg_ids: string[];
+  created_at: string;
+  updated_at: string;
+};
+
+export type TaskOption = {
+  id: string;
+  task_id: string;
+  name: string;
+  status: 'chosen' | 'shortlisted' | 'considering' | 'on_hold' | 'rejected';
+  summary: string | null;
+  why_note: string | null;
+  metadata: Record<string, unknown>;
+  sort_order: number;
+  source_msg_ids: string[];
   created_at: string;
   updated_at: string;
 };

@@ -77,3 +77,40 @@ export function formatAsOf(date: string | null) {
   if (!date) return null;
   return new Date(date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
 }
+
+export const OPTION_STATUS_LABEL: Record<string, string> = {
+  chosen: 'Chosen',
+  shortlisted: 'Shortlisted',
+  considering: 'Considering',
+  on_hold: 'On hold',
+  rejected: 'Rejected',
+};
+
+export const OPTION_STATUS_COLOR: Record<string, string> = {
+  chosen: 'teal',
+  shortlisted: 'blue',
+  considering: 'gray',
+  on_hold: 'yellow',
+  rejected: 'red',
+};
+
+export const OPTION_STATUS_ORDER = ['chosen', 'shortlisted', 'considering', 'on_hold', 'rejected'];
+
+export const OWNER_LABEL: Record<string, string> = { both: 'Both of us', pranjal: 'Pranjal', paridhi: 'Paridhi' };
+
+// Whole days from today (local date) to a YYYY-MM-DD due date; negative when overdue.
+export function daysToDue(due: string) {
+  const today = new Date(new Date().toLocaleDateString('en-CA') + 'T00:00:00');
+  return Math.round((new Date(due + 'T00:00:00').getTime() - today.getTime()) / 86_400_000);
+}
+
+export function dueBadge(due: string | null, done: boolean) {
+  if (!due) return null;
+  const d = daysToDue(due);
+  const date = new Date(due + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  if (done) return { label: `Due ${date}`, color: 'gray' };
+  if (d < 0) return { label: `${Math.abs(d)} d overdue (${date})`, color: 'red' };
+  if (d === 0) return { label: `Due today`, color: 'orange' };
+  if (d <= 14) return { label: `Due in ${d} d (${date})`, color: 'orange' };
+  return { label: `Due ${date} (${d} d)`, color: 'gray' };
+}
