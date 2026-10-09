@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Badge, Paper, SimpleGrid, Stack, Table, Text, Title } from '@mantine/core';
 import { supabase, type PlanningItem, type Topic } from '../lib/supabase';
+import { PaymentsLedger } from '../components/PaymentsLedger';
 import { KIND_LABEL, STATUS_COLOR, STATUS_LABEL, formatAsOf, formatInr, formatInrCompact, summarizeMoney } from '../lib/topicMeta';
 
 type BudgetRow = Pick<PlanningItem, 'id' | 'title' | 'type' | 'status' | 'amount' | 'amount_kind' | 'amount_note' | 'as_of'> & {
@@ -71,6 +72,9 @@ export function Budget() {
         />
       </SimpleGrid>
 
+      <PaymentsLedger plannerPaid={money.paid} />
+
+      <Text fw={700} fz="lg">Everything with an amount</Text>
       <Paper withBorder p={0} style={{ overflow: 'hidden' }}>
         <Table.ScrollContainer minWidth={640}>
           <Table highlightOnHover verticalSpacing="sm">

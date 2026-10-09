@@ -58,7 +58,7 @@ function ResultRow({
   );
 }
 
-export function Swipe() {
+export function Swipe({ scope = 'honeymoon' }: { scope?: 'honeymoon' | 'wedding' }) {
   const { profile } = useProfile();
   const [decks, setDecks] = useState<Deck[]>([]);
   const [deckKey, setDeckKey] = useState<string | null>(null);
@@ -72,7 +72,11 @@ export function Swipe() {
   const { destKey, ready: destReady } = useDestination();
   // Decks belong to a destination (Samui is the default); decks without one show for every destination.
   const wanted = destKey || 'samui';
-  const visibleDecks = useMemo(() => decks.filter((d) => !d.destination || d.destination === wanted), [decks, wanted]);
+  // Wedding-function decks have destination 'wedding' and appear only under Functions, never under Honeymoon.
+  const visibleDecks = useMemo(
+    () => decks.filter((d) => (scope === 'wedding' ? d.destination === 'wedding' : !d.destination || d.destination === wanted)),
+    [decks, wanted, scope]
+  );
   const deck = visibleDecks.find((d) => d.key === deckKey) ?? visibleDecks[0] ?? null;
 
   useEffect(() => {
@@ -167,7 +171,7 @@ export function Swipe() {
     return out;
   }, [cards, mineByCard, theirsByCard]);
 
-  if (loading || !destReady) {
+  if (loading || (scope === 'honeymoon' && !destReady)) {
     return (
       <Group justify="center" mt={80}>
         <Loader color="rose" />
@@ -199,7 +203,7 @@ export function Swipe() {
 
   return (
     <Stack gap="md" maw={720} mx="auto">
-      <Title order={2}>Swipe</Title>
+      <Title order={2}>{scope === 'wedding' ? 'Pick looks' : 'Swipe'}</Title>
       {visibleDecks.length > 1 && (
         <SegmentedControl
           value={deck?.key ?? ''}
