@@ -1,5 +1,5 @@
 import { HashRouter, Link, NavLink, Navigate, Route, Routes } from 'react-router-dom';
-import { useState } from 'react';
+import { Suspense, lazy, useState } from 'react';
 import { AppShell, Badge, Burger, Button, Divider, Drawer, Group, Loader, Menu, Stack, Text, Title } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useAuth } from './hooks/useAuth';
@@ -26,6 +26,16 @@ import { ActivityLayout } from './components/ActivityLayout';
 import { Suggestions } from './pages/Suggestions';
 import { usePendingSuggestions } from './hooks/usePendingSuggestions';
 
+// Loaded on demand so the sign-in library does not weigh down the main bundle.
+const ShareAdmin = lazy(() => import('./pages/ShareAdmin').then((m) => ({ default: m.ShareAdmin })));
+const ShareViewer = lazy(() => import('./pages/ShareViewer').then((m) => ({ default: m.ShareViewer })));
+
+const pageLoader = (
+  <Group justify="center" mt={100}>
+    <Loader color="rose" />
+  </Group>
+);
+
 const NAV = [
   { to: '/', label: 'Tasks', end: true },
   { to: '/areas', label: 'Areas' },
@@ -33,6 +43,7 @@ const NAV = [
   { to: '/functions', label: 'Functions' },
   { to: '/vendors', label: 'Vendors' },
   { to: '/honeymoon', label: 'Honeymoon' },
+  { to: '/share', label: 'Share' },
   { to: '/activity', label: 'Activity' },
 ];
 
@@ -159,6 +170,7 @@ function AuthedApp() {
           <Route path="/areas" element={<Dashboard />} />
           <Route path="/topics/:topicKey" element={<TopicDetail />} />
           <Route path="/budget" element={<Budget />} />
+          <Route path="/share" element={<Suspense fallback={pageLoader}><ShareAdmin /></Suspense>} />
           <Route path="/vendors" element={<Vendors />} />
           <Route path="/functions" element={<Functions />} />
           <Route path="/functions/swipe" element={<Swipe scope="wedding" />} />
@@ -183,23 +195,24 @@ function AuthedApp() {
 export default function App() {
   const { session, loading } = useAuth();
 
-  if (loading) {
-    return (
-      <Group justify="center" mt={100}>
-        <Loader color="rose" />
-      </Group>
-    );
-  }
-
   return (
     <HashRouter>
-      {session ? (
-        <AuthedApp />
-      ) : (
-        <Routes>
-          <Route path="*" element={<Login />} />
-        </Routes>
-      )}
+      <Routes>
+        {/* Opened from a share link: no planner login, and it must not wait for one. */}
+        <Route path="/share/:token" element={<Suspense fallback={pageLoader}><ShareViewer /></Suspense>} />
+        <Route
+          path="*"
+          element={
+            loading ? (
+              pageLoader
+            ) : session ? (
+              <AuthedApp />
+            ) : (
+              <Login />
+            )
+          }
+        />
+      </Routes>
     </HashRouter>
   );
 }

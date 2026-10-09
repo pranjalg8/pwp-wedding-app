@@ -5,4 +5,6 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   base: '/pwp-wedding-app/',
   plugins: [react()],
+  // amazon-cognito-identity-js (via its buffer dependency) expects a Node-style `global`.
+  define: { global: 'globalThis' },
 })
