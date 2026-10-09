@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Avatar, Badge, Card, Group, Loader, Progress, SegmentedControl, Stack, Tabs, Text, Title } from '@mantine/core';
+import { useSearchParams } from 'react-router-dom';
+import { Avatar, Badge, Card, Group, Loader, Progress, SegmentedControl, Select, Stack, Tabs, Text, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { CardDetails } from '../components/CardDetails';
 import { SwipeDeck } from '../components/SwipeDeck';
@@ -61,7 +62,8 @@ function ResultRow({
 export function Swipe({ scope = 'honeymoon' }: { scope?: 'honeymoon' | 'wedding' }) {
   const { profile } = useProfile();
   const [decks, setDecks] = useState<Deck[]>([]);
-  const [deckKey, setDeckKey] = useState<string | null>(null);
+  const [params] = useSearchParams();
+  const [deckKey, setDeckKey] = useState<string | null>(params.get('deck'));
   const [cards, setCards] = useState<SwipeCard[]>([]);
   const [swipes, setSwipes] = useState<Swipe[]>([]);
   const [partner, setPartner] = useState<Person | null>(null);
@@ -204,14 +206,24 @@ export function Swipe({ scope = 'honeymoon' }: { scope?: 'honeymoon' | 'wedding'
   return (
     <Stack gap="md" maw={720} mx="auto">
       <Title order={2}>{scope === 'wedding' ? 'Pick looks' : 'Swipe'}</Title>
-      {visibleDecks.length > 1 && (
-        <SegmentedControl
-          value={deck?.key ?? ''}
-          onChange={setDeckKey}
-          data={visibleDecks.map((d) => ({ value: d.key, label: d.label }))}
-          fullWidth
-        />
-      )}
+      {visibleDecks.length > 1 &&
+        (visibleDecks.length > 4 ? (
+          <Select
+            label="Deck"
+            data={visibleDecks.map((d) => ({ value: d.key, label: d.label }))}
+            value={deck?.key ?? null}
+            onChange={(v) => v && setDeckKey(v)}
+            allowDeselect={false}
+            comboboxProps={{ withinPortal: true }}
+          />
+        ) : (
+          <SegmentedControl
+            value={deck?.key ?? ''}
+            onChange={setDeckKey}
+            data={visibleDecks.map((d) => ({ value: d.key, label: d.label }))}
+            fullWidth
+          />
+        ))}
       {deck && (
         <Text size="sm" c="dimmed">
           {deck.label}. {deck.description}

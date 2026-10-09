@@ -18,6 +18,7 @@ import { Activity } from './pages/Activity';
 import { Budget } from './pages/Budget';
 import { Vendors } from './pages/Vendors';
 import { Functions } from './pages/Functions';
+import { FunctionResults } from './pages/FunctionResults';
 import { Swipe } from './pages/Swipe';
 import { HoneymoonItinerary } from './pages/HoneymoonItinerary';
 import { Travel } from './pages/Travel';
@@ -162,6 +163,7 @@ function AuthedApp() {
           <Route path="/vendors" element={<Vendors />} />
           <Route path="/functions" element={<Functions />} />
           <Route path="/functions/swipe" element={<Swipe scope="wedding" />} />
+          <Route path="/functions/results" element={<FunctionResults />} />
           <Route path="/honeymoon" element={<HoneymoonLayout />}>
             <Route index element={<HoneymoonItinerary />} />
             <Route path="travel" element={<Travel />} />
