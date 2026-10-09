@@ -26,6 +26,8 @@ import { HoneymoonLayout } from './components/HoneymoonLayout';
 import { ActivityLayout } from './components/ActivityLayout';
 import { Suggestions } from './pages/Suggestions';
 import { usePendingSuggestions } from './hooks/usePendingSuggestions';
+import { useUnseenUpdates } from './hooks/useUpdates';
+import { Updates } from './pages/Updates';
 
 const NAV = [
   { to: '/', label: 'Tasks', end: true },
@@ -68,7 +70,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   const [drawerOpened, { toggle, close }] = useDisclosure(false);
   const [nameOpened, nameHandlers] = useDisclosure(false);
   const [nickname, setNickname] = useState(getDeviceNickname());
-  const pending = usePendingSuggestions();
+  const pending = usePendingSuggestions() + useUnseenUpdates();
 
   return (
     <AppShell header={{ height: 60 }} padding={{ base: 'sm', sm: 'md', md: 'lg' }}>
@@ -174,6 +176,7 @@ function AuthedApp() {
           <Route path="/activity" element={<ActivityLayout />}>
             <Route index element={<Activity />} />
             <Route path="suggestions" element={<Suggestions />} />
+            <Route path="updates" element={<Updates />} />
           </Route>
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>

@@ -1,0 +1,34 @@
+name: Publish release notes
+
+# When web/src/data/releases.json changes on main, publish its newest version as a GitHub release
+# (skipped if that version already has one). The same file feeds CHANGELOG.md and the in-app What's new page.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'web/src/data/releases.json'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Create the release if it does not exist
+        working-directory: web
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="v$(node scripts/changelog.mjs --latest)"
+          if gh release view "$VERSION" >/dev/null 2>&1; then
+            echo "$VERSION already has a release"
+            exit 0
+          fi
+          node scripts/changelog.mjs --notes > "$RUNNER_TEMP/notes.md"
+          gh release create "$VERSION" --target "$GITHUB_SHA" --title "$(node scripts/changelog.mjs --title)" --notes-file "$RUNNER_TEMP/notes.md"
