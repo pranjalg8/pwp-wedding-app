@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Badge, Button, Card, Group, Modal, Select, Stack, Text, TagsInput, Textarea, TextInput, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
@@ -88,7 +89,10 @@ export function Functions() {
 
   return (
     <Stack gap="xl">
-      <Title order={2}>Functions</Title>
+      <Group justify="space-between" align="center">
+        <Title order={2}>Functions</Title>
+        <Button component={Link} to="/functions/swipe" color="rose" size="sm">Pick looks together</Button>
+      </Group>
       {days.map((d) => (
         <Stack key={d} gap="sm">
           <Text fw={700} c="dimmed" tt="uppercase" size="sm">

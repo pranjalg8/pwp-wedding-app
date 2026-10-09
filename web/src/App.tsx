@@ -156,6 +156,7 @@ function AuthedApp() {
           <Route path="/budget" element={<Budget />} />
           <Route path="/vendors" element={<Vendors />} />
           <Route path="/functions" element={<Functions />} />
+          <Route path="/functions/swipe" element={<Swipe scope="wedding" />} />
           <Route path="/honeymoon" element={<HoneymoonLayout />}>
             <Route index element={<HoneymoonItinerary />} />
             <Route path="travel" element={<Travel />} />

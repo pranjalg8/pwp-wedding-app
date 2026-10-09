@@ -22,7 +22,8 @@ export function buildMessage(row: OutboxRow, appUrl: string): { subject: string;
     const message = `"${title}" (${String(p.topic_label ?? 'planner')}) is ${when}, on ${String(p.due_date ?? '')}. Open the planner: ${homeUrl}`;
     return { subject, message: message.slice(0, 2000) };
   }
-  const swipeUrl = `${appUrl.replace(/\/$/, '')}/#/honeymoon/swipe`;
+  const swipePath = String(p.deck_key ?? '').startsWith('wedding-') ? 'functions/swipe' : 'honeymoon/swipe';
+  const swipeUrl = `${appUrl.replace(/\/$/, '')}/#/${swipePath}`;
 
   if (row.kind === 'deck_completed') {
     const actor = String(p.actor_name ?? 'Your partner');
