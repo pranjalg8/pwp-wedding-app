@@ -18,6 +18,7 @@ import { Activity } from './pages/Activity';
 import { Budget } from './pages/Budget';
 import { Vendors } from './pages/Vendors';
 import { Functions } from './pages/Functions';
+import { FunctionResults } from './pages/FunctionResults';
 import { Swipe } from './pages/Swipe';
 import { HoneymoonItinerary } from './pages/HoneymoonItinerary';
 import { Travel } from './pages/Travel';
@@ -25,6 +26,8 @@ import { HoneymoonLayout } from './components/HoneymoonLayout';
 import { ActivityLayout } from './components/ActivityLayout';
 import { Suggestions } from './pages/Suggestions';
 import { usePendingSuggestions } from './hooks/usePendingSuggestions';
+import { useUnseenUpdates } from './hooks/useUpdates';
+import { Updates } from './pages/Updates';
 
 // Loaded on demand so the sign-in library does not weigh down the main bundle.
 const ShareAdmin = lazy(() => import('./pages/ShareAdmin').then((m) => ({ default: m.ShareAdmin })));
@@ -78,7 +81,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   const [drawerOpened, { toggle, close }] = useDisclosure(false);
   const [nameOpened, nameHandlers] = useDisclosure(false);
   const [nickname, setNickname] = useState(getDeviceNickname());
-  const pending = usePendingSuggestions();
+  const pending = usePendingSuggestions() + useUnseenUpdates();
 
   return (
     <AppShell header={{ height: 60 }} padding={{ base: 'sm', sm: 'md', md: 'lg' }}>
@@ -174,6 +177,7 @@ function AuthedApp() {
           <Route path="/vendors" element={<Vendors />} />
           <Route path="/functions" element={<Functions />} />
           <Route path="/functions/swipe" element={<Swipe scope="wedding" />} />
+          <Route path="/functions/results" element={<FunctionResults />} />
           <Route path="/honeymoon" element={<HoneymoonLayout />}>
             <Route index element={<HoneymoonItinerary />} />
             <Route path="travel" element={<Travel />} />
@@ -184,6 +188,7 @@ function AuthedApp() {
           <Route path="/activity" element={<ActivityLayout />}>
             <Route index element={<Activity />} />
             <Route path="suggestions" element={<Suggestions />} />
+            <Route path="updates" element={<Updates />} />
           </Route>
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>

@@ -22,6 +22,14 @@ Every change is audited under two headings (see the Activity page in the app):
   best-effort: browser user-agent + an optional self-chosen device nickname).
 - **Automatic / Sync** — the WhatsApp sync script, or Claude acting on request.
 
+## What's new
+
+Every version is listed in [CHANGELOG.md](CHANGELOG.md) and in the app under Activity, What's new. Both come from one
+file, `web/src/data/releases.json`. To ship a new version, add an entry at the top of that file, run
+`npm run changelog` in `web/`, and commit both. A check in the deploy workflow fails if they disagree, and merging to
+`main` publishes the newest version as a GitHub release. Keep entries in plain language and leave out anything that
+is private to one of you.
+
 ## One-time setup
 
 ### 1. Supabase project

@@ -1,11 +1,14 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { Badge, Button, Group, Stack } from '@mantine/core';
 import { usePendingSuggestions } from '../hooks/usePendingSuggestions';
+import { useUnseenUpdates } from '../hooks/useUpdates';
 
 export function ActivityLayout() {
   const pending = usePendingSuggestions();
+  const unseen = useUnseenUpdates();
   const sections = [
     { to: '/activity/suggestions', label: 'Suggestions', end: false, count: pending },
+    { to: '/activity/updates', label: "What's new", end: false, count: unseen },
     { to: '/activity', label: 'History', end: true, count: 0 },
   ];
   return (

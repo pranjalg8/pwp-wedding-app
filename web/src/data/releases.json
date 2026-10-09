@@ -1,0 +1,80 @@
+[
+  {
+    "version": "1.6",
+    "date": "2026-10-09",
+    "title": "Function decks, results and this log",
+    "items": [
+      { "kind": "new", "text": "Swipe decks for every function: Haldi, wedding-day colours and outfits, mandap, entry and varmala decor, gifts, photography and video, and Sangeet dance." },
+      { "kind": "new", "text": "Functions, Results: for every function, where you both said yes, where you disagree and what is still waiting." },
+      { "kind": "new", "text": "Activity, What's new: this log of every version, with a badge when there is something you have not seen." },
+      { "kind": "improved", "text": "The Swipe page uses a deck dropdown when there are many decks." }
+    ]
+  },
+  {
+    "version": "1.5",
+    "date": "2026-10-09",
+    "title": "Money, functions and installing",
+    "items": [
+      { "kind": "new", "text": "Payments ledger on the Budget page: each payment with its receipt reference, a Receipt checked or Not verified badge, and a warning if the totals ever disagree with the planner." },
+      { "kind": "new", "text": "Functions page: Tilak, Mehndi, Sagai, Sangeet, Haldi and the wedding day, by date and half of the day, with theme and colours." },
+      { "kind": "new", "text": "Sangeet and Mehndi swipe decks (colours, combinations and outfit styles)." },
+      { "kind": "new", "text": "Daily due-date reminders are queued for each person's items. Emails stay off until the email setup is finished." },
+      { "kind": "new", "text": "Install the planner on your phone from the browser (Add to Home Screen)." },
+      { "kind": "new", "text": "Task-based planner: tasks with options and details, linked to the messages behind them." },
+      { "kind": "new", "text": "Guest page you can share through expiring links." }
+    ]
+  },
+  {
+    "version": "1.4",
+    "date": "2026-10-08",
+    "title": "Shared dates, owners and vendors",
+    "items": [
+      { "kind": "improved", "text": "Shared dates and values live in one place, so every page and the chat reader see the same thing." },
+      { "kind": "new", "text": "Owners and due dates on items, with one shared list called Our due items." },
+      { "kind": "improved", "text": "Vendors are cards grouped by area, with call, email and a WhatsApp chat link." }
+    ]
+  },
+  {
+    "version": "1.3",
+    "date": "2026-10-07",
+    "title": "Checks and notifications groundwork",
+    "items": [
+      { "kind": "improved", "text": "A grounding audit checks every amount against the chat messages it came from." },
+      { "kind": "new", "text": "Notification queue: finished swipe decks and weekly reminders are lined up for each person. Nothing is emailed yet." }
+    ]
+  },
+  {
+    "version": "1.2",
+    "date": "2026-10-05",
+    "title": "Suggestions inbox",
+    "items": [
+      { "kind": "new", "text": "Activity, Suggestions: chat messages and bill images become proposed changes, and nothing is applied until one of you accepts it." }
+    ]
+  },
+  {
+    "version": "1.1",
+    "date": "2026-10-04",
+    "title": "Swipe cards and honeymoon planning",
+    "items": [
+      { "kind": "new", "text": "Swipe cards: yes or no on options, with real photos, facts and links, and a Results tab for where you agree." },
+      { "kind": "new", "text": "Honeymoon Getting there page with route options and timelines." },
+      { "kind": "improved", "text": "The honeymoon page follows the route you chose and the 4 lakh budget." },
+      { "kind": "improved", "text": "Every number shows where it came from and when." },
+      { "kind": "improved", "text": "The activity log records who changed what and from which device, and save errors are visible." },
+      { "kind": "improved", "text": "Database access is limited to the two signed-in accounts." }
+    ]
+  },
+  {
+    "version": "1.0",
+    "date": "2026-10-03",
+    "title": "First version",
+    "items": [
+      { "kind": "new", "text": "A planner by area, with decisions, to-dos, vendors and budget lines." },
+      { "kind": "new", "text": "Countdown home page and a warm design that works on a phone." },
+      { "kind": "new", "text": "Budget page that adds up money across every area." },
+      { "kind": "new", "text": "Vendors page with contact details." },
+      { "kind": "new", "text": "Device nickname, so the activity log says which device made a change." },
+      { "kind": "new", "text": "Changes appear live for both of you." }
+    ]
+  }
+]

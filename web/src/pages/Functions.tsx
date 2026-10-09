@@ -93,7 +93,10 @@ export function Functions() {
     <Stack gap="xl">
       <Group justify="space-between" align="center">
         <Title order={2}>Functions</Title>
-        <Button component={Link} to="/functions/swipe" color="rose" size="sm">Pick looks together</Button>
+        <Group gap="xs">
+          <Button component={Link} to="/functions/results" variant="light" color="rose" size="sm">Results</Button>
+          <Button component={Link} to="/functions/swipe" color="rose" size="sm">Pick looks together</Button>
+        </Group>
       </Group>
       {days.map((d) => (
         <Stack key={d} gap="sm">
