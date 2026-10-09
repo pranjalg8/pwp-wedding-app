@@ -15,6 +15,7 @@ import { TopicDetail } from './pages/TopicDetail';
 import { Activity } from './pages/Activity';
 import { Budget } from './pages/Budget';
 import { Vendors } from './pages/Vendors';
+import { Functions } from './pages/Functions';
 import { Swipe } from './pages/Swipe';
 import { HoneymoonItinerary } from './pages/HoneymoonItinerary';
 import { Travel } from './pages/Travel';
@@ -26,6 +27,7 @@ import { usePendingSuggestions } from './hooks/usePendingSuggestions';
 const NAV = [
   { to: '/', label: 'Dashboard', end: true },
   { to: '/budget', label: 'Budget' },
+  { to: '/functions', label: 'Functions' },
   { to: '/vendors', label: 'Vendors' },
   { to: '/honeymoon', label: 'Honeymoon' },
   { to: '/activity', label: 'Activity' },
@@ -153,6 +155,7 @@ function AuthedApp() {
           <Route path="/topics/:topicKey" element={<TopicDetail />} />
           <Route path="/budget" element={<Budget />} />
           <Route path="/vendors" element={<Vendors />} />
+          <Route path="/functions" element={<Functions />} />
           <Route path="/honeymoon" element={<HoneymoonLayout />}>
             <Route index element={<HoneymoonItinerary />} />
             <Route path="travel" element={<Travel />} />

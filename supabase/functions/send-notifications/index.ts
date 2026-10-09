@@ -9,14 +9,14 @@
 //   CORE_PUBSUB_URL      e.g. https://r50lczvu84.execute-api.us-west-2.amazonaws.com/prod
 //   CORE_TOPIC_MAP       optional JSON { "<profile_id>": "<topic name>" }; default is notify-<display name, lowercase>
 //   Auth, one of:
-//     CORE_ID_TOKEN                                  a Cognito ID token (short-lived; for testing)
-//     CORE_COGNITO_CLIENT_ID + CORE_SVC_USERNAME + CORE_SVC_PASSWORD
-//                                                    signs in with USER_PASSWORD_AUTH. NOTE: the core-services
-//                                                    app client currently only allows SRP, so this needs that
-//                                                    flow enabled, or a machine login added, in core-services.
-//   CORE_AWS_REGION      default us-west-2
+//     CORE_ID_TOKEN                      a Cognito ID token (short-lived; for testing)
+//     CORE_SVC_USERNAME + CORE_SVC_PASSWORD
+//                                        a normal member of the tenant, signed in with SRP (the flow the
+//                                        existing app client allows; nothing to change in core-services)
+//   CORE_USER_POOL_ID / CORE_COGNITO_CLIENT_ID   optional; default to the shared pool and web client
 //   APP_URL              default https://pranjalg8.github.io/pwp-wedding-app/
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { AuthenticationDetails, CognitoUser, CognitoUserPool } from 'npm:amazon-cognito-identity-js@6.3.12';
 import { buildMessage, type OutboxRow } from './messages.ts';
 
 const MAX_ATTEMPTS = 5;
@@ -35,25 +35,26 @@ function callerRole(req: Request): string | null {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
-async function getIdToken(): Promise<string | null> {
+// Signs in with SRP, the one flow the core-services app client already allows, so no change to core-services
+// auth is needed. The service user is an ordinary member of the tenant (any signed-in user may publish).
+function getIdToken(): Promise<string | null> {
   const staticToken = Deno.env.get('CORE_ID_TOKEN');
-  if (staticToken) return staticToken;
-  const clientId = Deno.env.get('CORE_COGNITO_CLIENT_ID');
+  if (staticToken) return Promise.resolve(staticToken);
   const username = Deno.env.get('CORE_SVC_USERNAME');
   const password = Deno.env.get('CORE_SVC_PASSWORD');
-  if (!clientId || !username || !password) return null;
-  const region = Deno.env.get('CORE_AWS_REGION') ?? 'us-west-2';
-  const res = await fetch(`https://cognito-idp.${region}.amazonaws.com/`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-amz-json-1.1',
-      'X-Amz-Target': 'AWSCognitoIdentityProviderService.InitiateAuth',
-    },
-    body: JSON.stringify({ AuthFlow: 'USER_PASSWORD_AUTH', ClientId: clientId, AuthParameters: { USERNAME: username, PASSWORD: password } }),
+  if (!username || !password) return Promise.resolve(null);
+  const pool = new CognitoUserPool({
+    UserPoolId: Deno.env.get('CORE_USER_POOL_ID') ?? 'us-west-2_WMOgHf6cc',
+    ClientId: Deno.env.get('CORE_COGNITO_CLIENT_ID') ?? '1kb3vbjtm4ppcme9g0hgt37fhk',
   });
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(`Cognito sign-in failed: ${body.__type ?? res.status}`);
-  return body.AuthenticationResult?.IdToken ?? null;
+  const user = new CognitoUser({ Username: username, Pool: pool });
+  return new Promise((resolve, reject) => {
+    user.authenticateUser(new AuthenticationDetails({ Username: username, Password: password }), {
+      onSuccess: (session) => resolve(session.getIdToken().getJwtToken()),
+      onFailure: (err) => reject(new Error(`Cognito sign-in failed: ${err?.code ?? err?.name ?? 'unknown'}`)),
+      newPasswordRequired: () => reject(new Error('Cognito sign-in failed: service user must finish first sign-in (new password)')),
+    });
+  });
 }
 
 Deno.serve(async (req) => {
