@@ -1,25 +1,18 @@
 import { useEffect, useState } from 'react';
-import { Alert, Badge, Group, Paper, Stack, Table, Text } from '@mantine/core';
+import { Alert, Badge, Button, Group, Paper, Stack, Table, Text } from '@mantine/core';
 import { supabase } from '../lib/supabase';
 import { formatInr } from '../lib/topicMeta';
-
-type Payment = {
-  id: string;
-  paid_on: string;
-  payee: string;
-  amount: number;
-  method: string | null;
-  reference: string | null;
-  purpose: string | null;
-  verification: 'receipt_checked' | 'chat_only';
-  verification_note: string | null;
-};
+import { useEditMode } from '../hooks/useEditMode';
+import { PaymentEditor, type Payment } from './PaymentEditor';
 
 // Amounts come back from Postgres numeric as strings; add in paise so the total is exact.
 const paise = (n: number | string) => Math.round(Number(n) * 100);
 
 export function PaymentsLedger({ plannerPaid }: { plannerPaid: number }) {
+  const { isUnlocked } = useEditMode();
   const [rows, setRows] = useState<Payment[]>([]);
+  const [editing, setEditing] = useState<Payment | null | 'new'>(null);
+  const [error, setError] = useState<string | null>(null);
 
   async function load() {
     const { data } = await supabase
@@ -40,16 +33,32 @@ export function PaymentsLedger({ plannerPaid }: { plannerPaid: number }) {
     };
   }, []);
 
+  async function remove(p: Payment) {
+    if (!window.confirm(`Delete the ${formatInr(Number(p.amount))} payment to ${p.payee}? This is recorded in the activity log.`)) return;
+    setError(null);
+    const { error: err } = await supabase.from('payments').delete().eq('id', p.id);
+    if (err) setError(err.message);
+    else load();
+  }
+
   const total = rows.reduce((s, r) => s + paise(r.amount), 0) / 100;
   const checked = rows.filter((r) => r.verification === 'receipt_checked').reduce((s, r) => s + paise(r.amount), 0) / 100;
   const unchecked = total - checked;
   const mismatch = paise(total) !== paise(plannerPaid);
+  const columns = isUnlocked ? 5 : 4;
 
   return (
     <Stack gap="xs">
-      <Group justify="space-between" align="baseline">
+      <Group justify="space-between" align="center">
         <Text fw={700} fz="lg">Payments made</Text>
-        <Text fw={700}>{formatInr(total)}</Text>
+        <Group gap="sm">
+          <Text fw={700}>{formatInr(total)}</Text>
+          {isUnlocked && (
+            <Button size="xs" variant="light" onClick={() => setEditing('new')}>
+              Add payment
+            </Button>
+          )}
+        </Group>
       </Group>
       <Text size="sm" c="dimmed">
         {formatInr(checked)} checked against a receipt{unchecked > 0 ? `, ${formatInr(unchecked)} from chat only` : ''}.
@@ -59,6 +68,7 @@ export function PaymentsLedger({ plannerPaid }: { plannerPaid: number }) {
           The ledger adds up to {formatInr(total)} but the planner items marked paid add up to {formatInr(plannerPaid)}. One of them is missing or wrong.
         </Alert>
       )}
+      {error && <Alert color="red" withCloseButton onClose={() => setError(null)}>{error}</Alert>}
       <Paper withBorder p={0} style={{ overflow: 'hidden' }}>
         <Table.ScrollContainer minWidth={640}>
           <Table verticalSpacing="sm">
@@ -68,6 +78,7 @@ export function PaymentsLedger({ plannerPaid }: { plannerPaid: number }) {
                 <Table.Th>Paid to</Table.Th>
                 <Table.Th>Proof</Table.Th>
                 <Table.Th ta="right">Amount</Table.Th>
+                {isUnlocked && <Table.Th />}
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -88,15 +99,31 @@ export function PaymentsLedger({ plannerPaid }: { plannerPaid: number }) {
                     {r.verification_note && <Text size="xs" c="dimmed" mt={4}>{r.verification_note}</Text>}
                   </Table.Td>
                   <Table.Td ta="right" fw={600}>{formatInr(Number(r.amount))}</Table.Td>
+                  {isUnlocked && (
+                    <Table.Td ta="right" style={{ whiteSpace: 'nowrap' }}>
+                      <Button size="compact-xs" variant="subtle" onClick={() => setEditing(r)}>Edit</Button>
+                      <Button size="compact-xs" variant="subtle" color="red" onClick={() => remove(r)}>Delete</Button>
+                    </Table.Td>
+                  )}
                 </Table.Tr>
               ))}
               {rows.length === 0 && (
-                <Table.Tr><Table.Td colSpan={4}><Text c="dimmed">No payments recorded yet.</Text></Table.Td></Table.Tr>
+                <Table.Tr><Table.Td colSpan={columns}><Text c="dimmed">No payments recorded yet.</Text></Table.Td></Table.Tr>
               )}
             </Table.Tbody>
           </Table>
         </Table.ScrollContainer>
       </Paper>
+
+      {isUnlocked && editing && (
+        <PaymentEditor
+          key={editing === 'new' ? 'new' : editing.id}
+          payment={editing === 'new' ? null : editing}
+          opened
+          onClose={() => setEditing(null)}
+          onSaved={load}
+        />
+      )}
     </Stack>
   );
 }
