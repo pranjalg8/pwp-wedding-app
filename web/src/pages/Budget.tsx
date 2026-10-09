@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Badge, Paper, SimpleGrid, Stack, Table, Text, Title } from '@mantine/core';
+import { Badge, Button, Paper, SimpleGrid, Stack, Table, Text, Title } from '@mantine/core';
 import { supabase, type PlanningItem, type Topic } from '../lib/supabase';
 import { PaymentsLedger } from '../components/PaymentsLedger';
+import { ItemEditor } from '../components/ItemEditor';
+import { useEditMode } from '../hooks/useEditMode';
 import { KIND_LABEL, STATUS_COLOR, STATUS_LABEL, formatAsOf, formatInr, formatInrCompact, summarizeMoney } from '../lib/topicMeta';
 
 type BudgetRow = Pick<PlanningItem, 'id' | 'title' | 'type' | 'status' | 'amount' | 'amount_kind' | 'amount_note' | 'as_of'> & {
@@ -28,7 +30,15 @@ function Tile({ label, value, hint }: { label: string; value: string; hint: stri
 }
 
 export function Budget() {
+  const { isUnlocked } = useEditMode();
   const [rows, setRows] = useState<BudgetRow[]>([]);
+  const [editingItem, setEditingItem] = useState<PlanningItem | null>(null);
+
+  // The table only holds the few fields it shows, so load the whole item before editing it.
+  async function startEdit(id: string) {
+    const { data } = await supabase.from('planning_items').select('*').eq('id', id).single();
+    if (data) setEditingItem(data as PlanningItem);
+  }
 
   async function load() {
     const { data } = await supabase
@@ -85,6 +95,7 @@ export function Budget() {
                 <Table.Th>Kind</Table.Th>
                 <Table.Th>Status</Table.Th>
                 <Table.Th ta="right">Amount</Table.Th>
+                {isUnlocked && <Table.Th />}
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -117,11 +128,18 @@ export function Budget() {
                   <Table.Td ta="right" fw={600}>
                     {formatInr(r.amount ?? 0)}
                   </Table.Td>
+                  {isUnlocked && (
+                    <Table.Td ta="right">
+                      <Button size="compact-xs" variant="subtle" onClick={() => startEdit(r.id)}>
+                        Edit
+                      </Button>
+                    </Table.Td>
+                  )}
                 </Table.Tr>
               ))}
               {rows.length === 0 && (
                 <Table.Tr>
-                  <Table.Td colSpan={5}>
+                  <Table.Td colSpan={isUnlocked ? 6 : 5}>
                     <Text c="dimmed">No budgeted items yet. Add an amount to an item to see it here.</Text>
                   </Table.Td>
                 </Table.Tr>
@@ -130,6 +148,17 @@ export function Budget() {
           </Table>
         </Table.ScrollContainer>
       </Paper>
+
+      {isUnlocked && editingItem && (
+        <ItemEditor
+          key={editingItem.id}
+          topicId={editingItem.topic_id}
+          item={editingItem}
+          opened
+          onClose={() => setEditingItem(null)}
+          onSaved={load}
+        />
+      )}
     </Stack>
   );
 }
