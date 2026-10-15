@@ -82,7 +82,7 @@ export function TaskDetail() {
   if (notFound) {
     return (
       <Stack>
-        <Anchor component={Link} to="/" size="sm" c="dimmed">
+        <Anchor component={Link} to="/tasks" size="sm" c="dimmed">
           ← All tasks
         </Anchor>
         <Text c="dimmed">That task doesn't exist.</Text>
@@ -116,7 +116,7 @@ export function TaskDetail() {
 
   return (
     <Stack gap="md">
-      <Anchor component={Link} to="/" size="sm" c="dimmed">
+      <Anchor component={Link} to="/tasks" size="sm" c="dimmed">
         ← All tasks
       </Anchor>
 
