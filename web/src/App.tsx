@@ -11,6 +11,7 @@ import { DeviceNicknameModal } from './components/DeviceNickname';
 import { getDeviceNickname } from './lib/device';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
+import { Home } from './pages/Home';
 import { Tasks } from './pages/Tasks';
 import { TaskDetail } from './pages/TaskDetail';
 import { TopicDetail } from './pages/TopicDetail';
@@ -40,7 +41,8 @@ const pageLoader = (
 );
 
 const NAV = [
-  { to: '/', label: 'Tasks', end: true },
+  { to: '/', label: 'Home', end: true },
+  { to: '/tasks', label: 'Tasks' },
   { to: '/areas', label: 'Areas' },
   { to: '/budget', label: 'Budget' },
   { to: '/functions', label: 'Functions' },
@@ -168,7 +170,8 @@ function AuthedApp() {
     <EditModeProvider>
       <Shell>
         <Routes>
-          <Route path="/" element={<Tasks />} />
+          <Route path="/" element={<Home />} />
+          <Route path="/tasks" element={<Tasks />} />
           <Route path="/tasks/:taskId" element={<TaskDetail />} />
           <Route path="/areas" element={<Dashboard />} />
           <Route path="/topics/:topicKey" element={<TopicDetail />} />

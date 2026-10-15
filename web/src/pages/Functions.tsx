@@ -1,27 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Badge, Button, Card, Group, Modal, Select, Stack, Text, TagsInput, Textarea, TextInput, Title } from '@mantine/core';
+import { Button, Group, Modal, Select, SimpleGrid, Stack, Text, TagsInput, Textarea, TextInput, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
 import { useEditMode } from '../hooks/useEditMode';
+import { FUNCTION_STATUS_LABEL, FunctionCard, tintFor, type OutfitOption, type WeddingFunction } from '../components/FunctionCard';
 
-type WeddingFunction = {
-  id: string;
-  key: string;
-  name: string;
-  event_date: string;
-  slot: 'first_half' | 'second_half';
-  sort_order: number;
-  theme: string | null;
-  colours: string[];
-  avoid_colours: string[];
-  notes: string | null;
-  status: 'open' | 'in_progress' | 'decided';
-};
-
-const STATUS_LABEL = { open: 'Open', in_progress: 'In progress', decided: 'Decided' } as const;
-const STATUS_COLOR = { open: 'orange', in_progress: 'blue', decided: 'teal' } as const;
-const SLOT_LABEL = { first_half: 'First half', second_half: 'Second half' } as const;
+const STATUS_LABEL = FUNCTION_STATUS_LABEL;
 
 function Editor({ fn, onClose, onSaved }: { fn: WeddingFunction; onClose: () => void; onSaved: () => void }) {
   const [theme, setTheme] = useState(fn.theme ?? '');
@@ -69,11 +54,16 @@ function Editor({ fn, onClose, onSaved }: { fn: WeddingFunction; onClose: () => 
 export function Functions() {
   const { isUnlocked } = useEditMode();
   const [rows, setRows] = useState<WeddingFunction[]>([]);
+  const [outfits, setOutfits] = useState<OutfitOption[]>([]);
   const [editing, setEditing] = useState<WeddingFunction | null>(null);
 
   async function load() {
-    const { data } = await supabase.from('wedding_functions').select('*').order('sort_order');
-    setRows((data ?? []) as WeddingFunction[]);
+    const [fns, opts] = await Promise.all([
+      supabase.from('wedding_functions').select('*').order('sort_order'),
+      supabase.from('task_options').select('name, status, tasks!inner(title)').ilike('tasks.title', 'Groom outfits%'),
+    ]);
+    setRows((fns.data ?? []) as WeddingFunction[]);
+    setOutfits(((opts.data ?? []) as OutfitOption[]).map((o) => ({ name: o.name, status: o.status })));
   }
 
   useEffect(() => {
@@ -103,30 +93,18 @@ export function Functions() {
           <Text fw={700} c="dimmed" tt="uppercase" size="sm">
             {new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
           </Text>
-          {rows.filter((r) => r.event_date === d).map((r) => (
-            <Card key={r.id} withBorder p="md">
-              <Group justify="space-between" align="flex-start" wrap="nowrap">
-                <Stack gap={4} style={{ minWidth: 0 }}>
-                  <Group gap="xs">
-                    <Text fw={700}>{r.name}</Text>
-                    <Badge variant="outline" color="gray">{SLOT_LABEL[r.slot]}</Badge>
-                    <Badge variant="light" color={STATUS_COLOR[r.status]}>{STATUS_LABEL[r.status]}</Badge>
-                  </Group>
-                  {r.theme && <Text size="sm">Theme: {r.theme}</Text>}
-                  {(r.colours.length > 0 || r.avoid_colours.length > 0) && (
-                    <Group gap={6}>
-                      {r.colours.map((c) => <Badge key={c} color="teal" variant="light">{c}</Badge>)}
-                      {r.avoid_colours.map((c) => <Badge key={c} color="red" variant="light">avoid {c}</Badge>)}
-                    </Group>
-                  )}
-                  {r.notes && <Text size="sm" c="dimmed">{r.notes}</Text>}
-                </Stack>
-                {isUnlocked && (
-                  <Button variant="subtle" size="xs" onClick={() => setEditing(r)}>Edit</Button>
-                )}
-              </Group>
-            </Card>
-          ))}
+          <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
+            {rows.filter((r) => r.event_date === d).map((r) => (
+              <FunctionCard
+                key={r.id}
+                fn={r}
+                tint={tintFor(rows.indexOf(r))}
+                outfits={outfits}
+                detailed
+                onEdit={isUnlocked ? () => setEditing(r) : undefined}
+              />
+            ))}
+          </SimpleGrid>
         </Stack>
       ))}
       {rows.length === 0 && <Text c="dimmed">No functions yet.</Text>}
