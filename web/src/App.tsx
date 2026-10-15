@@ -40,41 +40,63 @@ const pageLoader = (
   </Group>
 );
 
-const NAV = [
-  { to: '/', label: 'Home', end: true },
-  { to: '/tasks', label: 'Tasks' },
-  { to: '/areas', label: 'Areas' },
-  { to: '/budget', label: 'Budget' },
-  { to: '/functions', label: 'Functions' },
-  { to: '/vendors', label: 'Vendors' },
-  { to: '/honeymoon', label: 'Honeymoon' },
-  { to: '/share', label: 'Share' },
-  { to: '/activity', label: 'Activity' },
+const NAV_GROUPS = [
+  {
+    label: 'Plan',
+    items: [
+      { to: '/', label: 'Home', icon: '🏠', end: true },
+      { to: '/tasks', label: 'Tasks', icon: '✅' },
+      { to: '/areas', label: 'Areas', icon: '🗂️' },
+      { to: '/functions', label: 'Functions', icon: '🎉' },
+    ],
+  },
+  {
+    label: 'Money and people',
+    items: [
+      { to: '/budget', label: 'Budget', icon: '💰' },
+      { to: '/vendors', label: 'Vendors', icon: '🤝' },
+      { to: '/honeymoon', label: 'Honeymoon', icon: '🏝️' },
+    ],
+  },
+  {
+    label: 'Share and history',
+    items: [
+      { to: '/share', label: 'Share', icon: '🔗' },
+      { to: '/activity', label: 'Activity', icon: '🔔' },
+    ],
+  },
 ];
 
-function NavLinks({ onNavigate, vertical, pending = 0 }: { onNavigate?: () => void; vertical?: boolean; pending?: number }) {
-  const Wrapper = vertical ? Stack : Group;
+// The same grouped list is used in the desktop sidebar and in the phone drawer.
+function NavLinks({ onNavigate, pending = 0 }: { onNavigate?: () => void; pending?: number }) {
   return (
-    <Wrapper gap={vertical ? 'xs' : 2} wrap={vertical ? undefined : 'nowrap'}>
-      {NAV.map((n) => (
-        <NavLink key={n.to} to={n.to} end={n.end} onClick={onNavigate} style={{ textDecoration: 'none' }}>
-          {({ isActive }) => (
-            <Button
-              component="span"
-              variant={isActive ? 'light' : 'subtle'}
-              color={isActive ? 'rose' : 'gray'}
-              size={vertical ? 'md' : 'sm'}
-              px={vertical ? undefined : 10}
-              fullWidth={vertical}
-              justify={vertical ? 'flex-start' : 'center'}
-              rightSection={n.to === '/activity' && pending > 0 ? <Badge size="xs" circle color="rose">{pending}</Badge> : undefined}
-            >
-              {n.label}
-            </Button>
-          )}
-        </NavLink>
+    <Stack gap="md">
+      {NAV_GROUPS.map((group) => (
+        <Stack key={group.label} gap={4}>
+          <Text size="xs" fw={700} tt="uppercase" c="dimmed" px="sm" style={{ letterSpacing: 0.6 }}>
+            {group.label}
+          </Text>
+          {group.items.map((n) => (
+            <NavLink key={n.to} to={n.to} end={n.end} onClick={onNavigate} style={{ textDecoration: 'none' }}>
+              {({ isActive }) => (
+                <Button
+                  component="span"
+                  variant={isActive ? 'light' : 'subtle'}
+                  color={isActive ? 'rose' : 'gray'}
+                  size="md"
+                  fullWidth
+                  justify="flex-start"
+                  leftSection={<span aria-hidden>{n.icon}</span>}
+                  rightSection={n.to === '/activity' && pending > 0 ? <Badge size="xs" circle color="rose">{pending}</Badge> : undefined}
+                >
+                  {n.label}
+                </Button>
+              )}
+            </NavLink>
+          ))}
+        </Stack>
       ))}
-    </Wrapper>
+    </Stack>
   );
 }
 
@@ -86,7 +108,11 @@ function Shell({ children }: { children: React.ReactNode }) {
   const pending = usePendingSuggestions() + useUnseenUpdates();
 
   return (
-    <AppShell header={{ height: 60 }} padding={{ base: 'sm', sm: 'md', md: 'lg' }}>
+    <AppShell
+      header={{ height: 60 }}
+      navbar={{ width: 232, breakpoint: 'lg', collapsed: { mobile: true } }}
+      padding={{ base: 'sm', sm: 'md', md: 'lg' }}
+    >
       <AppShell.Header>
         <Group h="100%" px="md" justify="space-between" wrap="nowrap">
           <Group wrap="nowrap" gap="md">
@@ -96,9 +122,6 @@ function Shell({ children }: { children: React.ReactNode }) {
                 Pranjal <Text span c="rose.6">&amp;</Text> Paridhi
               </Link>
             </Title>
-            <Group visibleFrom="lg" ml="md" wrap="nowrap">
-              <NavLinks pending={pending} />
-            </Group>
           </Group>
           <Group visibleFrom="lg" gap="xs" wrap="nowrap">
             <PinGateButton />
@@ -121,9 +144,13 @@ function Shell({ children }: { children: React.ReactNode }) {
         </Group>
       </AppShell.Header>
 
+      <AppShell.Navbar p="md" style={{ overflowY: 'auto' }}>
+        <NavLinks pending={pending} />
+      </AppShell.Navbar>
+
       <Drawer opened={drawerOpened} onClose={close} size="xs" title={`Hi, ${profile?.display_name ?? ''}`} hiddenFrom="lg">
         <Stack>
-          <NavLinks vertical onNavigate={close} pending={pending} />
+          <NavLinks onNavigate={close} pending={pending} />
           <Divider />
           <Stack gap="xs" align="stretch">
             <Button variant="subtle" color="gray" onClick={nameHandlers.open}>
