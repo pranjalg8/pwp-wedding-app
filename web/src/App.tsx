@@ -19,6 +19,7 @@ import { Activity } from './pages/Activity';
 import { Budget } from './pages/Budget';
 import { Vendors } from './pages/Vendors';
 import { Functions } from './pages/Functions';
+import { Guests } from './pages/Guests';
 import { FunctionResults } from './pages/FunctionResults';
 import { Swipe } from './pages/Swipe';
 import { HoneymoonItinerary } from './pages/HoneymoonItinerary';
@@ -48,6 +49,7 @@ const NAV_GROUPS = [
       { to: '/tasks', label: 'Tasks', icon: '✅' },
       { to: '/areas', label: 'Areas', icon: '🗂️' },
       { to: '/functions', label: 'Functions', icon: '🎉' },
+      { to: '/guests', label: 'Guests', icon: '👥' },
     ],
   },
   {
@@ -206,6 +208,7 @@ function AuthedApp() {
           <Route path="/share" element={<Suspense fallback={pageLoader}><ShareAdmin /></Suspense>} />
           <Route path="/vendors" element={<Vendors />} />
           <Route path="/functions" element={<Functions />} />
+          <Route path="/guests" element={<Guests />} />
           <Route path="/functions/swipe" element={<Swipe scope="wedding" />} />
           <Route path="/functions/results" element={<FunctionResults />} />
           <Route path="/honeymoon" element={<HoneymoonLayout />}>
