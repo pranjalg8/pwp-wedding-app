@@ -87,7 +87,7 @@ function NavLinks({ onNavigate, pending = 0 }: { onNavigate?: () => void; pendin
                   fullWidth
                   justify="flex-start"
                   leftSection={<span aria-hidden>{n.icon}</span>}
-                  rightSection={n.to === '/activity' && pending > 0 ? <Badge size="xs" circle color="rose">{pending}</Badge> : undefined}
+                  rightSection={n.to === '/activity' && pending > 0 ? <Badge size="sm" color="rose">{pending}</Badge> : undefined}
                 >
                   {n.label}
                 </Button>
