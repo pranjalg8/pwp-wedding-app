@@ -8,6 +8,7 @@ type GuestRef = { id: string; name: string; persons: number };
 type Row = { invited: boolean; coming: number | string; maybe: number | string; declined: number | string };
 
 const n = (v: number | string) => Number(v) || 0;
+const zero = { coming: 0, maybe: 0, declined: 0 };
 const used = (r: Row) => n(r.coming) + n(r.maybe) + n(r.declined);
 
 function Counts({ row, max, label, onChange }: { row: Row; max: number; label: string; onChange: (patch: Partial<Row>) => void }) {
@@ -30,6 +31,40 @@ function Counts({ row, max, label, onChange }: { row: Row; max: number; label: s
           value={row[f.key]}
           onChange={(v) => onChange({ [f.key]: v })}
         />
+      ))}
+    </Group>
+  );
+}
+
+type Answer = 'coming' | 'maybe' | 'declined' | 'clear';
+const ANSWERS: { answer: Answer; label: string; color: string }[] = [
+  { answer: 'coming', label: 'All yes', color: 'teal' },
+  { answer: 'maybe', label: 'All maybe', color: 'yellow' },
+  { answer: 'declined', label: 'All no', color: 'red' },
+  { answer: 'clear', label: 'No reply', color: 'gray' },
+];
+
+// What a one-click answer means: the whole household says the same thing, or nobody has replied yet.
+const answerFor = (answer: Answer, persons: number): Partial<Row> => ({
+  coming: answer === 'coming' ? persons : 0,
+  maybe: answer === 'maybe' ? persons : 0,
+  declined: answer === 'declined' ? persons : 0,
+});
+
+function QuickPicks({ persons, label, onPick }: { persons: number; label: string; onPick: (patch: Partial<Row>) => void }) {
+  return (
+    <Group gap={4}>
+      {ANSWERS.map((p) => (
+        <Button
+          key={p.answer}
+          size="compact-xs"
+          variant="light"
+          color={p.color}
+          aria-label={`${p.label} for ${label}`}
+          onClick={() => onPick(answerFor(p.answer, persons))}
+        >
+          {p.label}
+        </Button>
       ))}
     </Group>
   );
@@ -119,6 +154,7 @@ export function RsvpEditor({
           <Text size="sm" fw={600}>
             Same answer for every function
           </Text>
+          <QuickPicks persons={guest.persons} label="every function" onPick={(p) => setRows(Object.fromEntries(functions.map((f) => [f.id, { invited: true, ...zero, ...p } as Row])))} />
           <Group gap="sm" wrap="wrap">
             <Counts row={all} max={guest.persons} label="all functions" onChange={(p) => setAll((a) => ({ ...a, ...p }))} />
             <Button variant="light" size="compact-md" onClick={applyToAll} disabled={over(all)}>
@@ -142,9 +178,12 @@ export function RsvpEditor({
                   {r.invited && <Counts row={r} max={guest.persons} label={f.name} onChange={(p) => set(f.id, p)} />}
                 </Group>
                 {r.invited && (
-                  <Text size="xs" c={over(r) ? 'red' : 'dimmed'} ml={28}>
-                    {over(r) ? `More than the household of ${guest.persons}` : `${guest.persons - used(r)} no reply`}
-                  </Text>
+                  <Group gap="sm" ml={28} mt={4} wrap="wrap">
+                    <Text size="xs" c={over(r) ? 'red' : 'dimmed'}>
+                      {over(r) ? `More than the household of ${guest.persons}` : `${guest.persons - used(r)} no reply`}
+                    </Text>
+                    <QuickPicks persons={guest.persons} label={f.name} onPick={(p) => set(f.id, p)} />
+                  </Group>
                 )}
               </div>
             );
