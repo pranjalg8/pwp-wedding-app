@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Checkbox, Group, Modal, MultiSelect, NumberInput, Stack, Text } from '@mantine/core';
+import { ActionIcon, Box, Button, Checkbox, Group, Modal, MultiSelect, Paper, Stack, Text } from '@mantine/core';
 import { supabase } from '../lib/supabase';
 import type { Invite } from '../lib/rsvp';
 
@@ -23,25 +23,117 @@ export function daysFromFunctions(fns: { name: string; event_date: string }[]): 
   }));
 }
 
-function Counts({ row, max, label, onChange }: { row: Row; max: number; label: string; onChange: (patch: Partial<Row>) => void }) {
-  const fields: { key: 'coming' | 'maybe' | 'declined'; name: string }[] = [
-    { key: 'coming', name: 'Yes' },
-    { key: 'maybe', name: 'Maybe' },
-    { key: 'declined', name: 'No' },
-  ];
+type CountKey = 'coming' | 'maybe' | 'declined';
+const COUNT_FIELDS: { key: CountKey; name: string; hint: string; color: string }[] = [
+  { key: 'coming', name: 'Yes', hint: 'coming', color: 'teal' },
+  { key: 'maybe', name: 'Maybe', hint: 'not sure yet', color: 'yellow' },
+  { key: 'declined', name: 'No', hint: 'not coming', color: 'red' },
+];
+
+// One row per answer: the label on the left, a counter with big minus and plus buttons on the right, so it is
+// clear what is being counted and nobody has to type or hit tiny arrows.
+function CountRow({
+  name,
+  hint,
+  color,
+  value,
+  canAdd,
+  context,
+  onChange,
+}: {
+  name: string;
+  hint: string;
+  color: string;
+  value: number;
+  canAdd: boolean;
+  context: string;
+  onChange: (v: number) => void;
+}) {
   return (
-    <Group gap={6} wrap="nowrap">
-      {fields.map((f) => (
-        <NumberInput
+    <Group justify="space-between" wrap="nowrap" gap="sm">
+      <Group gap={8} wrap="nowrap">
+        <Box w={10} h={10} style={{ borderRadius: '50%', flexShrink: 0, background: `var(--mantine-color-${color}-6)` }} />
+        <div>
+          <Text size="sm" fw={700} lh={1.2}>
+            {name}
+          </Text>
+          <Text size="xs" c="dimmed" lh={1.2}>
+            {hint}
+          </Text>
+        </div>
+      </Group>
+      <Group gap={6} wrap="nowrap">
+        <ActionIcon
+          variant="light"
+          color={color}
+          size="lg"
+          radius="xl"
+          aria-label={`One fewer ${name.toLowerCase()} for ${context}`}
+          disabled={value <= 0}
+          onClick={() => onChange(value - 1)}
+        >
+          <span aria-hidden style={{ fontSize: 18, lineHeight: 1 }}>
+            −
+          </span>
+        </ActionIcon>
+        <Text w={28} ta="center" fw={700} fz={22} aria-live="polite" aria-label={`${name}: ${value}`}>
+          {value}
+        </Text>
+        <ActionIcon
+          variant="light"
+          color={color}
+          size="lg"
+          radius="xl"
+          aria-label={`One more ${name.toLowerCase()} for ${context}`}
+          disabled={!canAdd}
+          onClick={() => onChange(value + 1)}
+        >
+          <span aria-hidden style={{ fontSize: 18, lineHeight: 1 }}>
+            +
+          </span>
+        </ActionIcon>
+      </Group>
+    </Group>
+  );
+}
+
+function Counts({ row, max, label, onChange }: { row: Row; max: number; label: string; onChange: (patch: Partial<Row>) => void }) {
+  const canAdd = used(row) < max;
+  return (
+    <Stack gap="xs">
+      {COUNT_FIELDS.map((f) => (
+        <CountRow
           key={f.key}
-          aria-label={`${f.name}: ${label}`}
-          placeholder={f.name}
-          min={0}
-          max={max}
-          allowDecimal={false}
-          w={68}
-          value={row[f.key]}
+          name={f.name}
+          hint={f.hint}
+          color={f.color}
+          value={n(row[f.key])}
+          canAdd={canAdd}
+          context={label}
           onChange={(v) => onChange({ [f.key]: v })}
+        />
+      ))}
+    </Stack>
+  );
+}
+
+// One dot per person, coloured by answer, so the split reads at a glance (grey = has not replied).
+function PeopleDots({ row, persons }: { row: Row; persons: number }) {
+  const colours = [
+    ...Array(Math.min(n(row.coming), persons)).fill('teal'),
+    ...Array(n(row.maybe)).fill('yellow'),
+    ...Array(n(row.declined)).fill('red'),
+  ].slice(0, persons);
+  while (colours.length < persons) colours.push('gray');
+  if (persons > 24) return null;
+  return (
+    <Group gap={4} wrap="wrap" aria-hidden>
+      {colours.map((c, i) => (
+        <Box
+          key={i}
+          w={12}
+          h={12}
+          style={{ borderRadius: '50%', background: `var(--mantine-color-${c}-${c === 'gray' ? 4 : 6})`, opacity: c === 'gray' ? 0.5 : 1 }}
         />
       ))}
     </Group>
@@ -50,10 +142,10 @@ function Counts({ row, max, label, onChange }: { row: Row; max: number; label: s
 
 type Answer = 'coming' | 'maybe' | 'declined' | 'clear';
 const ANSWERS: { answer: Answer; label: string; color: string }[] = [
-  { answer: 'coming', label: 'All yes', color: 'teal' },
-  { answer: 'maybe', label: 'All maybe', color: 'yellow' },
-  { answer: 'declined', label: 'All no', color: 'red' },
-  { answer: 'clear', label: 'No reply', color: 'gray' },
+  { answer: 'coming', label: 'Everyone yes', color: 'teal' },
+  { answer: 'maybe', label: 'Everyone maybe', color: 'yellow' },
+  { answer: 'declined', label: 'Everyone no', color: 'red' },
+  { answer: 'clear', label: 'Clear', color: 'gray' },
 ];
 
 // What a one-click answer means: the whole household says the same thing, or nobody has replied yet.
@@ -153,45 +245,55 @@ export function RsvpEditor({
     <Modal opened={opened} onClose={onClose} title={`RSVP: ${guest.name}`} centered size="lg">
       <Stack>
         <Text size="sm" c="dimmed">
-          Household of {guest.persons}. RSVP is by day: whoever is coming on a day is at every function that day. Tick the days they are
-          invited, then say how many are coming (yes), maybe or not coming. Anyone left out of those three has not replied yet.
+          Household of {guest.persons}. Tick the days they are invited, then say how many are coming (Yes), unsure (Maybe) or not
+          coming (No). Anyone you leave out shows as not replied yet. Whoever comes on a day is at every function that day.
         </Text>
 
-        <Stack gap={4}>
-          <Text size="sm" fw={600}>
-            Same answer for every day
-          </Text>
-          <QuickPicks
-            persons={guest.persons}
-            label="every day"
-            onPick={(p) => setRows(Object.fromEntries(days.map((d) => [d.date, { invited: true, ...zero, ...p } as Row])))}
-          />
-        </Stack>
+        <Paper withBorder p="sm">
+          <Group justify="space-between" gap="sm">
+            <Text size="sm" fw={600}>
+              Same answer for every day
+            </Text>
+            <QuickPicks
+              persons={guest.persons}
+              label="every day"
+              onPick={(p) => setRows(Object.fromEntries(days.map((d) => [d.date, { invited: true, ...zero, ...p } as Row])))}
+            />
+          </Group>
+        </Paper>
 
         <Stack gap="sm">
           {days.map((d) => {
             const r = rows[d.date];
+            const left = guest.persons - used(r);
             return (
-              <div key={d.date}>
-                <Group justify="space-between" wrap="nowrap" gap="sm" align="flex-start">
-                  <Checkbox
-                    label={d.label}
-                    description={d.functions.join(', ')}
-                    checked={r.invited}
-                    onChange={(e) => set(d.date, { invited: e.currentTarget.checked })}
-                    style={{ flex: 1, minWidth: 0 }}
-                  />
-                  {r.invited && <Counts row={r} max={guest.persons} label={d.label} onChange={(p) => set(d.date, p)} />}
-                </Group>
+              <Paper key={d.date} withBorder p="md">
+                <Checkbox
+                  label={d.label}
+                  description={d.functions.join(', ')}
+                  checked={r.invited}
+                  onChange={(e) => set(d.date, { invited: e.currentTarget.checked })}
+                  styles={{ label: { fontWeight: 700 } }}
+                />
                 {r.invited && (
-                  <Group gap="sm" ml={28} mt={4} wrap="wrap">
-                    <Text size="xs" c={over(r) ? 'red' : 'dimmed'}>
-                      {over(r) ? `More than the household of ${guest.persons}` : `${guest.persons - used(r)} no reply`}
-                    </Text>
-                    <QuickPicks persons={guest.persons} label={d.label} onPick={(p) => set(d.date, p)} />
-                  </Group>
+                  <Stack gap="sm" mt="md">
+                    <Counts row={r} max={guest.persons} label={d.label} onChange={(p) => set(d.date, p)} />
+                    <Stack gap={6} align="center">
+                      <PeopleDots row={r} persons={guest.persons} />
+                      <Text size="sm" c={over(r) ? 'red' : 'dimmed'} ta="center">
+                        {over(r)
+                          ? `That is more than the household of ${guest.persons}`
+                          : left === 0
+                            ? 'Everyone has replied'
+                            : `${left} of ${guest.persons} not replied yet`}
+                      </Text>
+                    </Stack>
+                    <Group justify="center">
+                      <QuickPicks persons={guest.persons} label={d.label} onPick={(p) => set(d.date, p)} />
+                    </Group>
+                  </Stack>
                 )}
-              </div>
+              </Paper>
             );
           })}
         </Stack>
