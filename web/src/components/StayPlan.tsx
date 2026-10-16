@@ -1,4 +1,4 @@
-import { Badge, Group, Paper, SimpleGrid, Stack, Table, Text } from '@mantine/core';
+import { Badge, Group, Paper, SimpleGrid, Stack, Text } from '@mantine/core';
 import { useStay } from '../hooks/useStay';
 import { roomsAvailable, roomsWanted } from '../lib/stay';
 import type { Invite } from '../lib/rsvp';
@@ -49,40 +49,35 @@ export function StayPlan({ guests, invites }: { guests: GuestRooms[]; invites: P
         and Hotel Sai).
       </Text>
 
-      <Table.ScrollContainer minWidth={560}>
-        <Table verticalSpacing="sm">
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Night</Table.Th>
-              <Table.Th>Main stay</Table.Th>
-              <Table.Th>Elsewhere</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {dates.map((date) => {
-              const have = roomsAvailable(sites, nights, date);
-              const least = roomsWanted(guests, invites, date, 'least');
-              const most = roomsWanted(guests, invites, date, 'most');
-              return (
-                <Table.Tr key={date}>
-                  <Table.Td style={{ whiteSpace: 'nowrap' }}>
-                    <Text fw={600}>{dayLabel(date)}</Text>
-                    <Text size="xs" c="dimmed">
-                      {have.bySite.map((x) => `${x.site.name.split(',')[0]} ${x.rooms}`).join(' · ')}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Cell have={have.main} least={least.main} most={most.main} />
-                  </Table.Td>
-                  <Table.Td>
-                    <Cell have={have.other} least={least.other} most={most.other} />
-                  </Table.Td>
-                </Table.Tr>
-              );
-            })}
-          </Table.Tbody>
-        </Table>
-      </Table.ScrollContainer>
+      <Stack gap="md">
+        {dates.map((date) => {
+          const have = roomsAvailable(sites, nights, date);
+          const least = roomsWanted(guests, invites, date, 'least');
+          const most = roomsWanted(guests, invites, date, 'most');
+          return (
+            <Paper key={date} withBorder p="sm" radius="md">
+              <Text fw={600}>{dayLabel(date)}</Text>
+              <Text size="xs" c="dimmed" mb="xs">
+                {have.bySite.map((x) => `${x.site.name.split(',')[0]} ${x.rooms}`).join(' · ')}
+              </Text>
+              <SimpleGrid cols={2} spacing="md">
+                <div>
+                  <Text size="xs" tt="uppercase" fw={600} c="dimmed" mb={4} style={{ letterSpacing: 0.5 }}>
+                    Main stay
+                  </Text>
+                  <Cell have={have.main} least={least.main} most={most.main} />
+                </div>
+                <div>
+                  <Text size="xs" tt="uppercase" fw={600} c="dimmed" mb={4} style={{ letterSpacing: 0.5 }}>
+                    Elsewhere
+                  </Text>
+                  <Cell have={have.other} least={least.other} most={most.other} />
+                </div>
+              </SimpleGrid>
+            </Paper>
+          );
+        })}
+      </Stack>
 
       <SimpleGrid cols={{ base: 1, md: 3 }} spacing="md" mt="md">
         {sites.map((s) => (
