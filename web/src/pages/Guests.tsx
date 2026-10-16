@@ -6,7 +6,7 @@ import { GuestEditor, type Guest } from '../components/GuestEditor';
 import { useGuestInvites } from '../hooks/useGuestInvites';
 import { BulkInviteModal, RsvpEditor } from '../components/RsvpEditor';
 import { RsvpBar } from '../components/RsvpBar';
-import { INVITE_COLOR, INVITE_LABEL, INVITE_ORDER, type InviteStatus } from '../lib/rsvp';
+import { INVITE_COLOR, INVITE_LABEL, INVITE_ORDER, scaleRooms, splitOf, stayRange, type Invite } from '../lib/rsvp';
 
 type FunctionRef = { id: string; name: string };
 
@@ -92,6 +92,22 @@ export function Guests() {
   const p2 = guests.filter((g) => g.priority === 2);
   const unset = guests.filter((g) => g.priority === null);
   const filtered = visible.length !== guests.length;
+
+  // Rooms follow who might actually come: "most" drops only those who said no, "least" keeps only the yeses.
+  const invitesOf = (id: string) => invites.filter((i) => i.guest_id === id);
+  const anyInvites = invites.length > 0;
+  const roomsAt = (pick: 'most' | 'least') =>
+    guests.reduce(
+      (acc, g) => {
+        const people = stayRange(g.persons, invitesOf(g.id))[pick];
+        acc.inside += scaleRooms(Number(g.rooms_inside), g.persons, people);
+        acc.outside += scaleRooms(Number(g.rooms_outside), g.persons, people);
+        return acc;
+      },
+      { inside: 0, outside: 0 }
+    );
+  const roomsMost = roomsAt('most');
+  const roomsLeast = roomsAt('least');
   const nextOrder = Math.max(0, ...guests.map((g) => g.sort_order)) + 1;
 
   return (
@@ -123,8 +139,12 @@ export function Guests() {
         <Stat label="People" value={String(people(guests))} hint={`${guests.length} households`} />
         <Stat
           label="Rooms"
-          value={`${rooms(sum(guests.map((g) => Number(g.rooms_inside))))} + ${rooms(sum(guests.map((g) => Number(g.rooms_outside))))}`}
-          hint="At the main stay + elsewhere"
+          value={`${rooms(roomsMost.inside)} + ${rooms(roomsMost.outside)}`}
+          hint={
+            anyInvites
+              ? `Up to, if no one else drops · confirmed only: ${rooms(roomsLeast.inside)} + ${rooms(roomsLeast.outside)}`
+              : 'At the main stay + elsewhere'
+          }
         />
         <Stat label="Priority 1" value={String(people(p1))} hint={`${p1.length} households · Priority 2: ${people(p2)}`} />
         <Stat label="No priority set" value={String(people(unset))} hint={`${unset.length} household${unset.length === 1 ? '' : 's'}`} />
@@ -244,7 +264,7 @@ export function Guests() {
                   </Table.Td>
                   <Table.Td>{g.functions ?? '—'}</Table.Td>
                   <Table.Td>
-                    <RsvpCell invites={invites.filter((i) => i.guest_id === g.id)} />
+                    <RsvpCell invites={invitesOf(g.id)} persons={g.persons} />
                   </Table.Td>
                   {isUnlocked && (
                     <Table.Td ta="right" style={{ whiteSpace: 'nowrap' }}>
@@ -303,8 +323,9 @@ export function Guests() {
   );
 }
 
-// A household's answers in one line: a coloured count per answer, e.g. 2 yes, 1 no reply.
-function RsvpCell({ invites }: { invites: { status: InviteStatus }[] }) {
+// A household's answers in one line, in people: e.g. 2 yes, 1 maybe, 1 no. When its answers differ between
+// functions it says so instead of adding them up (that would count the same person more than once).
+function RsvpCell({ invites, persons }: { invites: Invite[]; persons: number }) {
   if (invites.length === 0) {
     return (
       <Text size="xs" c="dimmed">
@@ -312,16 +333,31 @@ function RsvpCell({ invites }: { invites: { status: InviteStatus }[] }) {
       </Text>
     );
   }
+  const splits = invites.map((i) => splitOf({ ...i, guests: { persons } }));
+  const first = splits[0];
+  const same = splits.every((s) => s.coming === first.coming && s.maybe === first.maybe && s.declined === first.declined);
+  if (!same) {
+    return (
+      <Text size="xs" c="dimmed">
+        Varies by function
+      </Text>
+    );
+  }
+  const parts: [keyof typeof first, (typeof INVITE_ORDER)[number]][] = [
+    ['coming', 'confirmed'],
+    ['maybe', 'maybe'],
+    ['declined', 'declined'],
+    ['noReply', 'invited'],
+  ];
   return (
     <Group gap={4}>
-      {INVITE_ORDER.map((s) => {
-        const n = invites.filter((i) => i.status === s).length;
-        return n > 0 ? (
-          <Badge key={s} size="sm" variant="light" color={INVITE_COLOR[s]} tt="none">
-            {n} {INVITE_LABEL[s].toLowerCase()}
+      {parts.map(([k, status]) =>
+        first[k] > 0 ? (
+          <Badge key={k} size="sm" variant="light" color={INVITE_COLOR[status]} tt="none">
+            {first[k]} {INVITE_LABEL[status].toLowerCase()}
           </Badge>
-        ) : null;
-      })}
+        ) : null
+      )}
     </Group>
   );
 }

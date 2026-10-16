@@ -6,7 +6,7 @@ import { OWNER_LABEL, TOPIC_EMOJI, daysToDue, dueBadge, formatInr, formatInrComp
 import { usePlanFacts } from '../hooks/usePlanFacts';
 import { usePendingSuggestions } from '../hooks/usePendingSuggestions';
 import { useGuestInvites } from '../hooks/useGuestInvites';
-import { INVITE_LABEL } from '../lib/rsvp';
+import { splitOf } from '../lib/rsvp';
 import { useProfile } from '../hooks/useProfile';
 import { daysUntil, formatRange } from '../lib/planFacts';
 import { FunctionCard, tintFor, type OutfitOption, type WeddingFunction } from '../components/FunctionCard';
@@ -156,12 +156,12 @@ export function Home() {
       to: '/activity/suggestions',
     });
   }
-  const awaiting = new Set(invites.filter((i) => i.status === 'invited').map((i) => i.guest_id)).size;
+  const awaiting = new Set(invites.filter((i) => splitOf(i).noReply > 0).map((i) => i.guest_id)).size;
   if (awaiting > 0) {
     alerts.push({
       key: 'rsvp',
       color: 'blue',
-      text: `${awaiting} household${awaiting === 1 ? '' : 's'} invited and ${INVITE_LABEL.invited.toLowerCase()}`,
+      text: `${awaiting} invited household${awaiting === 1 ? '' : 's'} with people who have not replied`,
       to: '/guests',
     });
   }
