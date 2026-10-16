@@ -4,12 +4,12 @@ import { supabase } from '../lib/supabase';
 import { useEditMode } from '../hooks/useEditMode';
 import { GuestEditor, type Guest } from '../components/GuestEditor';
 import { useGuestInvites } from '../hooks/useGuestInvites';
-import { BulkInviteModal, RsvpEditor } from '../components/RsvpEditor';
+import { BulkInviteModal, RsvpEditor, daysFromFunctions, type RsvpDay } from '../components/RsvpEditor';
 import { RsvpBar } from '../components/RsvpBar';
 import { DroppedGuests } from '../components/DroppedGuests';
-import { INVITE_COLOR, INVITE_LABEL, INVITE_ORDER, scaleRooms, splitOf, stayRange, type Invite } from '../lib/rsvp';
+import { INVITE_COLOR, INVITE_LABEL, scaleRooms, splitOf, stayRange, type Invite } from '../lib/rsvp';
 
-type FunctionRef = { id: string; name: string };
+type FunctionRef = { name: string; event_date: string };
 
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
 const rooms = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
@@ -41,16 +41,17 @@ export function Guests() {
   const [query, setQuery] = useState('');
   const [editing, setEditing] = useState<Guest | null | 'new'>(null);
   const [error, setError] = useState<string | null>(null);
-  const [functions, setFunctions] = useState<FunctionRef[]>([]);
+  const [fnRows, setFnRows] = useState<FunctionRef[]>([]);
   const [rsvpFor, setRsvpFor] = useState<Guest | null>(null);
   const [bulk, setBulk] = useState(false);
   const [tab, setTab] = useState<'invited' | 'dropped'>('invited');
   const [droppedCount, setDroppedCount] = useState(0);
   const { invites, totals, reload: reloadInvites } = useGuestInvites();
+  const days = useMemo(() => daysFromFunctions(fnRows), [fnRows]);
 
   async function loadFunctions() {
-    const { data } = await supabase.from('wedding_functions').select('id, name').order('sort_order');
-    setFunctions((data ?? []) as FunctionRef[]);
+    const { data } = await supabase.from('wedding_functions').select('name, event_date').order('sort_order');
+    setFnRows((data ?? []) as FunctionRef[]);
   }
 
   async function load() {
@@ -113,6 +114,44 @@ export function Guests() {
     );
   const roomsMost = roomsAt('most');
   const roomsLeast = roomsAt('least');
+
+  // Per day, for food, stay and travel: people by answer (from the headcounts) and the rooms those people need.
+  // Only households invited on that day count; "most" drops those who said no, "least" keeps only the yeses.
+  const roomsOnDay = (date: string, pick: 'most' | 'least') =>
+    invites
+      .filter((i) => i.event_date === date)
+      .reduce((acc, i) => {
+        const g = guests.find((x) => x.id === i.guest_id);
+        if (!g) return acc;
+        const people = pick === 'most' ? Math.max(0, g.persons - i.declined) : Math.min(g.persons, i.coming);
+        return acc + scaleRooms(Number(g.rooms_inside) + Number(g.rooms_outside), g.persons, people);
+      }, 0);
+
+  // One row per household with its answer for each day, for sharing with whoever books travel or food.
+  function downloadCsv() {
+    const q = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
+    const head = ['Household', 'Group', 'Where', 'People', 'Rooms inside', 'Rooms outside'];
+    for (const d of days) head.push(`${d.label} yes`, `${d.label} maybe`, `${d.label} no`, `${d.label} no reply`);
+    const lines = [head.map(q).join(',')];
+    for (const g of visible) {
+      const cells: (string | number)[] = [g.name, g.list_group ?? '', g.location ?? '', g.persons, Number(g.rooms_inside), Number(g.rooms_outside)];
+      for (const d of days) {
+        const inv = invitesOf(g.id).find((i) => i.event_date === d.date);
+        if (!inv) cells.push('', '', '', '');
+        else {
+          const sp = splitOf({ ...inv, guests: { persons: g.persons } });
+          cells.push(sp.coming, sp.maybe, sp.declined, sp.noReply);
+        }
+      }
+      lines.push(cells.map(q).join(','));
+    }
+    const url = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'guest-rsvp-by-day.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
   const nextOrder = Math.max(0, ...guests.map((g) => g.sort_order)) + 1;
 
   return (
@@ -124,12 +163,19 @@ export function Guests() {
             Pranjal's side: the finalised family and friends lists (29 Mar 2026).
           </Text>
         </div>
-        {isUnlocked && tab === 'invited' && (
+        {tab === 'invited' && (
           <Group gap="xs">
-            <Button variant="light" onClick={() => setBulk(true)} disabled={visible.length === 0}>
-              Invite shown to functions
+            <Button variant="default" onClick={downloadCsv} disabled={visible.length === 0}>
+              Download CSV
             </Button>
-            <Button onClick={() => setEditing('new')}>Add household</Button>
+            {isUnlocked && (
+              <>
+                <Button variant="light" onClick={() => setBulk(true)} disabled={visible.length === 0}>
+                  Invite shown to days
+                </Button>
+                <Button onClick={() => setEditing('new')}>Add household</Button>
+              </>
+            )}
           </Group>
         )}
       </Group>
@@ -169,18 +215,35 @@ export function Guests() {
       </SimpleGrid>
 
       <Paper withBorder p="md">
-        <Text fw={700} mb="sm">
-          RSVP by function
+        <Text fw={700}>Plan by day</Text>
+        <Text size="xs" c="dimmed" mb="sm">
+          People, not households. Whoever is coming on a day is at every function that day. Use these for food, rooms and travel.
         </Text>
-        <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
-          {functions.map((f) => (
-            <div key={f.id}>
-              <Text size="sm" fw={600} mb={4}>
-                {f.name}
-              </Text>
-              <RsvpBar totals={totals[f.id]} compact />
-            </div>
-          ))}
+        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+          {days.map((d) => {
+            const t = totals[d.date];
+            const upTo = t ? t.confirmed + t.maybe + t.invited : 0;
+            return (
+              <Stack key={d.date} gap={6}>
+                <div>
+                  <Text size="sm" fw={600}>
+                    {d.label}
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    {d.functions.join(', ')}
+                  </Text>
+                </div>
+                <RsvpBar totals={t} compact />
+                {t && (
+                  <Text size="xs">
+                    Food: <b>{t.confirmed}</b> confirmed, up to <b>{upTo}</b> if everyone who has not said no comes.
+                    <br />
+                    Rooms: <b>{rooms(roomsOnDay(d.date, 'least'))}</b> confirmed, up to <b>{rooms(roomsOnDay(d.date, 'most'))}</b>.
+                  </Text>
+                )}
+              </Stack>
+            );
+          })}
         </SimpleGrid>
       </Paper>
 
@@ -282,7 +345,7 @@ export function Guests() {
                   </Table.Td>
                   <Table.Td>{g.functions ?? '—'}</Table.Td>
                   <Table.Td>
-                    <RsvpCell invites={invitesOf(g.id)} persons={g.persons} />
+                    <RsvpCell invites={invitesOf(g.id)} persons={g.persons} days={days} />
                   </Table.Td>
                   {isUnlocked && (
                     <Table.Td ta="right" style={{ whiteSpace: 'nowrap' }}>
@@ -327,7 +390,7 @@ export function Guests() {
         <RsvpEditor
           key={rsvpFor.id}
           guest={rsvpFor}
-          functions={functions}
+          days={days}
           invites={invites.filter((i) => i.guest_id === rsvpFor.id)}
           opened
           onClose={() => setRsvpFor(null)}
@@ -335,7 +398,7 @@ export function Guests() {
         />
       )}
       {isUnlocked && bulk && (
-        <BulkInviteModal guestIds={visible.map((g) => g.id)} functions={functions} opened onClose={() => setBulk(false)} onSaved={reloadInvites} />
+        <BulkInviteModal guestIds={visible.map((g) => g.id)} days={days} opened onClose={() => setBulk(false)} onSaved={reloadInvites} />
       )}
         </>
       )}
@@ -343,9 +406,8 @@ export function Guests() {
   );
 }
 
-// A household's answers in one line, in people: e.g. 2 yes, 1 maybe, 1 no. When its answers differ between
-// functions it says so instead of adding them up (that would count the same person more than once).
-function RsvpCell({ invites, persons }: { invites: Invite[]; persons: number }) {
+// A household's answer for each day it is invited to, in people: e.g. "Sun 14 Feb: 2 yes, 1 maybe".
+function RsvpCell({ invites, persons, days }: { invites: Invite[]; persons: number; days: RsvpDay[] }) {
   if (invites.length === 0) {
     return (
       <Text size="xs" c="dimmed">
@@ -353,31 +415,34 @@ function RsvpCell({ invites, persons }: { invites: Invite[]; persons: number }) 
       </Text>
     );
   }
-  const splits = invites.map((i) => splitOf({ ...i, guests: { persons } }));
-  const first = splits[0];
-  const same = splits.every((s) => s.coming === first.coming && s.maybe === first.maybe && s.declined === first.declined);
-  if (!same) {
-    return (
-      <Text size="xs" c="dimmed">
-        Varies by function
-      </Text>
-    );
-  }
-  const parts: [keyof typeof first, (typeof INVITE_ORDER)[number]][] = [
+  const parts = [
     ['coming', 'confirmed'],
     ['maybe', 'maybe'],
     ['declined', 'declined'],
     ['noReply', 'invited'],
-  ];
+  ] as const;
   return (
-    <Group gap={4}>
-      {parts.map(([k, status]) =>
-        first[k] > 0 ? (
-          <Badge key={k} size="sm" variant="light" color={INVITE_COLOR[status]} tt="none">
-            {first[k]} {INVITE_LABEL[status].toLowerCase()}
-          </Badge>
-        ) : null
-      )}
-    </Group>
+    <Stack gap={2}>
+      {days
+        .map((d) => ({ d, inv: invites.find((i) => i.event_date === d.date) }))
+        .filter((x) => x.inv)
+        .map(({ d, inv }) => {
+          const split = splitOf({ ...(inv as Invite), guests: { persons } });
+          return (
+            <Group key={d.date} gap={4} wrap="nowrap">
+              <Text size="xs" c="dimmed" style={{ whiteSpace: 'nowrap' }}>
+                {d.label}
+              </Text>
+              {parts.map(([k, status]) =>
+                split[k] > 0 ? (
+                  <Badge key={k} size="sm" variant="light" color={INVITE_COLOR[status]} tt="none">
+                    {split[k]} {INVITE_LABEL[status].toLowerCase()}
+                  </Badge>
+                ) : null
+              )}
+            </Group>
+          );
+        })}
+    </Stack>
   );
 }

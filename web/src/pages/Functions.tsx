@@ -104,7 +104,7 @@ export function Functions() {
                 outfits={outfits}
                 detailed
                 showRsvp
-                rsvp={totals[r.id]}
+                rsvp={totals[r.event_date]}
                 onEdit={isUnlocked ? () => setEditing(r) : undefined}
               />
             ))}
