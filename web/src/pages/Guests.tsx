@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Badge, Button, Chip, Group, Paper, ScrollArea, SegmentedControl, Select, SimpleGrid, Stack, Table, Text, TextInput, Title } from '@mantine/core';
+import { Alert, Badge, Button, Checkbox, Chip, Group, Paper, ScrollArea, SegmentedControl, Select, SimpleGrid, Stack, Table, Text, TextInput, Title } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
 import { useEditMode } from '../hooks/useEditMode';
 import { GuestEditor, type Guest } from '../components/GuestEditor';
 import { useGuestInvites } from '../hooks/useGuestInvites';
-import { BulkInviteModal, RsvpEditor, daysFromFunctions, type RsvpDay } from '../components/RsvpEditor';
+import { BulkInviteModal, RsvpEditor, daysFromFunctions, restoreInvites, type InviteSnapshot, type RsvpDay } from '../components/RsvpEditor';
 import { RsvpBar } from '../components/RsvpBar';
 import { DroppedGuests } from '../components/DroppedGuests';
 import { StayPlan } from '../components/StayPlan';
@@ -45,6 +46,7 @@ export function Guests() {
   const [fnRows, setFnRows] = useState<FunctionRef[]>([]);
   const [rsvpFor, setRsvpFor] = useState<Guest | null>(null);
   const [bulk, setBulk] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [tab, setTab] = useState<'invited' | 'dropped'>('invited');
   const [droppedCount, setDroppedCount] = useState(0);
   const { invites, totals, reload: reloadInvites } = useGuestInvites();
@@ -93,6 +95,62 @@ export function Guests() {
       const q = query.trim().toLowerCase();
       return !q || [g.name, g.family_members, g.location, g.relation].some((v) => v?.toLowerCase().includes(q));
     });
+
+  // Rows ticked for a bulk change. Ticks survive filtering, so say how many are out of view.
+  const guestIdSet = new Set(guests.map((g) => g.id));
+  const selectedIds = [...selected].filter((id) => guestIdSet.has(id));
+  const selectedGuests = guests.filter((g) => selected.has(g.id));
+  const shownIds = visible.map((g) => g.id);
+  const shownSelected = shownIds.filter((id) => selected.has(id)).length;
+  const allShownSelected = shownIds.length > 0 && shownSelected === shownIds.length;
+  const hiddenSelected = selectedIds.length - shownSelected;
+
+  function toggleRow(id: string) {
+    setSelected((cur) => {
+      const next = new Set(cur);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAllShown() {
+    setSelected((cur) => {
+      const next = new Set(cur);
+      if (allShownSelected) shownIds.forEach((id) => next.delete(id));
+      else shownIds.forEach((id) => next.add(id));
+      return next;
+    });
+  }
+
+  async function undoInvites(snapshot: InviteSnapshot) {
+    const err = await restoreInvites(snapshot);
+    notifications.hide('invites-changed');
+    if (err) {
+      setError(`Could not undo: ${err}`);
+      return;
+    }
+    await reloadInvites();
+    notifications.show({ message: 'Invites put back as they were.', color: 'teal', autoClose: 4000 });
+  }
+
+  function invitesChanged(snapshot: InviteSnapshot, summary: string) {
+    notifications.show({
+      id: 'invites-changed',
+      color: 'teal',
+      autoClose: 20000,
+      withCloseButton: true,
+      title: 'Invites updated',
+      message: (
+        <Group justify="space-between" wrap="nowrap" gap="sm">
+          <Text size="sm">{summary}.</Text>
+          <Button size="compact-sm" variant="light" onClick={() => undoInvites(snapshot)}>
+            Undo
+          </Button>
+        </Group>
+      ),
+    });
+  }
 
   const people = (list: Guest[]) => sum(list.map((g) => g.persons));
   const p1 = guests.filter((g) => g.priority === 1);
@@ -161,9 +219,6 @@ export function Guests() {
             </Button>
             {isUnlocked && (
               <>
-                <Button variant="light" onClick={() => setBulk(true)} disabled={visible.length === 0}>
-                  Invite shown to days
-                </Button>
                 <Button onClick={() => setEditing('new')}>Add household</Button>
               </>
             )}
@@ -274,11 +329,51 @@ export function Guests() {
         )}
       </Stack>
 
+      {isUnlocked && (
+        <Paper withBorder p="sm" bg={selectedIds.length > 0 ? 'var(--mantine-color-rose-light)' : undefined}>
+          {selectedIds.length === 0 ? (
+            <Text size="sm" c="dimmed">
+              Tick households to invite them to a day, or to change or remove their invites. Use the box in the table header to tick every household shown.
+            </Text>
+          ) : (
+            <Group justify="space-between" gap="sm">
+              <Text size="sm" fw={600}>
+                {selectedIds.length} household{selectedIds.length === 1 ? '' : 's'} selected ({people(selectedGuests)} people)
+                {hiddenSelected > 0 && (
+                  <Text span size="sm" c="dimmed" fw={400}>
+                    {' '}
+                    · {hiddenSelected} not shown by the current filters
+                  </Text>
+                )}
+              </Text>
+              <Group gap="xs">
+                <Button size="compact-md" onClick={() => setBulk(true)}>
+                  Change invites
+                </Button>
+                <Button size="compact-md" variant="default" onClick={() => setSelected(new Set())}>
+                  Clear selection
+                </Button>
+              </Group>
+            </Group>
+          )}
+        </Paper>
+      )}
+
       <Paper withBorder p={0} style={{ overflow: 'hidden' }}>
         <Table.ScrollContainer minWidth={860}>
           <Table verticalSpacing="sm">
             <Table.Thead>
               <Table.Tr>
+                {isUnlocked && (
+                  <Table.Th w={40}>
+                    <Checkbox
+                      aria-label="Select every household shown"
+                      checked={allShownSelected}
+                      indeterminate={shownSelected > 0 && !allShownSelected}
+                      onChange={toggleAllShown}
+                    />
+                  </Table.Th>
+                )}
                 <Table.Th>Household</Table.Th>
                 <Table.Th>Group</Table.Th>
                 <Table.Th>Where</Table.Th>
@@ -292,7 +387,12 @@ export function Guests() {
             </Table.Thead>
             <Table.Tbody>
               {visible.map((g) => (
-                <Table.Tr key={g.id}>
+                <Table.Tr key={g.id} bg={selected.has(g.id) ? 'var(--mantine-color-rose-light)' : undefined}>
+                  {isUnlocked && (
+                    <Table.Td>
+                      <Checkbox aria-label={`Select ${g.name}`} checked={selected.has(g.id)} onChange={() => toggleRow(g.id)} />
+                    </Table.Td>
+                  )}
                   <Table.Td>
                     <Text fw={500}>{g.name}</Text>
                     {g.family_members && (
@@ -355,7 +455,7 @@ export function Guests() {
               ))}
               {loaded && visible.length === 0 && (
                 <Table.Tr>
-                  <Table.Td colSpan={isUnlocked ? 9 : 8}>
+                  <Table.Td colSpan={isUnlocked ? 10 : 8}>
                     <Text c="dimmed">{guests.length === 0 ? 'No guests yet.' : 'No households match.'}</Text>
                   </Table.Td>
                 </Table.Tr>
@@ -389,7 +489,15 @@ export function Guests() {
         />
       )}
       {isUnlocked && bulk && (
-        <BulkInviteModal guestIds={visible.map((g) => g.id)} days={days} opened onClose={() => setBulk(false)} onSaved={reloadInvites} />
+        <BulkInviteModal
+          guestIds={selectedIds}
+          invites={invites}
+          days={days}
+          opened
+          onClose={() => setBulk(false)}
+          onSaved={reloadInvites}
+          onDone={invitesChanged}
+        />
       )}
         </>
       )}
