@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Badge, Button, Chip, Group, Paper, ScrollArea, Select, SimpleGrid, Stack, Table, Text, TextInput, Title } from '@mantine/core';
+import { Alert, Badge, Button, Chip, Group, Paper, ScrollArea, SegmentedControl, Select, SimpleGrid, Stack, Table, Text, TextInput, Title } from '@mantine/core';
 import { supabase } from '../lib/supabase';
 import { useEditMode } from '../hooks/useEditMode';
 import { GuestEditor, type Guest } from '../components/GuestEditor';
 import { useGuestInvites } from '../hooks/useGuestInvites';
 import { BulkInviteModal, RsvpEditor } from '../components/RsvpEditor';
 import { RsvpBar } from '../components/RsvpBar';
+import { DroppedGuests } from '../components/DroppedGuests';
 import { INVITE_COLOR, INVITE_LABEL, INVITE_ORDER, scaleRooms, splitOf, stayRange, type Invite } from '../lib/rsvp';
 
 type FunctionRef = { id: string; name: string };
@@ -43,6 +44,8 @@ export function Guests() {
   const [functions, setFunctions] = useState<FunctionRef[]>([]);
   const [rsvpFor, setRsvpFor] = useState<Guest | null>(null);
   const [bulk, setBulk] = useState(false);
+  const [tab, setTab] = useState<'invited' | 'dropped'>('invited');
+  const [droppedCount, setDroppedCount] = useState(0);
   const { invites, totals, reload: reloadInvites } = useGuestInvites();
 
   async function loadFunctions() {
@@ -55,6 +58,8 @@ export function Guests() {
     if (err) setError(err.message);
     setGuests((data ?? []) as Guest[]);
     setLoaded(true);
+    const { count } = await supabase.from('guests_dropped').select('id', { count: 'exact', head: true });
+    setDroppedCount(count ?? 0);
   }
 
   useEffect(() => {
@@ -119,7 +124,7 @@ export function Guests() {
             Pranjal's side: the finalised family and friends lists (29 Mar 2026).
           </Text>
         </div>
-        {isUnlocked && (
+        {isUnlocked && tab === 'invited' && (
           <Group gap="xs">
             <Button variant="light" onClick={() => setBulk(true)} disabled={visible.length === 0}>
               Invite shown to functions
@@ -135,6 +140,19 @@ export function Guests() {
         </Alert>
       )}
 
+      <SegmentedControl
+        value={tab}
+        onChange={(v) => setTab(v as 'invited' | 'dropped')}
+        data={[
+          { value: 'invited', label: 'Invited list' },
+          { value: 'dropped', label: `Dropped from earlier list (${droppedCount})` },
+        ]}
+      />
+
+      {tab === 'dropped' ? (
+        <DroppedGuests onChanged={load} />
+      ) : (
+        <>
       <SimpleGrid cols={{ base: 2, md: 4 }} spacing="md">
         <Stat label="People" value={String(people(guests))} hint={`${guests.length} households`} />
         <Stat
@@ -318,6 +336,8 @@ export function Guests() {
       )}
       {isUnlocked && bulk && (
         <BulkInviteModal guestIds={visible.map((g) => g.id)} functions={functions} opened onClose={() => setBulk(false)} onSaved={reloadInvites} />
+      )}
+        </>
       )}
     </Stack>
   );
