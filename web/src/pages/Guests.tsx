@@ -7,6 +7,7 @@ import { useGuestInvites } from '../hooks/useGuestInvites';
 import { BulkInviteModal, RsvpEditor, daysFromFunctions, type RsvpDay } from '../components/RsvpEditor';
 import { RsvpBar } from '../components/RsvpBar';
 import { DroppedGuests } from '../components/DroppedGuests';
+import { StayPlan } from '../components/StayPlan';
 import { INVITE_COLOR, INVITE_LABEL, scaleRooms, splitOf, stayRange, type Invite } from '../lib/rsvp';
 
 type FunctionRef = { name: string; event_date: string };
@@ -115,17 +116,7 @@ export function Guests() {
   const roomsMost = roomsAt('most');
   const roomsLeast = roomsAt('least');
 
-  // Per day, for food, stay and travel: people by answer (from the headcounts) and the rooms those people need.
-  // Only households invited on that day count; "most" drops those who said no, "least" keeps only the yeses.
-  const roomsOnDay = (date: string, pick: 'most' | 'least') =>
-    invites
-      .filter((i) => i.event_date === date)
-      .reduce((acc, i) => {
-        const g = guests.find((x) => x.id === i.guest_id);
-        if (!g) return acc;
-        const people = pick === 'most' ? Math.max(0, g.persons - i.declined) : Math.min(g.persons, i.coming);
-        return acc + scaleRooms(Number(g.rooms_inside) + Number(g.rooms_outside), g.persons, people);
-      }, 0);
+  // Per day, for food: people by answer. Rooms are worked out per night in the Rooms by night panel (StayPlan).
 
   // One row per household with its answer for each day, for sharing with whoever books travel or food.
   function downloadCsv() {
@@ -217,7 +208,7 @@ export function Guests() {
       <Paper withBorder p="md">
         <Text fw={700}>Plan by day</Text>
         <Text size="xs" c="dimmed" mb="sm">
-          People, not households. Whoever is coming on a day is at every function that day. Use these for food, rooms and travel.
+          People, not households. Whoever is coming on a day is at every function that day. Use these for food and travel; rooms are in the next panel.
         </Text>
         <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
           {days.map((d) => {
@@ -237,8 +228,6 @@ export function Guests() {
                 {t && (
                   <Text size="xs">
                     Food: <b>{t.confirmed}</b> confirmed, up to <b>{upTo}</b> if everyone who has not said no comes.
-                    <br />
-                    Rooms: <b>{rooms(roomsOnDay(d.date, 'least'))}</b> confirmed, up to <b>{rooms(roomsOnDay(d.date, 'most'))}</b>.
                   </Text>
                 )}
               </Stack>
@@ -246,6 +235,8 @@ export function Guests() {
           })}
         </SimpleGrid>
       </Paper>
+
+      <StayPlan guests={guests} invites={invites} />
 
       <Stack gap="xs">
         <ScrollArea type="never">
