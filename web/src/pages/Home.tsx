@@ -5,6 +5,8 @@ import { supabase, type PlanningItem, type Task } from '../lib/supabase';
 import { OWNER_LABEL, TOPIC_EMOJI, daysToDue, dueBadge, formatInr, formatInrCompact, summarizeMoney } from '../lib/topicMeta';
 import { usePlanFacts } from '../hooks/usePlanFacts';
 import { usePendingSuggestions } from '../hooks/usePendingSuggestions';
+import { useGuestInvites } from '../hooks/useGuestInvites';
+import { INVITE_LABEL } from '../lib/rsvp';
 import { useProfile } from '../hooks/useProfile';
 import { daysUntil, formatRange } from '../lib/planFacts';
 import { FunctionCard, tintFor, type OutfitOption, type WeddingFunction } from '../components/FunctionCard';
@@ -61,6 +63,7 @@ export function Home() {
   const { profile } = useProfile();
   const { dates } = usePlanFacts();
   const pendingSuggestions = usePendingSuggestions();
+  const { invites, totals } = useGuestInvites();
   const [tasks, setTasks] = useState<TaskRow[]>([]);
   const [topicKeyById, setTopicKeyById] = useState<Record<string, string>>({});
   const [options, setOptions] = useState<OptionRow[]>([]);
@@ -151,6 +154,15 @@ export function Home() {
       color: 'rose',
       text: `${pendingSuggestions} suggestion${pendingSuggestions === 1 ? '' : 's'} from the chats to review`,
       to: '/activity/suggestions',
+    });
+  }
+  const awaiting = new Set(invites.filter((i) => i.status === 'invited').map((i) => i.guest_id)).size;
+  if (awaiting > 0) {
+    alerts.push({
+      key: 'rsvp',
+      color: 'blue',
+      text: `${awaiting} household${awaiting === 1 ? '' : 's'} invited and ${INVITE_LABEL.invited.toLowerCase()}`,
+      to: '/guests',
     });
   }
   if (unsorted > 0) {
@@ -291,7 +303,7 @@ export function Home() {
         </Group>
         <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
           {functions.map((f, i) => (
-            <FunctionCard key={f.id} fn={f} tint={tintFor(i)} outfits={outfits} to="/functions" />
+            <FunctionCard key={f.id} fn={f} tint={tintFor(i)} outfits={outfits} showRsvp rsvp={totals[f.id]} to="/functions" />
           ))}
         </SimpleGrid>
       </Stack>

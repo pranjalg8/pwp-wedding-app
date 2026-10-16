@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom';
 import { Badge, Box, Button, Group, Paper, Stack, Text } from '@mantine/core';
 import { OPTION_STATUS_LABEL, daysToDue } from '../lib/topicMeta';
+import { RsvpBar } from './RsvpBar';
+import type { RsvpTotals } from '../lib/rsvp';
 
 export type WeddingFunction = {
   id: string;
@@ -74,6 +76,8 @@ export function FunctionCard({
   tint,
   outfits = [],
   detailed = false,
+  showRsvp = false,
+  rsvp,
   to,
   onEdit,
 }: {
@@ -81,6 +85,8 @@ export function FunctionCard({
   tint: string;
   outfits?: OutfitOption[];
   detailed?: boolean;
+  showRsvp?: boolean;
+  rsvp?: RsvpTotals;
   to?: string;
   onEdit?: () => void;
 }) {
@@ -134,6 +140,8 @@ export function FunctionCard({
           {outfit}
         </Text>
       )}
+
+      {showRsvp && <RsvpBar totals={rsvp} compact />}
 
       {detailed && (fn.colours.length > 0 || fn.avoid_colours.length > 0) && (
         <Group gap={6}>
