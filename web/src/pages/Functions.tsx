@@ -4,6 +4,7 @@ import { Button, Group, Modal, Select, SimpleGrid, Stack, Text, TagsInput, Texta
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
 import { useEditMode } from '../hooks/useEditMode';
+import { useGuestInvites } from '../hooks/useGuestInvites';
 import { FUNCTION_STATUS_LABEL, FunctionCard, tintFor, type OutfitOption, type WeddingFunction } from '../components/FunctionCard';
 
 const STATUS_LABEL = FUNCTION_STATUS_LABEL;
@@ -53,6 +54,7 @@ function Editor({ fn, onClose, onSaved }: { fn: WeddingFunction; onClose: () => 
 
 export function Functions() {
   const { isUnlocked } = useEditMode();
+  const { totals } = useGuestInvites();
   const [rows, setRows] = useState<WeddingFunction[]>([]);
   const [outfits, setOutfits] = useState<OutfitOption[]>([]);
   const [editing, setEditing] = useState<WeddingFunction | null>(null);
@@ -101,6 +103,8 @@ export function Functions() {
                 tint={tintFor(rows.indexOf(r))}
                 outfits={outfits}
                 detailed
+                showRsvp
+                rsvp={totals[r.id]}
                 onEdit={isUnlocked ? () => setEditing(r) : undefined}
               />
             ))}

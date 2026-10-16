@@ -3,6 +3,12 @@ import { Alert, Badge, Button, Chip, Group, Paper, ScrollArea, Select, SimpleGri
 import { supabase } from '../lib/supabase';
 import { useEditMode } from '../hooks/useEditMode';
 import { GuestEditor, type Guest } from '../components/GuestEditor';
+import { useGuestInvites } from '../hooks/useGuestInvites';
+import { BulkInviteModal, RsvpEditor } from '../components/RsvpEditor';
+import { RsvpBar } from '../components/RsvpBar';
+import { INVITE_COLOR, INVITE_LABEL, INVITE_ORDER, type InviteStatus } from '../lib/rsvp';
+
+type FunctionRef = { id: string; name: string };
 
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
 const rooms = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
@@ -34,6 +40,15 @@ export function Guests() {
   const [query, setQuery] = useState('');
   const [editing, setEditing] = useState<Guest | null | 'new'>(null);
   const [error, setError] = useState<string | null>(null);
+  const [functions, setFunctions] = useState<FunctionRef[]>([]);
+  const [rsvpFor, setRsvpFor] = useState<Guest | null>(null);
+  const [bulk, setBulk] = useState(false);
+  const { invites, totals, reload: reloadInvites } = useGuestInvites();
+
+  async function loadFunctions() {
+    const { data } = await supabase.from('wedding_functions').select('id, name').order('sort_order');
+    setFunctions((data ?? []) as FunctionRef[]);
+  }
 
   async function load() {
     const { data, error: err } = await supabase.from('guests').select('*').order('sort_order');
@@ -44,6 +59,7 @@ export function Guests() {
 
   useEffect(() => {
     load();
+    loadFunctions();
     const channel = supabase
       .channel('guests_page')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'guests' }, load)
@@ -87,7 +103,14 @@ export function Guests() {
             Pranjal's side: the finalised family and friends lists (29 Mar 2026).
           </Text>
         </div>
-        {isUnlocked && <Button onClick={() => setEditing('new')}>Add household</Button>}
+        {isUnlocked && (
+          <Group gap="xs">
+            <Button variant="light" onClick={() => setBulk(true)} disabled={visible.length === 0}>
+              Invite shown to functions
+            </Button>
+            <Button onClick={() => setEditing('new')}>Add household</Button>
+          </Group>
+        )}
       </Group>
 
       {error && (
@@ -106,6 +129,22 @@ export function Guests() {
         <Stat label="Priority 1" value={String(people(p1))} hint={`${p1.length} households · Priority 2: ${people(p2)}`} />
         <Stat label="No priority set" value={String(people(unset))} hint={`${unset.length} household${unset.length === 1 ? '' : 's'}`} />
       </SimpleGrid>
+
+      <Paper withBorder p="md">
+        <Text fw={700} mb="sm">
+          RSVP by function
+        </Text>
+        <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
+          {functions.map((f) => (
+            <div key={f.id}>
+              <Text size="sm" fw={600} mb={4}>
+                {f.name}
+              </Text>
+              <RsvpBar totals={totals[f.id]} compact />
+            </div>
+          ))}
+        </SimpleGrid>
+      </Paper>
 
       <Stack gap="xs">
         <ScrollArea type="never">
@@ -144,7 +183,7 @@ export function Guests() {
       </Stack>
 
       <Paper withBorder p={0} style={{ overflow: 'hidden' }}>
-        <Table.ScrollContainer minWidth={760}>
+        <Table.ScrollContainer minWidth={860}>
           <Table verticalSpacing="sm">
             <Table.Thead>
               <Table.Tr>
@@ -155,6 +194,7 @@ export function Guests() {
                 <Table.Th ta="right">Rooms</Table.Th>
                 <Table.Th>Priority</Table.Th>
                 <Table.Th>Functions</Table.Th>
+                <Table.Th>RSVP</Table.Th>
                 {isUnlocked && <Table.Th />}
               </Table.Tr>
             </Table.Thead>
@@ -203,8 +243,14 @@ export function Guests() {
                     )}
                   </Table.Td>
                   <Table.Td>{g.functions ?? '—'}</Table.Td>
+                  <Table.Td>
+                    <RsvpCell invites={invites.filter((i) => i.guest_id === g.id)} />
+                  </Table.Td>
                   {isUnlocked && (
                     <Table.Td ta="right" style={{ whiteSpace: 'nowrap' }}>
+                      <Button size="compact-xs" variant="subtle" onClick={() => setRsvpFor(g)}>
+                        RSVP
+                      </Button>
                       <Button size="compact-xs" variant="subtle" onClick={() => setEditing(g)}>
                         Edit
                       </Button>
@@ -217,7 +263,7 @@ export function Guests() {
               ))}
               {loaded && visible.length === 0 && (
                 <Table.Tr>
-                  <Table.Td colSpan={isUnlocked ? 8 : 7}>
+                  <Table.Td colSpan={isUnlocked ? 9 : 8}>
                     <Text c="dimmed">{guests.length === 0 ? 'No guests yet.' : 'No households match.'}</Text>
                   </Table.Td>
                 </Table.Tr>
@@ -238,6 +284,44 @@ export function Guests() {
           onSaved={load}
         />
       )}
+
+      {isUnlocked && rsvpFor && (
+        <RsvpEditor
+          key={rsvpFor.id}
+          guest={rsvpFor}
+          functions={functions}
+          invites={invites.filter((i) => i.guest_id === rsvpFor.id)}
+          opened
+          onClose={() => setRsvpFor(null)}
+          onSaved={reloadInvites}
+        />
+      )}
+      {isUnlocked && bulk && (
+        <BulkInviteModal guestIds={visible.map((g) => g.id)} functions={functions} opened onClose={() => setBulk(false)} onSaved={reloadInvites} />
+      )}
     </Stack>
+  );
+}
+
+// A household's answers in one line: a coloured count per answer, e.g. 2 yes, 1 no reply.
+function RsvpCell({ invites }: { invites: { status: InviteStatus }[] }) {
+  if (invites.length === 0) {
+    return (
+      <Text size="xs" c="dimmed">
+        Not invited
+      </Text>
+    );
+  }
+  return (
+    <Group gap={4}>
+      {INVITE_ORDER.map((s) => {
+        const n = invites.filter((i) => i.status === s).length;
+        return n > 0 ? (
+          <Badge key={s} size="sm" variant="light" color={INVITE_COLOR[s]} tt="none">
+            {n} {INVITE_LABEL[s].toLowerCase()}
+          </Badge>
+        ) : null;
+      })}
+    </Group>
   );
 }
