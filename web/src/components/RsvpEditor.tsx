@@ -3,12 +3,25 @@ import { Button, Checkbox, Group, Modal, MultiSelect, NumberInput, Stack, Text }
 import { supabase } from '../lib/supabase';
 import type { Invite } from '../lib/rsvp';
 
-type FunctionRef = { id: string; name: string };
+// RSVP is by day: someone coming on a day is at every function that day.
+export type RsvpDay = { date: string; label: string; functions: string[] };
+
 type GuestRef = { id: string; name: string; persons: number };
 type Row = { invited: boolean; coming: number | string; maybe: number | string; declined: number | string };
 
 const n = (v: number | string) => Number(v) || 0;
 const used = (r: Row) => n(r.coming) + n(r.maybe) + n(r.declined);
+const zero = { coming: 0, maybe: 0, declined: 0 };
+
+// Days with their functions, e.g. [{ date: '2027-02-14', label: 'Sun 14 Feb', functions: ['Tilak', ...] }].
+export function daysFromFunctions(fns: { name: string; event_date: string }[]): RsvpDay[] {
+  const dates = [...new Set(fns.map((f) => f.event_date))].sort();
+  return dates.map((date) => ({
+    date,
+    label: new Date(date + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' }),
+    functions: fns.filter((f) => f.event_date === date).map((f) => f.name),
+  }));
+}
 
 function Counts({ row, max, label, onChange }: { row: Row; max: number; label: string; onChange: (patch: Partial<Row>) => void }) {
   const fields: { key: 'coming' | 'maybe' | 'declined'; name: string }[] = [
@@ -35,18 +48,52 @@ function Counts({ row, max, label, onChange }: { row: Row; max: number; label: s
   );
 }
 
-// Set one household's answer for every function as three counts: yes, maybe, no. Whoever is left over has
-// not replied. Changes are recorded in the audit log by a database trigger.
+type Answer = 'coming' | 'maybe' | 'declined' | 'clear';
+const ANSWERS: { answer: Answer; label: string; color: string }[] = [
+  { answer: 'coming', label: 'All yes', color: 'teal' },
+  { answer: 'maybe', label: 'All maybe', color: 'yellow' },
+  { answer: 'declined', label: 'All no', color: 'red' },
+  { answer: 'clear', label: 'No reply', color: 'gray' },
+];
+
+// What a one-click answer means: the whole household says the same thing, or nobody has replied yet.
+const answerFor = (answer: Answer, persons: number): Partial<Row> => ({
+  coming: answer === 'coming' ? persons : 0,
+  maybe: answer === 'maybe' ? persons : 0,
+  declined: answer === 'declined' ? persons : 0,
+});
+
+function QuickPicks({ persons, label, onPick }: { persons: number; label: string; onPick: (patch: Partial<Row>) => void }) {
+  return (
+    <Group gap={4}>
+      {ANSWERS.map((p) => (
+        <Button
+          key={p.answer}
+          size="compact-xs"
+          variant="light"
+          color={p.color}
+          aria-label={`${p.label} for ${label}`}
+          onClick={() => onPick(answerFor(p.answer, persons))}
+        >
+          {p.label}
+        </Button>
+      ))}
+    </Group>
+  );
+}
+
+// Set one household's answer for each day as three counts: yes, maybe, no. Whoever is left over has not
+// replied. Changes are recorded in the audit log by a database trigger.
 export function RsvpEditor({
   guest,
-  functions,
+  days,
   invites,
   opened,
   onClose,
   onSaved,
 }: {
   guest: GuestRef;
-  functions: FunctionRef[];
+  days: RsvpDay[];
   invites: Invite[];
   opened: boolean;
   onClose: () => void;
@@ -54,40 +101,35 @@ export function RsvpEditor({
 }) {
   const [rows, setRows] = useState<Record<string, Row>>(() =>
     Object.fromEntries(
-      functions.map((f) => {
-        const e = invites.find((i) => i.function_id === f.id);
-        return [f.id, { invited: !!e, coming: e?.coming ?? 0, maybe: e?.maybe ?? 0, declined: e?.declined ?? 0 }];
+      days.map((d) => {
+        const e = invites.find((i) => i.event_date === d.date);
+        return [d.date, { invited: !!e, coming: e?.coming ?? 0, maybe: e?.maybe ?? 0, declined: e?.declined ?? 0 }];
       })
     )
   );
-  const [all, setAll] = useState<Row>({ invited: true, coming: 0, maybe: 0, declined: 0 });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const set = (id: string, patch: Partial<Row>) => setRows((r) => ({ ...r, [id]: { ...r[id], ...patch } }));
+  const set = (date: string, patch: Partial<Row>) => setRows((r) => ({ ...r, [date]: { ...r[date], ...patch } }));
   const over = (r: Row) => used(r) > guest.persons;
-  const anyOver = over(all) || functions.some((f) => rows[f.id].invited && over(rows[f.id]));
-
-  function applyToAll() {
-    setRows(Object.fromEntries(functions.map((f) => [f.id, { invited: true, coming: n(all.coming), maybe: n(all.maybe), declined: n(all.declined) }])));
-  }
+  const anyOver = days.some((d) => rows[d.date].invited && over(rows[d.date]));
 
   async function save() {
     setSaving(true);
     setError(null);
-    const keep = functions
-      .filter((f) => rows[f.id].invited)
-      .map((f) => ({
+    const keep = days
+      .filter((d) => rows[d.date].invited)
+      .map((d) => ({
         guest_id: guest.id,
-        function_id: f.id,
-        coming: n(rows[f.id].coming),
-        maybe: n(rows[f.id].maybe),
-        declined: n(rows[f.id].declined),
+        event_date: d.date,
+        coming: n(rows[d.date].coming),
+        maybe: n(rows[d.date].maybe),
+        declined: n(rows[d.date].declined),
       }));
-    const drop = functions.filter((f) => !rows[f.id].invited && invites.some((i) => i.function_id === f.id)).map((f) => f.id);
+    const drop = days.filter((d) => !rows[d.date].invited && invites.some((i) => i.event_date === d.date)).map((d) => d.date);
 
     if (keep.length > 0) {
-      const { error: err } = await supabase.from('guest_invites').upsert(keep, { onConflict: 'guest_id,function_id' });
+      const { error: err } = await supabase.from('guest_rsvps').upsert(keep, { onConflict: 'guest_id,event_date' });
       if (err) {
         setSaving(false);
         setError(err.message);
@@ -95,7 +137,7 @@ export function RsvpEditor({
       }
     }
     if (drop.length > 0) {
-      const { error: err } = await supabase.from('guest_invites').delete().eq('guest_id', guest.id).in('function_id', drop);
+      const { error: err } = await supabase.from('guest_rsvps').delete().eq('guest_id', guest.id).in('event_date', drop);
       if (err) {
         setSaving(false);
         setError(err.message);
@@ -111,40 +153,43 @@ export function RsvpEditor({
     <Modal opened={opened} onClose={onClose} title={`RSVP: ${guest.name}`} centered size="lg">
       <Stack>
         <Text size="sm" c="dimmed">
-          Household of {guest.persons}. For each function tick who is invited and say how many are coming (yes), maybe, or not coming.
-          Anyone left out of those three has not replied yet.
+          Household of {guest.persons}. RSVP is by day: whoever is coming on a day is at every function that day. Tick the days they are
+          invited, then say how many are coming (yes), maybe or not coming. Anyone left out of those three has not replied yet.
         </Text>
 
         <Stack gap={4}>
           <Text size="sm" fw={600}>
-            Same answer for every function
+            Same answer for every day
           </Text>
-          <Group gap="sm" wrap="wrap">
-            <Counts row={all} max={guest.persons} label="all functions" onChange={(p) => setAll((a) => ({ ...a, ...p }))} />
-            <Button variant="light" size="compact-md" onClick={applyToAll} disabled={over(all)}>
-              Apply to all functions
-            </Button>
-          </Group>
-          {over(all) && (
-            <Text size="xs" c="red">
-              That is more than the household of {guest.persons}.
-            </Text>
-          )}
+          <QuickPicks
+            persons={guest.persons}
+            label="every day"
+            onPick={(p) => setRows(Object.fromEntries(days.map((d) => [d.date, { invited: true, ...zero, ...p } as Row])))}
+          />
         </Stack>
 
-        <Stack gap="xs">
-          {functions.map((f) => {
-            const r = rows[f.id];
+        <Stack gap="sm">
+          {days.map((d) => {
+            const r = rows[d.date];
             return (
-              <div key={f.id}>
-                <Group justify="space-between" wrap="nowrap" gap="sm">
-                  <Checkbox label={f.name} checked={r.invited} onChange={(e) => set(f.id, { invited: e.currentTarget.checked })} style={{ flex: 1, minWidth: 0 }} />
-                  {r.invited && <Counts row={r} max={guest.persons} label={f.name} onChange={(p) => set(f.id, p)} />}
+              <div key={d.date}>
+                <Group justify="space-between" wrap="nowrap" gap="sm" align="flex-start">
+                  <Checkbox
+                    label={d.label}
+                    description={d.functions.join(', ')}
+                    checked={r.invited}
+                    onChange={(e) => set(d.date, { invited: e.currentTarget.checked })}
+                    style={{ flex: 1, minWidth: 0 }}
+                  />
+                  {r.invited && <Counts row={r} max={guest.persons} label={d.label} onChange={(p) => set(d.date, p)} />}
                 </Group>
                 {r.invited && (
-                  <Text size="xs" c={over(r) ? 'red' : 'dimmed'} ml={28}>
-                    {over(r) ? `More than the household of ${guest.persons}` : `${guest.persons - used(r)} no reply`}
-                  </Text>
+                  <Group gap="sm" ml={28} mt={4} wrap="wrap">
+                    <Text size="xs" c={over(r) ? 'red' : 'dimmed'}>
+                      {over(r) ? `More than the household of ${guest.persons}` : `${guest.persons - used(r)} no reply`}
+                    </Text>
+                    <QuickPicks persons={guest.persons} label={d.label} onPick={(p) => set(d.date, p)} />
+                  </Group>
                 )}
               </div>
             );
@@ -164,16 +209,16 @@ export function RsvpEditor({
   );
 }
 
-// Invite every household currently shown to the chosen functions. Households already invited keep their answer.
+// Invite every household currently shown to the chosen days. Households already invited keep their answer.
 export function BulkInviteModal({
   guestIds,
-  functions,
+  days,
   opened,
   onClose,
   onSaved,
 }: {
   guestIds: string[];
-  functions: FunctionRef[];
+  days: RsvpDay[];
   opened: boolean;
   onClose: () => void;
   onSaved: () => void;
@@ -185,8 +230,8 @@ export function BulkInviteModal({
   async function save() {
     setSaving(true);
     setError(null);
-    const rows = guestIds.flatMap((guest_id) => chosen.map((function_id) => ({ guest_id, function_id })));
-    const { error: err } = await supabase.from('guest_invites').upsert(rows, { onConflict: 'guest_id,function_id', ignoreDuplicates: true });
+    const rows = guestIds.flatMap((guest_id) => chosen.map((event_date) => ({ guest_id, event_date })));
+    const { error: err } = await supabase.from('guest_rsvps').upsert(rows, { onConflict: 'guest_id,event_date', ignoreDuplicates: true });
     setSaving(false);
     if (err) {
       setError(err.message);
@@ -203,9 +248,9 @@ export function BulkInviteModal({
           {guestIds.length} household{guestIds.length === 1 ? '' : 's'} will be marked as invited with no reply yet. Anyone who already has an answer keeps it.
         </Text>
         <MultiSelect
-          label="Functions"
-          placeholder="Pick one or more"
-          data={functions.map((f) => ({ value: f.id, label: f.name }))}
+          label="Days"
+          placeholder="Pick one or both"
+          data={days.map((d) => ({ value: d.date, label: `${d.label}: ${d.functions.join(', ')}` }))}
           value={chosen}
           onChange={setChosen}
         />
