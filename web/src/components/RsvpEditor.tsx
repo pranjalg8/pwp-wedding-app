@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActionIcon, Box, Button, Checkbox, Group, Modal, MultiSelect, Paper, Stack, Text } from '@mantine/core';
+import { ActionIcon, Box, Button, Checkbox, Group, Modal, Paper, SegmentedControl, Stack, Text } from '@mantine/core';
 import { supabase } from '../lib/supabase';
 import type { Invite } from '../lib/rsvp';
 
@@ -311,58 +311,142 @@ export function RsvpEditor({
   );
 }
 
-// Invite every household currently shown to the chosen days. Households already invited keep their answer.
+// What the households' invites looked like before a bulk change, so the change can be undone.
+export type InviteSnapshot = { guestIds: string[]; rows: { guest_id: string; event_date: string; coming: number; maybe: number; declined: number }[] };
+
+export type BulkMode = 'add' | 'only' | 'remove';
+
+// Put the selected households' invites back exactly as they were: clear what is there now, then restore the snapshot.
+export async function restoreInvites(snapshot: InviteSnapshot): Promise<string | null> {
+  const del = await supabase.from('guest_rsvps').delete().in('guest_id', snapshot.guestIds);
+  if (del.error) return del.error.message;
+  if (snapshot.rows.length > 0) {
+    const ins = await supabase.from('guest_rsvps').insert(snapshot.rows);
+    if (ins.error) return ins.error.message;
+  }
+  return null;
+}
+
+// Change the days a set of selected households is invited to. Add keeps what they have and adds the chosen days,
+// Only makes the chosen days their only days, Remove takes the chosen days away. Answers on days that stay are kept.
 export function BulkInviteModal({
   guestIds,
+  invites,
   days,
   opened,
   onClose,
   onSaved,
+  onDone,
 }: {
   guestIds: string[];
+  invites: Invite[];
   days: RsvpDay[];
   opened: boolean;
   onClose: () => void;
   onSaved: () => void;
+  onDone: (snapshot: InviteSnapshot, summary: string) => void;
 }) {
+  const [mode, setMode] = useState<BulkMode>('add');
   const [chosen, setChosen] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const ids = new Set(guestIds);
+  const mine = invites.filter((i) => ids.has(i.guest_id));
+  const dayLabel = (date: string) => days.find((d) => d.date === date)?.label ?? date;
+  const chosenLabels = days.filter((d) => chosen.includes(d.date)).map((d) => d.label).join(' and ');
+
+  // Invites that would be deleted, and how many of those already carry an answer.
+  const doomed = mine.filter((i) => (mode === 'only' ? !chosen.includes(i.event_date) : mode === 'remove' ? chosen.includes(i.event_date) : false));
+  const withAnswers = doomed.filter((i) => i.coming + i.maybe + i.declined > 0);
+  const householdsWithAnswers = new Set(withAnswers.map((i) => i.guest_id)).size;
+  const householdsLosing = new Set(doomed.map((i) => i.guest_id)).size;
+  const newInvites = mode === 'remove' ? 0 : guestIds.reduce((count, id) => count + chosen.filter((d) => !mine.some((i) => i.guest_id === id && i.event_date === d)).length, 0);
+
   async function save() {
     setSaving(true);
     setError(null);
-    const rows = guestIds.flatMap((guest_id) => chosen.map((event_date) => ({ guest_id, event_date })));
-    const { error: err } = await supabase.from('guest_rsvps').upsert(rows, { onConflict: 'guest_id,event_date', ignoreDuplicates: true });
-    setSaving(false);
-    if (err) {
-      setError(err.message);
-      return;
+    const snapshot: InviteSnapshot = {
+      guestIds,
+      rows: mine.map((i) => ({ guest_id: i.guest_id, event_date: i.event_date, coming: i.coming, maybe: i.maybe, declined: i.declined })),
+    };
+    if (mode !== 'remove') {
+      const rows = guestIds.flatMap((guest_id) => chosen.map((event_date) => ({ guest_id, event_date })));
+      const { error: err } = await supabase.from('guest_rsvps').upsert(rows, { onConflict: 'guest_id,event_date', ignoreDuplicates: true });
+      if (err) {
+        setSaving(false);
+        setError(err.message);
+        return;
+      }
     }
+    const removeDates = mode === 'remove' ? chosen : mode === 'only' ? days.map((d) => d.date).filter((d) => !chosen.includes(d)) : [];
+    if (removeDates.length > 0) {
+      const { error: err } = await supabase.from('guest_rsvps').delete().in('guest_id', guestIds).in('event_date', removeDates);
+      if (err) {
+        setSaving(false);
+        setError(err.message);
+        return;
+      }
+    }
+    setSaving(false);
+    const n = guestIds.length;
+    const who = `${n} household${n === 1 ? '' : 's'}`;
     onSaved();
+    onDone(
+      snapshot,
+      mode === 'add' ? `${who} invited to ${chosenLabels}` : mode === 'only' ? `${who} now invited to ${chosenLabels} only` : `${chosenLabels} invite removed for ${who}`
+    );
     onClose();
   }
 
+  const applyLabel = mode === 'add' ? 'Invite' : mode === 'only' ? 'Set invites' : 'Remove invites';
+
   return (
-    <Modal opened={opened} onClose={onClose} title="Invite the households shown" centered>
+    <Modal opened={opened} onClose={onClose} title={`Change invites for ${guestIds.length} household${guestIds.length === 1 ? '' : 's'}`} centered>
       <Stack>
-        <Text size="sm" c="dimmed">
-          {guestIds.length} household{guestIds.length === 1 ? '' : 's'} will be marked as invited with no reply yet. Anyone who already has an answer keeps it.
-        </Text>
-        <MultiSelect
-          label="Days"
-          placeholder="Pick one or both"
-          data={days.map((d) => ({ value: d.date, label: `${d.label}: ${d.functions.join(', ')}` }))}
-          value={chosen}
-          onChange={setChosen}
+        <SegmentedControl
+          fullWidth
+          value={mode}
+          onChange={(v) => setMode(v as BulkMode)}
+          data={[
+            { value: 'add', label: 'Add days' },
+            { value: 'only', label: 'Only these days' },
+            { value: 'remove', label: 'Remove days' },
+          ]}
         />
+        <Text size="sm" c="dimmed">
+          {mode === 'add' && 'Invites them to the days you tick, and keeps any days and answers they already have.'}
+          {mode === 'only' && 'Makes the days you tick their only days. Any other day they were invited to is removed.'}
+          {mode === 'remove' && 'Takes the days you tick away from them. Their other days stay.'}
+        </Text>
+        <Checkbox.Group value={chosen} onChange={setChosen}>
+          <Stack gap="xs">
+            {days.map((d) => (
+              <Checkbox key={d.date} value={d.date} label={d.label} description={d.functions.join(', ')} />
+            ))}
+          </Stack>
+        </Checkbox.Group>
+
+        {chosen.length > 0 && (
+          <Text size="sm">
+            {mode !== 'remove' && `${newInvites} new invite${newInvites === 1 ? '' : 's'} will be added. `}
+            {mode !== 'add' && `${doomed.length} invite${doomed.length === 1 ? '' : 's'} on ${householdsLosing} household${householdsLosing === 1 ? '' : 's'} will be removed. `}
+            {mode === 'add' && 'Nothing is removed.'}
+          </Text>
+        )}
+        {householdsWithAnswers > 0 && (
+          <Text size="sm" c="red">
+            {householdsWithAnswers} household{householdsWithAnswers === 1 ? ' has' : 's have'} answers on a day that would be removed (
+            {[...new Set(withAnswers.map((i) => dayLabel(i.event_date)))].join(', ')}). You can undo right after.
+          </Text>
+        )}
         {error && (
           <Text c="red" size="sm">
             {error}
           </Text>
         )}
-        <Button onClick={save} loading={saving} disabled={chosen.length === 0 || guestIds.length === 0}>
-          Invite
+        <Button onClick={save} loading={saving} disabled={chosen.length === 0 || guestIds.length === 0} color={mode === 'remove' ? 'red' : undefined}>
+          {applyLabel}
         </Button>
       </Stack>
     </Modal>
