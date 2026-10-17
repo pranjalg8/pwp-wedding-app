@@ -19,7 +19,6 @@ import { Activity } from './pages/Activity';
 import { Budget } from './pages/Budget';
 import { Vendors } from './pages/Vendors';
 import { Functions } from './pages/Functions';
-import { Guests } from './pages/Guests';
 import { FunctionResults } from './pages/FunctionResults';
 import { Swipe } from './pages/Swipe';
 import { HoneymoonItinerary } from './pages/HoneymoonItinerary';
@@ -33,6 +32,8 @@ import { Updates } from './pages/Updates';
 
 // Loaded on demand so the sign-in library does not weigh down the main bundle.
 const ShareAdmin = lazy(() => import('./pages/ShareAdmin').then((m) => ({ default: m.ShareAdmin })));
+// The guest table brings in the grid library, so the page loads on demand too.
+const Guests = lazy(() => import('./pages/Guests').then((m) => ({ default: m.Guests })));
 const ShareViewer = lazy(() => import('./pages/ShareViewer').then((m) => ({ default: m.ShareViewer })));
 
 const pageLoader = (
@@ -208,7 +209,7 @@ function AuthedApp() {
           <Route path="/share" element={<Suspense fallback={pageLoader}><ShareAdmin /></Suspense>} />
           <Route path="/vendors" element={<Vendors />} />
           <Route path="/functions" element={<Functions />} />
-          <Route path="/guests" element={<Guests />} />
+          <Route path="/guests" element={<Suspense fallback={pageLoader}><Guests /></Suspense>} />
           <Route path="/functions/swipe" element={<Swipe scope="wedding" />} />
           <Route path="/functions/results" element={<FunctionResults />} />
           <Route path="/honeymoon" element={<HoneymoonLayout />}>
