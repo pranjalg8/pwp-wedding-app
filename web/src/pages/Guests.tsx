@@ -9,6 +9,8 @@ import { useGuestInvites } from '../hooks/useGuestInvites';
 import { BulkInviteModal, RsvpEditor, daysFromFunctions, restoreInvites, type InviteSnapshot } from '../components/RsvpEditor';
 import { DroppedGuests } from '../components/DroppedGuests';
 import { DayPlan } from '../components/DayPlan';
+import { RoomPlan } from '../components/RoomPlan';
+import { useGuestStays } from '../hooks/useGuestStays';
 import { GuestSummary } from '../components/GuestSummary';
 import { Section } from '../components/Section';
 import { useStay } from '../hooks/useStay';
@@ -42,6 +44,7 @@ export function Guests() {
   const [droppedCount, setDroppedCount] = useState(0);
   const { invites, totals, reload: reloadInvites } = useGuestInvites();
   const { sites, nights } = useStay();
+  const { stays, reload: reloadStays } = useGuestStays();
   const days = useMemo(() => daysFromFunctions(fnRows), [fnRows]);
 
   async function loadFunctions() {
@@ -233,8 +236,12 @@ export function Guests() {
             <DayPlan days={days} totals={totals} guests={guests} invites={invites} sites={sites} nights={nights} />
           </Section>
 
+          <Section step={3} title="Rooms" hint="Which place each household sleeps at, night by night. Suggest a plan, then move households by hand.">
+            <RoomPlan guests={guests} invites={invites} sites={sites} nights={nights} stays={stays} reloadStays={reloadStays} onGuestsChanged={load} />
+          </Section>
+
           <div ref={listRef} style={{ scrollMarginTop: 72 }}>
-            <Section step={3} title="Households" hint="Find a household, set its RSVP, or tick several to change their invites together.">
+            <Section step={4} title="Households" hint="Find a household, set its RSVP, or tick several to change their invites together.">
               <Stack gap="xs">
                 <Group gap="xs" wrap="nowrap" align="flex-end">
                   <TextInput style={{ flex: 1 }} placeholder="Search name, family or place" value={query} onChange={(e) => setQuery(e.currentTarget.value)} />

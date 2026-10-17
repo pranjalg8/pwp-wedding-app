@@ -16,6 +16,7 @@ export type Guest = {
   location: string | null;
   priority: 1 | 2 | null;
   functions: string | null;
+  needs_lift?: boolean;
   sort_order: number;
 };
 
