@@ -136,3 +136,18 @@ body {
 .honeymoon-flip { animation: honeymoon-flip 520ms cubic-bezier(.2,.8,.2,1) both; transform-origin: center top; overflow-x: clip; }
 @keyframes honeymoon-flip { from { opacity: 0; transform: perspective(1400px) rotateY(-70deg) scale(.96); } to { opacity: 1; transform: perspective(1400px) rotateY(0) scale(1); } }
 @media (prefers-reduced-motion: reduce) { .honeymoon-flip { animation: none; } }
+
+/* ---- Guests: day by day plan. A table on wide screens, a stack of labelled values on a phone ---- */
+.dayplan-head { display: none; }
+.dayplan-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 14px 0; border-top: 1px solid var(--mantine-color-default-border); }
+.dayplan-head + .dayplan-row { border-top: 0; }
+/* On a phone: day, people and food take the full width; the two room columns sit side by side; empty cells are hidden. */
+.dayplan-row > :nth-child(-n + 3) { grid-column: 1 / -1; }
+.dayplan-empty { display: none; }
+@media (min-width: 48em) {
+  .dayplan-empty { display: block; }
+  .dayplan-row > :nth-child(-n + 3) { grid-column: auto; }
+  .dayplan-head, .dayplan-row { grid-template-columns: 1.25fr 1.5fr 1.15fr 1.2fr 1.2fr; gap: 16px; align-items: start; }
+  .dayplan-head { display: grid; padding: 0 0 8px; }
+  .dayplan-head + .dayplan-row { border-top: 1px solid var(--mantine-color-default-border); }
+}

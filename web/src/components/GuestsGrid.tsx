@@ -353,10 +353,7 @@ export function GuestsGrid({
 
   return (
     <Stack gap="xs">
-      <Group justify="space-between" gap="xs">
-        <Text size="xs" c="dimmed">
-          Click a column heading to sort, use the boxes under it to filter, drag column edges to resize.
-        </Text>
+      <Group justify="flex-end" gap="xs">
         <Group gap="xs">
           <Menu closeOnItemClick={false} position="bottom-end" shadow="md">
             <Menu.Target>
@@ -380,10 +377,10 @@ export function GuestsGrid({
             </Menu.Dropdown>
           </Menu>
           <Button size="compact-sm" variant="default" onClick={resetView}>
-            Clear filters and sorting
+            Reset table
           </Button>
           <Button size="compact-sm" variant="default" onClick={exportCsv}>
-            Export this view (CSV)
+            Export table (CSV)
           </Button>
         </Group>
       </Group>

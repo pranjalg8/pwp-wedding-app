@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Button, Chip, Group, Paper, ScrollArea, SegmentedControl, Select, SimpleGrid, Stack, Text, TextInput, Title } from '@mantine/core';
+import { Alert, Badge, Button, CloseButton, Collapse, Group, Indicator, Paper, SegmentedControl, Select, Stack, Text, TextInput, Title } from '@mantine/core';
 import type { GridApi } from 'ag-grid-community';
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
@@ -7,34 +7,18 @@ import { useEditMode } from '../hooks/useEditMode';
 import { GuestEditor, type Guest } from '../components/GuestEditor';
 import { useGuestInvites } from '../hooks/useGuestInvites';
 import { BulkInviteModal, RsvpEditor, daysFromFunctions, restoreInvites, type InviteSnapshot } from '../components/RsvpEditor';
-import { RsvpBar } from '../components/RsvpBar';
 import { DroppedGuests } from '../components/DroppedGuests';
-import { StayPlan } from '../components/StayPlan';
-import { scaleRooms, splitOf, stayRange } from '../lib/rsvp';
+import { DayPlan } from '../components/DayPlan';
+import { GuestSummary } from '../components/GuestSummary';
+import { Section } from '../components/Section';
+import { useStay } from '../hooks/useStay';
+import { splitOf } from '../lib/rsvp';
+import { STATUS_COLOR, STATUS_LABEL, countByStatus, type HouseholdStatus, type HouseholdView } from '../lib/guestStatus';
 import { GuestsGrid, type GuestRow } from '../components/GuestsGrid';
 
 type FunctionRef = { name: string; event_date: string };
 
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
-const rooms = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
-
-function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
-  return (
-    <Paper withBorder p="md">
-      <Text size="xs" tt="uppercase" fw={600} c="dimmed" style={{ letterSpacing: 0.5 }}>
-        {label}
-      </Text>
-      <Text fz={26} fw={700} mt={2}>
-        {value}
-      </Text>
-      {hint && (
-        <Text size="xs" c="dimmed">
-          {hint}
-        </Text>
-      )}
-    </Paper>
-  );
-}
 
 export function Guests() {
   const { isUnlocked } = useEditMode();
@@ -52,8 +36,12 @@ export function Guests() {
   const [displayed, setDisplayed] = useState<Set<string>>(new Set());
   const gridApi = useRef<GridApi<GuestRow> | null>(null);
   const [tab, setTab] = useState<'invited' | 'dropped'>('invited');
+  const [view, setView] = useState<HouseholdView>('all');
+  const [showFilters, setShowFilters] = useState(false);
+  const listRef = useRef<HTMLDivElement>(null);
   const [droppedCount, setDroppedCount] = useState(0);
   const { invites, totals, reload: reloadInvites } = useGuestInvites();
+  const { sites, nights } = useStay();
   const days = useMemo(() => daysFromFunctions(fnRows), [fnRows]);
 
   async function loadFunctions() {
@@ -92,16 +80,19 @@ export function Guests() {
 
   const groups = useMemo(() => [...new Set(guests.map((g) => g.list_group).filter((x): x is string => !!x))], [guests]);
 
+  const { counts, statusById } = useMemo(() => countByStatus(guests, invites), [guests, invites]);
+
   const visible = useMemo(
     () =>
       guests
+        .filter((g) => view === 'all' || statusById[g.id] === view)
         .filter((g) => group === 'all' || g.list_group === group)
         .filter((g) => !priority || (priority === 'none' ? g.priority === null : String(g.priority) === priority))
         .filter((g) => {
           const q = query.trim().toLowerCase();
           return !q || [g.name, g.family_members, g.location, g.relation].some((v) => v?.toLowerCase().includes(q));
         }),
-    [guests, group, priority, query]
+    [guests, group, priority, query, view, statusById]
   );
 
   // Rows ticked for a bulk change (the grid owns the ticks). Ticks survive the grid's own column filters,
@@ -159,28 +150,15 @@ export function Guests() {
   }
 
   const people = (list: Guest[]) => sum(list.map((g) => g.persons));
-  const p1 = guests.filter((g) => g.priority === 1);
-  const p2 = guests.filter((g) => g.priority === 2);
-  const unset = guests.filter((g) => g.priority === null);
-  const filtered = visible.length !== guests.length;
-
-  // Rooms follow who might actually come: "most" drops only those who said no, "least" keeps only the yeses.
   const invitesOf = (id: string) => invites.filter((i) => i.guest_id === id);
-  const anyInvites = invites.length > 0;
-  const roomsAt = (pick: 'most' | 'least') =>
-    guests.reduce(
-      (acc, g) => {
-        const people = stayRange(g.persons, invitesOf(g.id))[pick];
-        acc.inside += scaleRooms(Number(g.rooms_inside), g.persons, people);
-        acc.outside += scaleRooms(Number(g.rooms_outside), g.persons, people);
-        return acc;
-      },
-      { inside: 0, outside: 0 }
-    );
-  const roomsMost = roomsAt('most');
-  const roomsLeast = roomsAt('least');
+  const filtered = visible.length !== guests.length;
+  const activeFilters = (group !== 'all' ? 1 : 0) + (priority ? 1 : 0);
 
-  // Per day, for food: people by answer. Rooms are worked out per night in the Rooms by night panel (StayPlan).
+  // The summary's status buttons and the list's quick views are the same control: picking one jumps to the list.
+  function pickView(v: HouseholdStatus) {
+    setView((cur) => (cur === v ? 'all' : v));
+    setTimeout(() => listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+  }
 
   // One row per household with its answer for each day, for sharing with whoever books travel or food.
   function downloadCsv() {
@@ -210,7 +188,7 @@ export function Guests() {
   const nextOrder = Math.max(0, ...guests.map((g) => g.sort_order)) + 1;
 
   return (
-    <Stack gap="lg">
+    <Stack gap="xl">
       <Group justify="space-between" align="flex-end">
         <div>
           <Title order={2}>Guests</Title>
@@ -223,11 +201,7 @@ export function Guests() {
             <Button variant="default" onClick={downloadCsv} disabled={visible.length === 0}>
               Download RSVP CSV
             </Button>
-            {isUnlocked && (
-              <>
-                <Button onClick={() => setEditing('new')}>Add household</Button>
-              </>
-            )}
+            {isUnlocked && <Button onClick={() => setEditing('new')}>Add household</Button>}
           </Group>
         )}
       </Group>
@@ -251,132 +225,112 @@ export function Guests() {
         <DroppedGuests onChanged={load} />
       ) : (
         <>
-      <SimpleGrid cols={{ base: 2, md: 4 }} spacing="md">
-        <Stat label="People" value={String(people(guests))} hint={`${guests.length} households`} />
-        <Stat
-          label="Rooms"
-          value={`${rooms(roomsMost.inside)} + ${rooms(roomsMost.outside)}`}
-          hint={
-            anyInvites
-              ? `Up to, if no one else drops · confirmed only: ${rooms(roomsLeast.inside)} + ${rooms(roomsLeast.outside)}`
-              : 'At the main stay + elsewhere'
-          }
-        />
-        <Stat label="Priority 1" value={String(people(p1))} hint={`${p1.length} households · Priority 2: ${people(p2)}`} />
-        <Stat label="No priority set" value={String(people(unset))} hint={`${unset.length} household${unset.length === 1 ? '' : 's'}`} />
-      </SimpleGrid>
+          <Section step={1} title="Where we stand" hint="Everyone on this side, and how far each household has got. Pick a status to see those households.">
+            <GuestSummary counts={counts} households={guests.length} people={people(guests)} view={view} onView={pickView} />
+          </Section>
 
-      <Paper withBorder p="md">
-        <Text fw={700}>Plan by day</Text>
-        <Text size="xs" c="dimmed" mb="sm">
-          People, not households. Whoever is coming on a day is at every function that day. Use these for food and travel; rooms are in the next panel.
-        </Text>
-        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
-          {days.map((d) => {
-            const t = totals[d.date];
-            const upTo = t ? t.confirmed + t.maybe + t.invited : 0;
-            return (
-              <Stack key={d.date} gap={6}>
-                <div>
-                  <Text size="sm" fw={600}>
-                    {d.label}
-                  </Text>
-                  <Text size="xs" c="dimmed">
-                    {d.functions.join(', ')}
-                  </Text>
-                </div>
-                <RsvpBar totals={t} compact />
-                {t && (
-                  <Text size="xs">
-                    Food: <b>{t.confirmed}</b> confirmed, up to <b>{upTo}</b> if everyone who has not said no comes.
+          <Section step={2} title="Day by day" hint="Food and rooms for each day, worked out from the replies so far.">
+            <DayPlan days={days} totals={totals} guests={guests} invites={invites} sites={sites} nights={nights} />
+          </Section>
+
+          <div ref={listRef} style={{ scrollMarginTop: 72 }}>
+            <Section step={3} title="Households" hint="Find a household, set its RSVP, or tick several to change their invites together.">
+              <Stack gap="xs">
+                <Group gap="xs" wrap="nowrap" align="flex-end">
+                  <TextInput style={{ flex: 1 }} placeholder="Search name, family or place" value={query} onChange={(e) => setQuery(e.currentTarget.value)} />
+                  <Indicator label={activeFilters} disabled={activeFilters === 0} size={16} color="rose" offset={4}>
+                    <Button variant="default" onClick={() => setShowFilters((v) => !v)} aria-expanded={showFilters}>
+                      Filters
+                    </Button>
+                  </Indicator>
+                </Group>
+
+                <Collapse expanded={showFilters}>
+                  <Group grow align="flex-end" pb="xs">
+                    <Select
+                      label="Group"
+                      clearable
+                      placeholder="Any group"
+                      data={groups}
+                      value={group === 'all' ? null : group}
+                      onChange={(v) => setGroup(v ?? 'all')}
+                    />
+                    <Select
+                      label="Priority"
+                      clearable
+                      placeholder="Any priority"
+                      data={[
+                        { value: '1', label: 'Priority 1' },
+                        { value: '2', label: 'Priority 2' },
+                        { value: 'none', label: 'Not set' },
+                      ]}
+                      value={priority}
+                      onChange={setPriority}
+                    />
+                  </Group>
+                </Collapse>
+
+                {view !== 'all' && (
+                  <Group gap="xs">
+                    <Badge size="lg" variant="light" color={STATUS_COLOR[view]} tt="none" rightSection={
+                      <CloseButton size="xs" aria-label="Show everyone" onClick={() => setView('all')} />
+                    }>
+                      {STATUS_LABEL[view]}
+                    </Badge>
+                  </Group>
+                )}
+
+                {filtered && (
+                  <Text size="sm" c="dimmed">
+                    Showing {visible.length} of {guests.length} households, {people(visible)} people.
                   </Text>
                 )}
               </Stack>
-            );
-          })}
-        </SimpleGrid>
-      </Paper>
 
-      <StayPlan guests={guests} invites={invites} />
+              {isUnlocked && (
+                <Paper withBorder p="sm" bg={selectedIds.length > 0 ? 'var(--mantine-color-rose-light)' : undefined}>
+                  {selectedIds.length === 0 ? (
+                    <Text size="sm" c="dimmed">
+                      Tick households to invite them to a day, or to change or remove their invites together.
+                    </Text>
+                  ) : (
+                    <Group justify="space-between" gap="sm">
+                      <Text size="sm" fw={600}>
+                        {selectedIds.length} household{selectedIds.length === 1 ? '' : 's'} selected ({people(selectedGuests)} people)
+                        {hiddenSelected > 0 && (
+                          <Text span size="sm" c="dimmed" fw={400}>
+                            {' '}
+                            · {hiddenSelected} not shown by the current filters
+                          </Text>
+                        )}
+                      </Text>
+                      <Group gap="xs">
+                        <Button size="compact-md" onClick={() => setBulk(true)}>
+                          Change invites
+                        </Button>
+                        <Button size="compact-md" variant="default" onClick={() => gridApi.current?.deselectAll()}>
+                          Clear selection
+                        </Button>
+                      </Group>
+                    </Group>
+                  )}
+                </Paper>
+              )}
 
-      <Stack gap="xs">
-        <ScrollArea type="never">
-          <Chip.Group multiple={false} value={group} onChange={(v) => setGroup(v as string)}>
-            <Group gap="xs" wrap="nowrap">
-              <Chip value="all" size="sm" variant="light">
-                Everyone
-              </Chip>
-              {groups.map((g) => (
-                <Chip key={g} value={g} size="sm" variant="light">
-                  {g}
-                </Chip>
-              ))}
-            </Group>
-          </Chip.Group>
-        </ScrollArea>
-        <Group grow align="flex-end">
-          <TextInput placeholder="Search name, family or place" value={query} onChange={(e) => setQuery(e.currentTarget.value)} />
-          <Select
-            placeholder="Any priority"
-            clearable
-            data={[
-              { value: '1', label: 'Priority 1' },
-              { value: '2', label: 'Priority 2' },
-              { value: 'none', label: 'Not set' },
-            ]}
-            value={priority}
-            onChange={setPriority}
-          />
-        </Group>
-        {filtered && (
-          <Text size="sm" c="dimmed">
-            Showing {visible.length} households, {people(visible)} people.
-          </Text>
-        )}
-      </Stack>
-
-      {isUnlocked && (
-        <Paper withBorder p="sm" bg={selectedIds.length > 0 ? 'var(--mantine-color-rose-light)' : undefined}>
-          {selectedIds.length === 0 ? (
-            <Text size="sm" c="dimmed">
-              Tick households in the table to invite them to a day, or to change or remove their invites. The box in the table header ticks every household that matches the filters.
-            </Text>
-          ) : (
-            <Group justify="space-between" gap="sm">
-              <Text size="sm" fw={600}>
-                {selectedIds.length} household{selectedIds.length === 1 ? '' : 's'} selected ({people(selectedGuests)} people)
-                {hiddenSelected > 0 && (
-                  <Text span size="sm" c="dimmed" fw={400}>
-                    {' '}
-                    · {hiddenSelected} not shown by the current filters
-                  </Text>
-                )}
-              </Text>
-              <Group gap="xs">
-                <Button size="compact-md" onClick={() => setBulk(true)}>
-                  Change invites
-                </Button>
-                <Button size="compact-md" variant="default" onClick={() => gridApi.current?.deselectAll()}>
-                  Clear selection
-                </Button>
-              </Group>
-            </Group>
-          )}
-        </Paper>
-      )}
-
-      <GuestsGrid
-        rows={gridRows}
-        days={days}
-        isUnlocked={isUnlocked}
-        onSelectionChange={onSelectionChange}
-        onDisplayedChange={onDisplayedChange}
-        onReady={onGridReady}
-        onRsvp={onRsvp}
-        onEdit={onEdit}
-        onDelete={onDelete}
-      />
-      {loaded && guests.length === 0 && <Text c="dimmed">No guests yet.</Text>}
+              <GuestsGrid
+                rows={gridRows}
+                days={days}
+                isUnlocked={isUnlocked}
+                onSelectionChange={onSelectionChange}
+                onDisplayedChange={onDisplayedChange}
+                onReady={onGridReady}
+                onRsvp={onRsvp}
+                onEdit={onEdit}
+                onDelete={onDelete}
+              />
+              {loaded && guests.length === 0 && <Text c="dimmed">No guests yet.</Text>}
+            </Section>
+          </div>
 
       {isUnlocked && editing && (
         <GuestEditor
