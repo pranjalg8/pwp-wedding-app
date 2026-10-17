@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Badge, Button, Group, Paper, Progress, SegmentedControl, SimpleGrid, Stack, Text } from '@mantine/core';
+import { Badge, Box, Button, CloseButton, Group, Progress, ScrollArea, SegmentedControl, Stack, Table, Text, UnstyledButton } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
 import { useEditMode } from '../hooks/useEditMode';
@@ -20,6 +20,32 @@ type PlanGuest = {
 
 const rooms = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 const nightLabel = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+const nightShort = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+
+// A household's placements as small badges, or "Not placed".
+function Placed({ mine, state, wanted, siteName }: { mine: { id: string; site_id: string; rooms: number | string }[]; state: 'placed' | 'partly' | 'none'; wanted: number; siteName: Record<string, string> }) {
+  if (mine.length === 0) {
+    return (
+      <Badge size="sm" variant="light" color="gray" tt="none">
+        Not placed
+      </Badge>
+    );
+  }
+  return (
+    <Group gap={4}>
+      {mine.map((s) => (
+        <Badge key={s.id} size="sm" variant="light" tt="none" color={state === 'placed' ? 'teal' : 'orange'}>
+          {siteName[s.site_id].split(',')[0]} {rooms(Number(s.rooms))}
+        </Badge>
+      ))}
+      {state === 'partly' && (
+        <Text size="xs" c="orange">
+          of {rooms(wanted)}
+        </Text>
+      )}
+    </Group>
+  );
+}
 
 // Step: rooms. Which place each household sleeps at, against what each place has on each night. People who come
 // on day 1 stay over and keep their rooms, so a household is placed once and holds those rooms for every night it
@@ -44,6 +70,7 @@ export function RoomPlan({
   const { isUnlocked } = useEditMode();
   const [show, setShow] = useState<'open' | 'all'>('open');
   const [assigning, setAssigning] = useState<PlanGuest | null>(null);
+  const [placedAt, setPlacedAt] = useState<string | null>(null);
   const [suggestion, setSuggestion] = useState<ReturnType<typeof suggestPlan> | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -73,7 +100,8 @@ export function RoomPlan({
   const totalWanted = households.reduce((a, h) => a + h.wanted, 0);
   const totalPlaced = households.reduce((a, h) => a + Math.min(h.placed, h.wanted), 0);
   const notPlaced = households.filter((h) => h.state !== 'placed');
-  const list = [...(show === 'open' ? notPlaced : households)].sort((a, b) => a.g.sort_order - b.g.sort_order);
+  const base = placedAt ? households.filter((h) => h.mine.some((m) => m.site_id === placedAt)) : show === 'open' ? notPlaced : households;
+  const list = [...base].sort((a, b) => a.g.sort_order - b.g.sort_order);
 
   function suggest() {
     setSuggestion(suggestPlan(guests, invites, sites, nights));
@@ -127,29 +155,35 @@ export function RoomPlan({
 
   if (sites.length === 0) return null;
 
+  const pct = totalWanted > 0 ? Math.min(100, (totalPlaced / totalWanted) * 100) : 0;
+  const focusSite = placedAt ? siteById[placedAt] : null;
+
   return (
     <Stack gap="md">
-      <Group justify="space-between" align="flex-end" gap="sm">
-        <Text size="sm">
-          <b>{rooms(totalPlaced)}</b> of <b>{rooms(totalWanted)}</b> rooms placed
-          {notPlaced.length > 0 && (
-            <Text span size="sm" c="dimmed">
-              {' '}
-              · {notPlaced.length} household{notPlaced.length === 1 ? '' : 's'} still to place
-            </Text>
+      <Stack gap={6}>
+        <Group justify="space-between" align="center" gap="sm">
+          <Text size="sm">
+            <b>{rooms(totalPlaced)}</b> of <b>{rooms(totalWanted)}</b> rooms placed
+            {notPlaced.length > 0 && (
+              <Text span size="sm" c="dimmed">
+                {' '}
+                · {notPlaced.length} household{notPlaced.length === 1 ? '' : 's'} still to place
+              </Text>
+            )}
+          </Text>
+          {isUnlocked && (
+            <Group gap="xs">
+              <Button size="compact-md" onClick={suggest} disabled={households.length === 0}>
+                Suggest a plan
+              </Button>
+              <Button size="compact-md" variant="subtle" color="red" onClick={clearAll} disabled={stays.length === 0}>
+                Clear all
+              </Button>
+            </Group>
           )}
-        </Text>
-        {isUnlocked && (
-          <Group gap="xs">
-            <Button size="compact-md" onClick={suggest} disabled={households.length === 0}>
-              Suggest a plan
-            </Button>
-            <Button size="compact-md" variant="default" color="red" onClick={clearAll} disabled={stays.length === 0}>
-              Clear placements
-            </Button>
-          </Group>
-        )}
-      </Group>
+        </Group>
+        <Progress value={pct} size="sm" color={totalWanted > 0 && totalPlaced >= totalWanted - 0.01 ? 'teal' : 'rose'} aria-label={`${rooms(totalPlaced)} of ${rooms(totalWanted)} rooms placed`} />
+      </Stack>
 
       {error && (
         <Text c="red" size="sm">
@@ -157,108 +191,152 @@ export function RoomPlan({
         </Text>
       )}
 
-      <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
-        {sites.map((s) => (
-          <Paper key={s.id} withBorder p="sm" radius="md">
-            <Group justify="space-between" wrap="nowrap" gap="xs" mb={6}>
-              <Text fw={600} size="sm">
-                {s.name}
-              </Text>
-              <Badge size="xs" variant="light" color={s.has_lift ? 'teal' : 'orange'}>
-                {s.has_lift ? 'Lift' : 'No lift'}
-              </Badge>
-            </Group>
-            <Stack gap={6}>
-              {allNights
-                .filter((n) => nights.some((x) => x.site_id === s.id && x.night === n))
-                .map((n) => {
+      <Table.ScrollContainer minWidth={290}>
+        <Table verticalSpacing={6} horizontalSpacing={6} withRowBorders>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Place</Table.Th>
+              {allNights.map((n) => (
+                <Table.Th key={n} ta="right" style={{ whiteSpace: 'nowrap' }} title={nightLabel(n)}>
+                  {nightShort(n)}
+                </Table.Th>
+              ))}
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {sites.map((s) => (
+              <Table.Tr key={s.id} bg={placedAt === s.id ? 'var(--mantine-color-rose-light)' : undefined}>
+                <Table.Td>
+                  <UnstyledButton onClick={() => setPlacedAt((cur) => (cur === s.id ? null : s.id))} aria-pressed={placedAt === s.id} title="Show the households placed here">
+                    <Text size="sm" fw={600} td="underline" style={{ textDecorationStyle: 'dotted', textUnderlineOffset: 3, whiteSpace: 'nowrap' }}>
+                      {s.name.split(',')[0].replace(/ Hotel$/, '')}
+                    </Text>
+                    <Text size="xs" c={s.has_lift ? 'dimmed' : 'orange'}>
+                      {s.has_lift ? 'Lift' : 'No lift'}
+                    </Text>
+                  </UnstyledButton>
+                </Table.Td>
+                {allNights.map((n) => {
                   const cap = nights.find((x) => x.site_id === s.id && x.night === n)?.rooms ?? 0;
                   const u = used[s.id]?.[n] ?? 0;
-                  return (
-                    <div key={n}>
-                      <Group justify="space-between" gap="xs">
-                        <Text size="xs">{nightLabel(n)}</Text>
-                        <Text size="xs" c={u > cap ? 'red' : 'dimmed'} fw={u > cap ? 700 : 400}>
-                          {rooms(u)} of {cap}
-                          {u > cap ? ' (over)' : ''}
+                  if (cap === 0) {
+                    return (
+                      <Table.Td key={n} ta="right">
+                        <Text size="sm" c="dimmed">
+                          —
                         </Text>
-                      </Group>
+                      </Table.Td>
+                    );
+                  }
+                  const over = u > cap + 0.01;
+                  const full = !over && u >= cap - 0.01;
+                  return (
+                    <Table.Td key={n} ta="right" style={{ minWidth: 64 }}>
+                      <Text size="sm" fw={over ? 700 : 500} c={over ? 'red' : full ? 'teal' : undefined} style={{ whiteSpace: 'nowrap' }}>
+                        {rooms(u)} / {cap}
+                      </Text>
                       <Progress
-                        value={cap > 0 ? Math.min(100, (u / cap) * 100) : 0}
-                        size="sm"
-                        color={u > cap ? 'red' : u === cap ? 'teal' : 'rose'}
-                        aria-label={`${s.name}, ${nightLabel(n)}: ${rooms(u)} of ${cap} rooms placed`}
+                        value={Math.min(100, (u / cap) * 100)}
+                        size={4}
+                        mt={3}
+                        color={over ? 'red' : full ? 'teal' : 'rose'}
+                        aria-label={`${s.name}, ${nightLabel(n)}: ${rooms(u)} of ${cap} rooms placed${over ? ', over capacity' : ''}`}
                       />
-                    </div>
+                    </Table.Td>
                   );
                 })}
-            </Stack>
-          </Paper>
-        ))}
-      </SimpleGrid>
+              </Table.Tr>
+            ))}
+          </Table.Tbody>
+        </Table>
+      </Table.ScrollContainer>
 
-      <Group justify="space-between" gap="sm">
-        <Text fw={600}>Households</Text>
-        <SegmentedControl
-          size="xs"
-          value={show}
-          onChange={(v) => setShow(v as 'open' | 'all')}
-          data={[
-            { value: 'open', label: `Still to place (${notPlaced.length})` },
-            { value: 'all', label: `All (${households.length})` },
-          ]}
-        />
+      <Group justify="space-between" gap="sm" wrap="wrap">
+        {focusSite ? (
+          <Badge size="lg" variant="light" color="rose" tt="none" rightSection={<CloseButton size="xs" aria-label="Show all households" onClick={() => setPlacedAt(null)} />}>
+            Placed at {focusSite.name.split(',')[0]}
+          </Badge>
+        ) : (
+          <SegmentedControl
+            size="xs"
+            value={show}
+            onChange={(v) => setShow(v as 'open' | 'all')}
+            data={[
+              { value: 'open', label: `Still to place (${notPlaced.length})` },
+              { value: 'all', label: `All (${households.length})` },
+            ]}
+          />
+        )}
+        <Text size="xs" c="dimmed">
+          {list.length} household{list.length === 1 ? '' : 's'}
+        </Text>
       </Group>
 
       {list.length === 0 ? (
         <Text size="sm" c="dimmed">
-          {households.length === 0 ? 'No invited household needs rooms yet. Invite households to a day first.' : 'Every household that needs rooms is placed.'}
+          {households.length === 0
+            ? 'No invited household needs rooms yet. Invite households to a day first.'
+            : focusSite
+              ? 'No household is placed here yet.'
+              : 'Every household that needs rooms is placed.'}
         </Text>
       ) : (
-        <Stack gap="xs">
-          {list.map((h) => {
-            const stairs = h.g.needs_lift ? h.mine.filter((s) => !siteById[s.site_id]?.has_lift) : [];
-            return (
-              <Paper key={h.g.id} withBorder p="sm" radius="md">
-                <Group justify="space-between" wrap="nowrap" align="flex-start" gap="sm">
-                  <div style={{ minWidth: 0 }}>
-                    <Text fw={600} size="sm" style={{ overflowWrap: 'anywhere' }}>
-                      {h.g.name}
-                      {h.g.needs_lift && (
-                        <Badge ml={6} size="xs" variant="light" color="orange">
-                          Needs lift
-                        </Badge>
-                      )}
-                    </Text>
-                    <Text size="xs" c="dimmed">
-                      {h.need.people} people · needs {rooms(h.need.main)} main stay + {rooms(h.need.other)} elsewhere · from {nightLabel(h.need.firstNight)}
-                    </Text>
-                    <Text size="xs" mt={2}>
-                      {h.mine.length === 0
-                        ? 'Not placed'
-                        : h.mine.map((s) => `${siteName[s.site_id]} ${rooms(Number(s.rooms))}`).join(' · ')}
-                    </Text>
-                    {stairs.length > 0 && (
-                      <Text size="xs" c="red">
-                        {stairs.map((s) => siteName[s.site_id]).join(', ')} has no lift.
+        <ScrollArea.Autosize mah={340} type="auto" offsetScrollbars>
+          <Table verticalSpacing={6} horizontalSpacing="xs" stickyHeader withRowBorders>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Household</Table.Th>
+                <Table.Th visibleFrom="sm">Placed</Table.Th>
+                {isUnlocked && <Table.Th w={64} />}
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {list.map((h) => {
+                const stairs = h.g.needs_lift ? h.mine.filter((s) => !siteById[s.site_id]?.has_lift) : [];
+                return (
+                  <Table.Tr key={h.g.id}>
+                    <Table.Td>
+                      <Text fw={500} size="sm" lh={1.3} style={{ overflowWrap: 'anywhere' }}>
+                        {h.g.name}
+                        {h.g.needs_lift && (
+                          <Badge ml={6} size="xs" variant="light" color="orange">
+                            Needs lift
+                          </Badge>
+                        )}
                       </Text>
-                    )}
-                  </div>
-                  <Group gap="xs" wrap="nowrap" style={{ flexShrink: 0 }}>
-                    <Badge size="sm" variant="light" tt="none" color={h.state === 'placed' ? 'teal' : h.state === 'partly' ? 'orange' : 'gray'}>
-                      {h.state === 'placed' ? 'Placed' : h.state === 'partly' ? `${rooms(h.placed)} of ${rooms(h.wanted)}` : 'Not placed'}
-                    </Badge>
+                      <Text size="xs" c="dimmed" lh={1.3}>
+                        {h.need.people} people · needs {[h.need.main > 0 ? `${rooms(h.need.main)} main` : null, h.need.other > 0 ? `${rooms(h.need.other)} elsewhere` : null].filter(Boolean).join(' + ')}
+                      </Text>
+                      <Box hiddenFrom="sm" mt={4}>
+                        <Placed mine={h.mine} state={h.state} wanted={h.wanted} siteName={siteName} />
+                        {stairs.length > 0 && (
+                          <Text size="xs" c="red">
+                            {stairs.map((s) => siteName[s.site_id].split(',')[0]).join(', ')} has no lift.
+                          </Text>
+                        )}
+                      </Box>
+                    </Table.Td>
+                    <Table.Td visibleFrom="sm">
+                      <Placed mine={h.mine} state={h.state} wanted={h.wanted} siteName={siteName} />
+                      {stairs.length > 0 && (
+                        <Text size="xs" c="red">
+                          {stairs.map((s) => siteName[s.site_id].split(',')[0]).join(', ')} has no lift.
+                        </Text>
+                      )}
+                    </Table.Td>
                     {isUnlocked && (
-                      <Button size="compact-xs" variant="light" onClick={() => setAssigning(h.g)}>
-                        Place
-                      </Button>
+                      <Table.Td ta="right">
+                        <Button size="compact-xs" variant="light" onClick={() => setAssigning(h.g)}>
+                          Place
+                        </Button>
+                      </Table.Td>
                     )}
-                  </Group>
-                </Group>
-              </Paper>
-            );
-          })}
-        </Stack>
+                  </Table.Tr>
+                );
+              })}
+            </Table.Tbody>
+          </Table>
+        </ScrollArea.Autosize>
       )}
 
       {isUnlocked && assigning && (
