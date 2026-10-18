@@ -8,7 +8,7 @@ import { PaymentEditor, type Payment } from './PaymentEditor';
 // Amounts come back from Postgres numeric as strings; add in paise so the total is exact.
 const paise = (n: number | string) => Math.round(Number(n) * 100);
 
-export function PaymentsLedger({ plannerPaid }: { plannerPaid: number }) {
+export function PaymentsLedger({ topics = [] }: { topics?: { id: string; label: string }[] }) {
   const { isUnlocked } = useEditMode();
   const [rows, setRows] = useState<Payment[]>([]);
   const [editing, setEditing] = useState<Payment | null | 'new'>(null);
@@ -17,7 +17,7 @@ export function PaymentsLedger({ plannerPaid }: { plannerPaid: number }) {
   async function load() {
     const { data } = await supabase
       .from('payments')
-      .select('id, paid_on, payee, amount, method, reference, purpose, verification, verification_note')
+      .select('id, paid_on, payee, amount, method, reference, purpose, verification, verification_note, topic_id')
       .order('paid_on', { ascending: false });
     setRows((data ?? []) as Payment[]);
   }
@@ -44,7 +44,6 @@ export function PaymentsLedger({ plannerPaid }: { plannerPaid: number }) {
   const total = rows.reduce((s, r) => s + paise(r.amount), 0) / 100;
   const checked = rows.filter((r) => r.verification === 'receipt_checked').reduce((s, r) => s + paise(r.amount), 0) / 100;
   const unchecked = total - checked;
-  const mismatch = paise(total) !== paise(plannerPaid);
   const columns = isUnlocked ? 5 : 4;
 
   return (
@@ -63,11 +62,6 @@ export function PaymentsLedger({ plannerPaid }: { plannerPaid: number }) {
       <Text size="sm" c="dimmed">
         {formatInr(checked)} checked against a receipt{unchecked > 0 ? `, ${formatInr(unchecked)} from chat only` : ''}.
       </Text>
-      {mismatch && (
-        <Alert color="orange" title="Totals do not match">
-          The ledger adds up to {formatInr(total)} but the planner items marked paid add up to {formatInr(plannerPaid)}. One of them is missing or wrong.
-        </Alert>
-      )}
       {error && <Alert color="red" withCloseButton onClose={() => setError(null)}>{error}</Alert>}
       <Paper withBorder p={0} style={{ overflow: 'hidden' }}>
         <Table.ScrollContainer minWidth={640}>
@@ -89,6 +83,7 @@ export function PaymentsLedger({ plannerPaid }: { plannerPaid: number }) {
                   </Table.Td>
                   <Table.Td>
                     <Text fw={500}>{r.payee}</Text>
+                    {r.topic_id && topics.find((t) => t.id === r.topic_id) && <Text size="xs" c="rose.6">{topics.find((t) => t.id === r.topic_id)?.label}</Text>}
                     {r.purpose && <Text size="xs" c="dimmed">{r.purpose}</Text>}
                     {r.reference && <Text size="xs" c="dimmed">{r.reference}{r.method ? ` · ${r.method}` : ''}</Text>}
                   </Table.Td>
@@ -119,6 +114,7 @@ export function PaymentsLedger({ plannerPaid }: { plannerPaid: number }) {
         <PaymentEditor
           key={editing === 'new' ? 'new' : editing.id}
           payment={editing === 'new' ? null : editing}
+          topics={topics}
           opened
           onClose={() => setEditing(null)}
           onSaved={load}
