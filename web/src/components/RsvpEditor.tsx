@@ -272,7 +272,7 @@ export function RsvpEditor({
             <SimpleGrid cols={3} spacing={6}>
               {CHOICES.filter((c) => c.mode !== 'some').map((c) => (
                 <Button key={c.mode} variant="light" color={c.color} size="compact-md" onClick={() => chooseAll(c.mode)}>
-                  {c.label}
+                  {c.mode === 'all' ? 'All coming' : c.label}
                 </Button>
               ))}
             </SimpleGrid>
