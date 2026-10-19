@@ -388,7 +388,7 @@ export function Guests() {
                         {selectedIds.length} household{selectedIds.length === 1 ? '' : 's'} selected
                       </Text>
                       <Text size="sm" c="gray.4">
-                        {sum(selectedGuests.map((g) => g.persons))} people
+                        {sum(selectedGuests.map((g) => g.persons))} {sum(selectedGuests.map((g) => g.persons)) === 1 ? 'person' : 'people'}
                       </Text>
                       <Button size="compact-md" color="gray.0" c="dark.8" onClick={() => setBulkAnswer(true)}>
                         Set answer

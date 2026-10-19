@@ -305,7 +305,7 @@ export function RoomPlan({
                         )}
                       </Text>
                       <Text size="xs" c="dimmed" lh={1.3}>
-                        {h.need.people} people · needs {[h.need.main > 0 ? `${rooms(h.need.main)} main` : null, h.need.other > 0 ? `${rooms(h.need.other)} elsewhere` : null].filter(Boolean).join(' + ')}
+                        {h.need.people} {h.need.people === 1 ? 'person' : 'people'} · needs {[h.need.main > 0 ? `${rooms(h.need.main)} main` : null, h.need.other > 0 ? `${rooms(h.need.other)} elsewhere` : null].filter(Boolean).join(' + ')}
                       </Text>
                       <Box hiddenFrom="sm" mt={4}>
                         <Placed mine={h.mine} state={h.state} wanted={h.wanted} siteName={siteName} />

@@ -179,16 +179,17 @@ export function RsvpEditor({
       mode,
       ...(mode === 'all' ? { coming: guest.persons, maybe: 0, declined: 0 } : mode === 'none' ? { coming: 0, maybe: 0, declined: guest.persons } : mode === 'noreply' ? zero : {}),
     });
-  const chooseAll = (mode: Mode) =>
+  // Everyone maybe is whole-household unsure, shown as "Some are" with all of them under Maybe.
+  const chooseAll = (mode: Mode | 'maybe') =>
     setRows(
       Object.fromEntries(
         days.map((d) => [
           d.date,
           {
             invited: true,
-            mode,
+            mode: mode === 'maybe' ? 'some' : mode,
             coming: mode === 'all' ? guest.persons : 0,
-            maybe: 0,
+            maybe: mode === 'maybe' ? guest.persons : 0,
             declined: mode === 'none' ? guest.persons : 0,
           } as Row,
         ])
@@ -269,8 +270,15 @@ export function RsvpEditor({
             <Text size="sm" fw={600}>
               Same answer for every day
             </Text>
-            <SimpleGrid cols={3} spacing={6}>
-              {CHOICES.filter((c) => c.mode !== 'some').map((c) => (
+            <SimpleGrid cols={2} spacing={6}>
+              {(
+                [
+                  { mode: 'all', label: 'All coming', color: 'teal' },
+                  { mode: 'maybe', label: 'Maybe', color: 'yellow' },
+                  { mode: 'none', label: 'Not coming', color: 'red' },
+                  { mode: 'noreply', label: 'No reply yet', color: 'gray' },
+                ] as const
+              ).map((c) => (
                 <Button key={c.mode} variant="light" color={c.color} size="compact-md" onClick={() => chooseAll(c.mode)}>
                   {c.label}
                 </Button>
@@ -304,7 +312,7 @@ export function RsvpEditor({
                           h={48}
                           fw={600}
                           aria-pressed={on}
-                          styles={{ root: { borderWidth: 2, borderColor: on ? `var(--mantine-color-${c.color}-6)` : undefined } }}
+                          styles={{ root: { borderWidth: 2, borderColor: on ? `var(--mantine-color-${c.color}-6)` : undefined }, label: { whiteSpace: 'normal', textAlign: 'center', lineHeight: 1.2 } }}
                           onClick={() => choose(d.date, c.mode)}
                         >
                           {c.label}
