@@ -21,7 +21,7 @@ export function PinGateButton() {
 
   if (isUnlocked) {
     return (
-      <Button color="red" variant="light" onClick={lock}>
+      <Button color="red" variant="light" onClick={lock} title="Edit mode stays on across refreshes and pages, and switches off after 30 minutes without activity">
         Lock edit mode
       </Button>
     );
