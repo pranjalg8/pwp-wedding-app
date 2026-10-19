@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActionIcon, Box, Button, Checkbox, Group, Modal, Paper, SegmentedControl, Stack, Text } from '@mantine/core';
+import { ActionIcon, Box, Button, Checkbox, Drawer, Group, Modal, Paper, SegmentedControl, SimpleGrid, Stack, Text } from '@mantine/core';
 import { supabase } from '../lib/supabase';
 import type { Invite } from '../lib/rsvp';
 
@@ -7,7 +7,8 @@ import type { Invite } from '../lib/rsvp';
 export type RsvpDay = { date: string; label: string; functions: string[] };
 
 type GuestRef = { id: string; name: string; persons: number };
-type Row = { invited: boolean; coming: number | string; maybe: number | string; declined: number | string };
+type Mode = 'all' | 'some' | 'none' | 'noreply';
+type Row = { invited: boolean; coming: number | string; maybe: number | string; declined: number | string; mode: Mode };
 
 const n = (v: number | string) => Number(v) || 0;
 const used = (r: Row) => n(r.coming) + n(r.maybe) + n(r.declined);
@@ -140,42 +141,8 @@ function PeopleDots({ row, persons }: { row: Row; persons: number }) {
   );
 }
 
-type Answer = 'coming' | 'maybe' | 'declined' | 'clear';
-const ANSWERS: { answer: Answer; label: string; color: string }[] = [
-  { answer: 'coming', label: 'Everyone yes', color: 'teal' },
-  { answer: 'maybe', label: 'Everyone maybe', color: 'yellow' },
-  { answer: 'declined', label: 'Everyone no', color: 'red' },
-  { answer: 'clear', label: 'Clear', color: 'gray' },
-];
-
-// What a one-click answer means: the whole household says the same thing, or nobody has replied yet.
-const answerFor = (answer: Answer, persons: number): Partial<Row> => ({
-  coming: answer === 'coming' ? persons : 0,
-  maybe: answer === 'maybe' ? persons : 0,
-  declined: answer === 'declined' ? persons : 0,
-});
-
-function QuickPicks({ persons, label, onPick }: { persons: number; label: string; onPick: (patch: Partial<Row>) => void }) {
-  return (
-    <Group gap={4}>
-      {ANSWERS.map((p) => (
-        <Button
-          key={p.answer}
-          size="compact-xs"
-          variant="light"
-          color={p.color}
-          aria-label={`${p.label} for ${label}`}
-          onClick={() => onPick(answerFor(p.answer, persons))}
-        >
-          {p.label}
-        </Button>
-      ))}
-    </Group>
-  );
-}
-
-// Set one household's answer for each day as three counts: yes, maybe, no. Whoever is left over has not
-// replied. Changes are recorded in the audit log by a database trigger.
+// Set one household's answer for each day: everyone coming, some coming (then yes, maybe and no counts), not
+// coming, or no reply yet. Whoever is left over has not replied. Changes are recorded in the audit log by a database trigger.
 export function RsvpEditor({
   guest,
   days,
@@ -195,7 +162,11 @@ export function RsvpEditor({
     Object.fromEntries(
       days.map((d) => {
         const e = invites.find((i) => i.event_date === d.date);
-        return [d.date, { invited: !!e, coming: e?.coming ?? 0, maybe: e?.maybe ?? 0, declined: e?.declined ?? 0 }];
+        const c = e?.coming ?? 0;
+        const m = e?.maybe ?? 0;
+        const x = e?.declined ?? 0;
+        const mode: Mode = c + m + x === 0 ? 'noreply' : c === guest.persons ? 'all' : x === guest.persons ? 'none' : 'some';
+        return [d.date, { invited: !!e, coming: c, maybe: m, declined: x, mode }];
       })
     )
   );
@@ -203,6 +174,26 @@ export function RsvpEditor({
   const [error, setError] = useState<string | null>(null);
 
   const set = (date: string, patch: Partial<Row>) => setRows((r) => ({ ...r, [date]: { ...r[date], ...patch } }));
+  const choose = (date: string, mode: Mode) =>
+    set(date, {
+      mode,
+      ...(mode === 'all' ? { coming: guest.persons, maybe: 0, declined: 0 } : mode === 'none' ? { coming: 0, maybe: 0, declined: guest.persons } : mode === 'noreply' ? zero : {}),
+    });
+  const chooseAll = (mode: Mode) =>
+    setRows(
+      Object.fromEntries(
+        days.map((d) => [
+          d.date,
+          {
+            invited: true,
+            mode,
+            coming: mode === 'all' ? guest.persons : 0,
+            maybe: 0,
+            declined: mode === 'none' ? guest.persons : 0,
+          } as Row,
+        ])
+      )
+    );
   const over = (r: Row) => used(r) > guest.persons;
   const anyOver = days.some((d) => rows[d.date].invited && over(rows[d.date]));
 
@@ -241,73 +232,122 @@ export function RsvpEditor({
     onClose();
   }
 
+  const CHOICES: { mode: Mode; label: string; color: string }[] = [
+    { mode: 'all', label: "Everyone's coming", color: 'teal' },
+    { mode: 'some', label: 'Some are', color: 'teal' },
+    { mode: 'none', label: 'Not coming', color: 'red' },
+    { mode: 'noreply', label: 'No reply yet', color: 'gray' },
+  ];
+
   return (
-    <Modal opened={opened} onClose={onClose} title={`RSVP: ${guest.name}`} centered size="lg">
-      <Stack>
+    <Drawer
+      opened={opened}
+      onClose={onClose}
+      position="right"
+      size={500}
+      title={
+        <div>
+          <Text size="xs" tt="uppercase" fw={600} c="dimmed" style={{ letterSpacing: 0.6 }}>
+            Set the answer
+          </Text>
+          <Text ff="heading" fz={26} fw={600} lh={1.2}>
+            {guest.name}
+          </Text>
+          <Text size="sm" c="dimmed">
+            {guest.persons} {guest.persons === 1 ? 'person' : 'people'}
+          </Text>
+        </div>
+      }
+    >
+      <Stack gap="md">
         <Text size="sm" c="dimmed">
-          Household of {guest.persons}. Tick the days they are invited, then say how many are coming (Yes), unsure (Maybe) or not
-          coming (No). Anyone you leave out shows as not replied yet. Whoever comes on a day is at every function that day.
+          Tick the days they are invited, then pick how they answered. Whoever comes on a day is at every function that day.
         </Text>
 
         <Paper withBorder p="sm">
-          <Group justify="space-between" gap="sm">
+          <Stack gap={6}>
             <Text size="sm" fw={600}>
               Same answer for every day
             </Text>
-            <QuickPicks
-              persons={guest.persons}
-              label="every day"
-              onPick={(p) => setRows(Object.fromEntries(days.map((d) => [d.date, { invited: true, ...zero, ...p } as Row])))}
-            />
-          </Group>
+            <SimpleGrid cols={3} spacing={6}>
+              {CHOICES.filter((c) => c.mode !== 'some').map((c) => (
+                <Button key={c.mode} variant="light" color={c.color} size="compact-md" onClick={() => chooseAll(c.mode)}>
+                  {c.label}
+                </Button>
+              ))}
+            </SimpleGrid>
+          </Stack>
         </Paper>
 
-        <Stack gap="sm">
-          {days.map((d) => {
-            const r = rows[d.date];
-            const left = guest.persons - used(r);
-            return (
-              <Paper key={d.date} withBorder p="md">
-                <Checkbox
-                  label={d.label}
-                  description={d.functions.join(', ')}
-                  checked={r.invited}
-                  onChange={(e) => set(d.date, { invited: e.currentTarget.checked })}
-                  styles={{ label: { fontWeight: 700 } }}
-                />
-                {r.invited && (
-                  <Stack gap="sm" mt="md">
-                    <Counts row={r} max={guest.persons} label={d.label} onChange={(p) => set(d.date, p)} />
-                    <Stack gap={6} align="center">
-                      <PeopleDots row={r} persons={guest.persons} />
-                      <Text size="sm" c={over(r) ? 'red' : 'dimmed'} ta="center">
-                        {over(r)
-                          ? `That is more than the household of ${guest.persons}`
-                          : left === 0
-                            ? 'Everyone has replied'
-                            : `${left} of ${guest.persons} not replied yet`}
-                      </Text>
+        {days.map((d) => {
+          const r = rows[d.date];
+          const left = guest.persons - used(r);
+          return (
+            <Paper key={d.date} withBorder p="md">
+              <Checkbox
+                label={d.label}
+                description={d.functions.join(', ')}
+                checked={r.invited}
+                onChange={(e) => set(d.date, { invited: e.currentTarget.checked })}
+                styles={{ label: { fontWeight: 700 } }}
+              />
+              {r.invited && (
+                <Stack gap="sm" mt="md">
+                  <SimpleGrid cols={2} spacing="xs">
+                    {CHOICES.map((c) => {
+                      const on = r.mode === c.mode;
+                      return (
+                        <Button
+                          key={c.mode}
+                          variant={on ? 'light' : 'default'}
+                          color={c.color}
+                          h={48}
+                          fw={600}
+                          aria-pressed={on}
+                          styles={{ root: { borderWidth: 2, borderColor: on ? `var(--mantine-color-${c.color}-6)` : undefined } }}
+                          onClick={() => choose(d.date, c.mode)}
+                        >
+                          {c.label}
+                        </Button>
+                      );
+                    })}
+                  </SimpleGrid>
+                  {r.mode === 'some' && (
+                    <Stack gap="sm" p="sm" style={{ borderRadius: 12, background: 'var(--mantine-color-default-hover)' }}>
+                      <Counts row={r} max={guest.persons} label={d.label} onChange={(p) => set(d.date, p)} />
+                      <Stack gap={6} align="center">
+                        <PeopleDots row={r} persons={guest.persons} />
+                        <Text size="sm" c={over(r) ? 'red' : 'dimmed'} ta="center">
+                          {over(r)
+                            ? `That is more than the household of ${guest.persons}`
+                            : left === 0
+                              ? 'Everyone has replied'
+                              : `${left} of ${guest.persons} not replied yet`}
+                        </Text>
+                      </Stack>
                     </Stack>
-                    <Group justify="center">
-                      <QuickPicks persons={guest.persons} label={d.label} onPick={(p) => set(d.date, p)} />
-                    </Group>
-                  </Stack>
-                )}
-              </Paper>
-            );
-          })}
-        </Stack>
+                  )}
+                </Stack>
+              )}
+            </Paper>
+          );
+        })}
 
         {error && (
           <Text c="red" size="sm">
             {error}
           </Text>
         )}
-        <Button onClick={save} loading={saving} disabled={anyOver}>
-          Save
-        </Button>
+        <Group justify="flex-end" gap="xs">
+          <Button variant="default" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={save} loading={saving} disabled={anyOver}>
+            Save answers
+          </Button>
+        </Group>
       </Stack>
-    </Modal>
+    </Drawer>
   );
 }
 

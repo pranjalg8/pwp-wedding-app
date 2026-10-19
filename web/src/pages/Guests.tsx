@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Badge, Button, CloseButton, Collapse, Group, Indicator, Paper, SegmentedControl, Select, Stack, Text, TextInput, Title } from '@mantine/core';
-import type { GridApi } from 'ag-grid-community';
+import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { Alert, Box, Button, Collapse, Group, Indicator, Menu, Paper, SegmentedControl, Select, Stack, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
 import { useEditMode } from '../hooks/useEditMode';
@@ -8,39 +8,42 @@ import { GuestEditor, type Guest } from '../components/GuestEditor';
 import { useGuestInvites } from '../hooks/useGuestInvites';
 import { BulkInviteModal, RsvpEditor, daysFromFunctions, restoreInvites, type InviteSnapshot } from '../components/RsvpEditor';
 import { DroppedGuests } from '../components/DroppedGuests';
-import { DayPlan } from '../components/DayPlan';
 import { RoomPlan } from '../components/RoomPlan';
+import { GuestsOverview } from '../components/GuestsOverview';
+import { HouseholdList } from '../components/HouseholdList';
 import { useGuestStays } from '../hooks/useGuestStays';
-import { GuestSummary } from '../components/GuestSummary';
-import { Section } from '../components/Section';
 import { useStay } from '../hooks/useStay';
 import { splitOf } from '../lib/rsvp';
-import { STATUS_COLOR, STATUS_LABEL, countByStatus, type HouseholdStatus, type HouseholdView } from '../lib/guestStatus';
-import { GuestsGrid, type GuestRow } from '../components/GuestsGrid';
+import { allNightsOf, householdNeed } from '../lib/stay';
+import { countByStatus, type HouseholdStatus } from '../lib/guestStatus';
 
 type FunctionRef = { name: string; event_date: string };
+type Tab = 'overview' | 'households' | 'rooms' | 'dropped';
+type ListView = 'all' | 'not_invited' | 'waiting' | 'answered';
 
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
 
+// The Guests page is three views instead of one long page: Overview (what needs you, replies, each day), Households
+// (the list, with each household's answers and room) and Rooms (who sleeps where). Dropped households are one click
+// away in the More menu.
 export function Guests() {
   const { isUnlocked } = useEditMode();
+  const [params, setParams] = useSearchParams();
+  const tab: Tab = (['overview', 'households', 'rooms', 'dropped'] as const).find((t) => t === params.get('tab')) ?? 'overview';
+  const setTab = (t: Tab) => setParams(t === 'overview' ? {} : { tab: t });
+
   const [guests, setGuests] = useState<Guest[]>([]);
-  const [loaded, setLoaded] = useState(false);
   const [group, setGroup] = useState('all');
   const [priority, setPriority] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [view, setView] = useState<ListView>('all');
+  const [showFilters, setShowFilters] = useState(false);
   const [editing, setEditing] = useState<Guest | null | 'new'>(null);
   const [error, setError] = useState<string | null>(null);
   const [fnRows, setFnRows] = useState<FunctionRef[]>([]);
   const [rsvpFor, setRsvpFor] = useState<Guest | null>(null);
   const [bulk, setBulk] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [displayed, setDisplayed] = useState<Set<string>>(new Set());
-  const gridApi = useRef<GridApi<GuestRow> | null>(null);
-  const [tab, setTab] = useState<'invited' | 'dropped'>('invited');
-  const [view, setView] = useState<HouseholdView>('all');
-  const [showFilters, setShowFilters] = useState(false);
-  const listRef = useRef<HTMLDivElement>(null);
   const [droppedCount, setDroppedCount] = useState(0);
   const { invites, totals, reload: reloadInvites } = useGuestInvites();
   const { sites, nights } = useStay();
@@ -56,7 +59,6 @@ export function Guests() {
     const { data, error: err } = await supabase.from('guests').select('*').order('sort_order');
     if (err) setError(err.message);
     setGuests((data ?? []) as Guest[]);
-    setLoaded(true);
     const { count } = await supabase.from('guests_dropped').select('id', { count: 'exact', head: true });
     setDroppedCount(count ?? 0);
   }
@@ -82,13 +84,16 @@ export function Guests() {
   }
 
   const groups = useMemo(() => [...new Set(guests.map((g) => g.list_group).filter((x): x is string => !!x))], [guests]);
-
   const { counts, statusById } = useMemo(() => countByStatus(guests, invites), [guests, invites]);
+  const answeredCount = counts.coming.households + counts.maybe.households + counts.declined.households;
 
   const visible = useMemo(
     () =>
       guests
-        .filter((g) => view === 'all' || statusById[g.id] === view)
+        .filter((g) => {
+          const s = statusById[g.id];
+          return view === 'all' || (view === 'answered' ? s === 'coming' || s === 'maybe' || s === 'declined' : s === view);
+        })
         .filter((g) => group === 'all' || g.list_group === group)
         .filter((g) => !priority || (priority === 'none' ? g.priority === null : String(g.priority) === priority))
         .filter((g) => {
@@ -98,30 +103,25 @@ export function Guests() {
     [guests, group, priority, query, view, statusById]
   );
 
-  // Rows ticked for a bulk change (the grid owns the ticks). Ticks survive the grid's own column filters,
-  // so say how many ticked households are out of view.
-  const guestIdSet = new Set(guests.map((g) => g.id));
-  const selectedIds = [...selected].filter((id) => guestIdSet.has(id));
+  // Households that need rooms and are not fully placed yet: the number on the Rooms tab and the Overview.
+  const toPlace = useMemo(() => {
+    const all = allNightsOf(nights);
+    return guests.filter((g) => {
+      const need = householdNeed(g, invites, all);
+      if (!need || need.main + need.other <= 0) return false;
+      const placed = stays.filter((s) => s.guest_id === g.id).reduce((a, s) => a + Number(s.rooms), 0);
+      return placed < need.main + need.other - 0.01;
+    }).length;
+  }, [guests, invites, nights, stays]);
+
+  const guestIds = new Set(guests.map((g) => g.id));
+  const selectedIds = [...selected].filter((id) => guestIds.has(id));
   const selectedGuests = guests.filter((g) => selected.has(g.id));
-  const hiddenSelected = selectedIds.filter((id) => !displayed.has(id)).length;
 
-  const onSelectionChange = useCallback((ids: string[]) => setSelected(new Set(ids)), []);
-  const onDisplayedChange = useCallback((ids: string[]) => setDisplayed(new Set(ids)), []);
-  const onGridReady = useCallback((api: GridApi<GuestRow>) => {
-    gridApi.current = api;
-  }, []);
-
-  // The grid's handlers stay the same function between renders, so the grid does not refresh its cells for nothing.
-  const latest = useRef({ rsvp: (g: Guest) => setRsvpFor(g), edit: (g: Guest) => setEditing(g), del: (g: Guest) => remove(g) });
-  useEffect(() => {
-    latest.current = { rsvp: (g) => setRsvpFor(g), edit: (g) => setEditing(g), del: (g) => remove(g) };
-  });
-  const onRsvp = useCallback((g: Guest) => latest.current.rsvp(g), []);
-  const onEdit = useCallback((g: Guest) => latest.current.edit(g), []);
-  const onDelete = useCallback((g: Guest) => latest.current.del(g), []);
-
-  // One row per household, carrying its RSVP answers, so the grid refreshes a row when its answers change.
-  const gridRows = useMemo<GuestRow[]>(() => visible.map((g) => ({ ...g, _invites: invites.filter((i) => i.guest_id === g.id) })), [visible, invites]);
+  function goStatus(s: HouseholdStatus) {
+    setView(s === 'not_invited' || s === 'waiting' ? s : 'answered');
+    setTab('households');
+  }
 
   async function undoInvites(snapshot: InviteSnapshot) {
     const err = await restoreInvites(snapshot);
@@ -152,27 +152,16 @@ export function Guests() {
     });
   }
 
-  const people = (list: Guest[]) => sum(list.map((g) => g.persons));
-  const invitesOf = (id: string) => invites.filter((i) => i.guest_id === id);
-  const filtered = visible.length !== guests.length;
-  const activeFilters = (group !== 'all' ? 1 : 0) + (priority ? 1 : 0);
-
-  // The summary's status buttons and the list's quick views are the same control: picking one jumps to the list.
-  function pickView(v: HouseholdStatus) {
-    setView((cur) => (cur === v ? 'all' : v));
-    setTimeout(() => listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
-  }
-
   // One row per household with its answer for each day, for sharing with whoever books travel or food.
   function downloadCsv() {
     const q = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
     const head = ['Household', 'Group', 'Where', 'People', 'Rooms inside', 'Rooms outside'];
     for (const d of days) head.push(`${d.label} yes`, `${d.label} maybe`, `${d.label} no`, `${d.label} no reply`);
     const lines = [head.map(q).join(',')];
-    for (const g of visible) {
+    for (const g of guests) {
       const cells: (string | number)[] = [g.name, g.list_group ?? '', g.location ?? '', g.persons, Number(g.rooms_inside), Number(g.rooms_outside)];
       for (const d of days) {
-        const inv = invitesOf(g.id).find((i) => i.event_date === d.date);
+        const inv = invites.find((i) => i.guest_id === g.id && i.event_date === d.date);
         if (!inv) cells.push('', '', '', '');
         else {
           const sp = splitOf({ ...inv, guests: { persons: g.persons } });
@@ -188,25 +177,51 @@ export function Guests() {
     a.click();
     URL.revokeObjectURL(url);
   }
+
   const nextOrder = Math.max(0, ...guests.map((g) => g.sort_order)) + 1;
+  const activeFilters = (group !== 'all' ? 1 : 0) + (priority ? 1 : 0);
+  const people = sum(guests.map((g) => g.persons));
+
+  const tabs: { value: Tab; label: string; badge?: string; hot?: boolean }[] = [
+    { value: 'overview', label: 'Overview' },
+    { value: 'households', label: 'Households', badge: String(guests.length) },
+    { value: 'rooms', label: 'Rooms', badge: toPlace > 0 ? `${toPlace} to place` : undefined, hot: toPlace > 0 },
+  ];
+
+  const views: { value: ListView; label: string; n: number }[] = [
+    { value: 'all', label: 'Everyone', n: guests.length },
+    { value: 'not_invited', label: 'Not invited yet', n: counts.not_invited.households },
+    { value: 'waiting', label: 'Waiting for a reply', n: counts.waiting.households },
+    { value: 'answered', label: 'Answered', n: answeredCount },
+  ];
 
   return (
-    <Stack gap="xl">
-      <Group justify="space-between" align="flex-end">
+    <Stack gap="lg">
+      <Group justify="space-between" align="flex-end" gap="sm">
         <div>
-          <Title order={2}>Guests</Title>
-          <Text size="sm" c="dimmed">
-            Pranjal's side: the finalised family and friends lists (29 Mar 2026).
+          <Title order={1} fz={{ base: 30, sm: 38 }} lh={1.1}>
+            Guests
+          </Title>
+          <Text c="dimmed" size="sm" mt={4}>
+            Pranjal's side · {people} people in {guests.length} households
           </Text>
         </div>
-        {tab === 'invited' && (
-          <Group gap="xs">
-            <Button variant="default" onClick={downloadCsv} disabled={visible.length === 0}>
-              Download RSVP CSV
-            </Button>
-            {isUnlocked && <Button onClick={() => setEditing('new')}>Add household</Button>}
-          </Group>
-        )}
+        <Group gap="xs">
+          <Menu position="bottom-end" shadow="md">
+            <Menu.Target>
+              <Button variant="default" rightSection={<span aria-hidden>▾</span>}>
+                More
+              </Button>
+            </Menu.Target>
+            <Menu.Dropdown>
+              <Menu.Item onClick={downloadCsv} disabled={guests.length === 0}>
+                Download RSVP CSV
+              </Menu.Item>
+              <Menu.Item onClick={() => setTab('dropped')}>Dropped from earlier list ({droppedCount})</Menu.Item>
+            </Menu.Dropdown>
+          </Menu>
+          {isUnlocked && <Button onClick={() => setEditing('new')}>Add household</Button>}
+        </Group>
       </Group>
 
       {error && (
@@ -215,129 +230,183 @@ export function Guests() {
         </Alert>
       )}
 
-      <SegmentedControl
-        value={tab}
-        onChange={(v) => setTab(v as 'invited' | 'dropped')}
-        data={[
-          { value: 'invited', label: 'Invited list' },
-          { value: 'dropped', label: `Dropped from earlier list (${droppedCount})` },
-        ]}
-      />
-
       {tab === 'dropped' ? (
-        <DroppedGuests onChanged={load} />
+        <Stack gap="md">
+          <Group>
+            <Button variant="subtle" onClick={() => setTab('households')}>
+              ← Back to guests
+            </Button>
+          </Group>
+          <DroppedGuests onChanged={load} />
+        </Stack>
       ) : (
         <>
-          <Section step={1} title="Where we stand" hint="Everyone on this side, and how far each household has got. Pick a status to see those households.">
-            <GuestSummary counts={counts} households={guests.length} people={people(guests)} view={view} onView={pickView} />
-          </Section>
-
-          <Section step={2} title="Day by day" hint="Food and rooms for each day, worked out from the replies so far.">
-            <DayPlan days={days} totals={totals} guests={guests} invites={invites} sites={sites} nights={nights} />
-          </Section>
-
-          <Section step={3} title="Rooms" hint="Which place each household sleeps at, night by night. Suggest a plan, then move households by hand.">
-            <RoomPlan guests={guests} invites={invites} sites={sites} nights={nights} stays={stays} reloadStays={reloadStays} onGuestsChanged={load} />
-          </Section>
-
-          <div ref={listRef} style={{ scrollMarginTop: 72 }}>
-            <Section step={4} title="Households" hint="Find a household, set its RSVP, or tick several to change their invites together.">
-              <Stack gap="xs">
-                <Group gap="xs" wrap="nowrap" align="flex-end">
-                  <TextInput style={{ flex: 1 }} placeholder="Search name, family or place" value={query} onChange={(e) => setQuery(e.currentTarget.value)} />
-                  <Indicator label={activeFilters} disabled={activeFilters === 0} size={16} color="rose" offset={4}>
-                    <Button variant="default" onClick={() => setShowFilters((v) => !v)} aria-expanded={showFilters}>
-                      Filters
-                    </Button>
-                  </Indicator>
-                </Group>
-
-                <Collapse expanded={showFilters}>
-                  <Group grow align="flex-end" pb="xs">
-                    <Select
-                      label="Group"
-                      clearable
-                      placeholder="Any group"
-                      data={groups}
-                      value={group === 'all' ? null : group}
-                      onChange={(v) => setGroup(v ?? 'all')}
-                    />
-                    <Select
-                      label="Priority"
-                      clearable
-                      placeholder="Any priority"
-                      data={[
-                        { value: '1', label: 'Priority 1' },
-                        { value: '2', label: 'Priority 2' },
-                        { value: 'none', label: 'Not set' },
-                      ]}
-                      value={priority}
-                      onChange={setPriority}
-                    />
-                  </Group>
-                </Collapse>
-
-                {view !== 'all' && (
-                  <Group gap="xs">
-                    <Badge size="lg" variant="light" color={STATUS_COLOR[view]} tt="none" rightSection={
-                      <CloseButton size="xs" aria-label="Show everyone" onClick={() => setView('all')} />
-                    }>
-                      {STATUS_LABEL[view]}
-                    </Badge>
-                  </Group>
-                )}
-
-                {filtered && (
-                  <Text size="sm" c="dimmed">
-                    Showing {visible.length} of {guests.length} households, {people(visible)} people.
-                  </Text>
-                )}
-              </Stack>
-
-              {isUnlocked && (
-                <Paper withBorder p="sm" bg={selectedIds.length > 0 ? 'var(--mantine-color-rose-light)' : undefined}>
-                  {selectedIds.length === 0 ? (
-                    <Text size="sm" c="dimmed">
-                      Tick households to invite them to a day, or to change or remove their invites together.
+          <SegmentedControl hiddenFrom="sm" fullWidth value={tab} onChange={(v) => setTab(v as Tab)} data={tabs.map((t) => ({ value: t.value, label: t.label }))} />
+          <Group visibleFrom="sm" gap="xl" style={{ borderBottom: '1px solid var(--mantine-color-default-border)' }}>
+            {tabs.map((t) => {
+              const on = tab === t.value;
+              return (
+                <UnstyledButton
+                  key={t.value}
+                  onClick={() => setTab(t.value)}
+                  aria-current={on ? 'page' : undefined}
+                  style={{ padding: '10px 2px 12px', marginBottom: -1, borderBottom: `3px solid ${on ? 'var(--mantine-color-rose-6)' : 'transparent'}` }}
+                >
+                  <Group gap={8} wrap="nowrap">
+                    <Text fw={on ? 700 : 500} c={on ? undefined : 'dimmed'}>
+                      {t.label}
                     </Text>
-                  ) : (
-                    <Group justify="space-between" gap="sm">
-                      <Text size="sm" fw={600}>
-                        {selectedIds.length} household{selectedIds.length === 1 ? '' : 's'} selected ({people(selectedGuests)} people)
-                        {hiddenSelected > 0 && (
-                          <Text span size="sm" c="dimmed" fw={400}>
-                            {' '}
-                            · {hiddenSelected} not shown by the current filters
-                          </Text>
-                        )}
+                    {t.badge && (
+                      <Text
+                        span
+                        size="xs"
+                        fw={600}
+                        px={8}
+                        py={2}
+                        style={{ borderRadius: 999, background: t.hot ? 'var(--mantine-color-yellow-light)' : 'var(--mantine-color-default-hover)' }}
+                        c={t.hot ? 'yellow.9' : undefined}
+                      >
+                        {t.badge}
                       </Text>
-                      <Group gap="xs">
-                        <Button size="compact-md" onClick={() => setBulk(true)}>
-                          Change invites
-                        </Button>
-                        <Button size="compact-md" variant="default" onClick={() => gridApi.current?.deselectAll()}>
-                          Clear selection
-                        </Button>
-                      </Group>
-                    </Group>
-                  )}
-                </Paper>
-              )}
+                    )}
+                  </Group>
+                </UnstyledButton>
+              );
+            })}
+          </Group>
 
-              <GuestsGrid
-                rows={gridRows}
+          {tab === 'overview' && (
+            <GuestsOverview
+              counts={counts}
+              households={guests.length}
+              people={people}
+              toPlace={toPlace}
+              days={days}
+              totals={totals}
+              guests={guests}
+              invites={invites}
+              sites={sites}
+              nights={nights}
+              onStatus={goStatus}
+              onRooms={() => setTab('rooms')}
+            />
+          )}
+
+          {tab === 'households' && (
+            <Stack gap="md">
+              <Group gap="xs" wrap="nowrap" align="flex-end">
+                <TextInput
+                  style={{ flex: 1 }}
+                  size="md"
+                  radius="xl"
+                  placeholder="Search name, family or place"
+                  aria-label="Search households"
+                  value={query}
+                  onChange={(e) => setQuery(e.currentTarget.value)}
+                />
+                <Indicator label={activeFilters} disabled={activeFilters === 0} size={16} color="rose" offset={4}>
+                  <Button variant="default" size="md" onClick={() => setShowFilters((v) => !v)} aria-expanded={showFilters}>
+                    Filters
+                  </Button>
+                </Indicator>
+              </Group>
+
+              <Collapse expanded={showFilters}>
+                <Group grow align="flex-end" pb="xs">
+                  <Select label="Group" clearable placeholder="Any group" data={groups} value={group === 'all' ? null : group} onChange={(v) => setGroup(v ?? 'all')} />
+                  <Select
+                    label="Priority"
+                    clearable
+                    placeholder="Any priority"
+                    data={[
+                      { value: '1', label: 'Priority 1' },
+                      { value: '2', label: 'Priority 2' },
+                      { value: 'none', label: 'Not set' },
+                    ]}
+                    value={priority}
+                    onChange={setPriority}
+                  />
+                </Group>
+              </Collapse>
+
+              <Group gap="xs">
+                {views.map((v) => {
+                  const on = view === v.value;
+                  return (
+                    <UnstyledButton
+                      key={v.value}
+                      onClick={() => setView(v.value)}
+                      aria-pressed={on}
+                      style={{
+                        padding: '7px 14px',
+                        borderRadius: 999,
+                        border: `1px solid ${on ? 'var(--mantine-color-dark-8)' : 'var(--mantine-color-default-border)'}`,
+                        background: on ? 'var(--mantine-color-dark-8)' : undefined,
+                        color: on ? 'white' : undefined,
+                      }}
+                    >
+                      <Text size="sm" fw={500} span>
+                        {v.label}{' '}
+                        <Text span fw={700}>
+                          {v.n}
+                        </Text>
+                      </Text>
+                    </UnstyledButton>
+                  );
+                })}
+              </Group>
+
+              <HouseholdList
+                guests={visible}
+                invites={invites}
                 days={days}
+                stays={stays}
+                sites={sites}
+                nights={nights}
                 isUnlocked={isUnlocked}
-                onSelectionChange={onSelectionChange}
-                onDisplayedChange={onDisplayedChange}
-                onReady={onGridReady}
-                onRsvp={onRsvp}
-                onEdit={onEdit}
-                onDelete={onDelete}
+                selected={selected}
+                onSelect={setSelected}
+                onAnswer={setRsvpFor}
+                onEdit={setEditing}
+                onDelete={remove}
               />
-              {loaded && guests.length === 0 && <Text c="dimmed">No guests yet.</Text>}
-            </Section>
-          </div>
+
+              {isUnlocked && selectedIds.length > 0 && (
+                <Box style={{ position: 'sticky', bottom: 16, zIndex: 5, display: 'flex', justifyContent: 'center' }}>
+                  <Paper
+                    p="sm"
+                    pl="lg"
+                    radius="xl"
+                    shadow="lg"
+                    style={{ background: 'var(--mantine-color-dark-8)', color: 'white', maxWidth: '100%' }}
+                    role="region"
+                    aria-label="Selected households"
+                  >
+                    <Group gap="md" wrap="wrap">
+                      <Text fw={600} size="sm">
+                        {selectedIds.length} household{selectedIds.length === 1 ? '' : 's'} selected
+                      </Text>
+                      <Text size="sm" c="gray.4">
+                        {sum(selectedGuests.map((g) => g.persons))} people
+                      </Text>
+                      <Button size="compact-md" color="gray.0" c="dark.8" onClick={() => setBulk(true)}>
+                        Change invites
+                      </Button>
+                      <Button size="compact-md" variant="subtle" color="gray.3" onClick={() => setSelected(new Set())}>
+                        Clear
+                      </Button>
+                    </Group>
+                  </Paper>
+                </Box>
+              )}
+            </Stack>
+          )}
+
+          {tab === 'rooms' && (
+            <RoomPlan guests={guests} invites={invites} sites={sites} nights={nights} stays={stays} reloadStays={reloadStays} onGuestsChanged={load} />
+          )}
+        </>
+      )}
 
       {isUnlocked && editing && (
         <GuestEditor
@@ -362,18 +431,9 @@ export function Guests() {
           onSaved={reloadInvites}
         />
       )}
+
       {isUnlocked && bulk && (
-        <BulkInviteModal
-          guestIds={selectedIds}
-          invites={invites}
-          days={days}
-          opened
-          onClose={() => setBulk(false)}
-          onSaved={reloadInvites}
-          onDone={invitesChanged}
-        />
-      )}
-        </>
+        <BulkInviteModal guestIds={selectedIds} invites={invites} days={days} opened onClose={() => setBulk(false)} onSaved={reloadInvites} onDone={invitesChanged} />
       )}
     </Stack>
   );
