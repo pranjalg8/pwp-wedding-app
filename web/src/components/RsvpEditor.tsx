@@ -492,3 +492,151 @@ export function BulkInviteModal({
     </Modal>
   );
 }
+
+export type BulkAnswer = 'waiting' | 'coming' | 'maybe' | 'declined' | 'reset';
+
+const BULK_ANSWERS: { value: BulkAnswer; label: string; hint: string; color: string }[] = [
+  { value: 'waiting', label: 'Invited, no reply yet', hint: 'Invites them and clears any answer', color: 'blue' },
+  { value: 'coming', label: "Everyone's coming", hint: 'The whole household says yes', color: 'teal' },
+  { value: 'maybe', label: 'Maybe', hint: 'The whole household is unsure', color: 'yellow' },
+  { value: 'declined', label: 'Not coming', hint: 'The whole household says no', color: 'red' },
+];
+
+// Flip the answer for many households at once, for the days you tick: invited with no reply yet, everyone coming,
+// maybe, not coming, or reset (take the invite away, back to not invited). The whole household gets the answer;
+// answers that differ per person are still set one household at a time. Undo restores what they had.
+export function BulkAnswerModal({
+  guests,
+  invites,
+  days,
+  opened,
+  onClose,
+  onSaved,
+  onDone,
+}: {
+  guests: GuestRef[];
+  invites: Invite[];
+  days: RsvpDay[];
+  opened: boolean;
+  onClose: () => void;
+  onSaved: () => void;
+  onDone: (snapshot: InviteSnapshot, summary: string) => void;
+}) {
+  const [answer, setAnswer] = useState<BulkAnswer>('waiting');
+  const [chosen, setChosen] = useState<string[]>(() => days.map((d) => d.date));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const guestIds = guests.map((g) => g.id);
+  const ids = new Set(guestIds);
+  const mine = invites.filter((i) => ids.has(i.guest_id));
+  const persons = new Map(guests.map((g) => [g.id, g.persons]));
+
+  const target = (id: string) => {
+    const p = persons.get(id) ?? 0;
+    return { coming: answer === 'coming' ? p : 0, maybe: answer === 'maybe' ? p : 0, declined: answer === 'declined' ? p : 0 };
+  };
+  // Answers that would be lost or replaced: rows on the chosen days that already hold an answer and would change.
+  const replaced = mine.filter((i) => {
+    if (!chosen.includes(i.event_date) || i.coming + i.maybe + i.declined === 0) return false;
+    if (answer === 'reset') return true;
+    const t = target(i.guest_id);
+    return t.coming !== i.coming || t.maybe !== i.maybe || t.declined !== i.declined;
+  });
+  const householdsReplaced = new Set(replaced.map((i) => i.guest_id)).size;
+  const dayLabels = days.filter((d) => chosen.includes(d.date)).map((d) => d.label).join(' and ');
+  const n = guests.length;
+  const who = `${n} household${n === 1 ? '' : 's'}`;
+
+  async function save() {
+    setSaving(true);
+    setError(null);
+    const snapshot: InviteSnapshot = {
+      guestIds,
+      rows: mine.map((i) => ({ guest_id: i.guest_id, event_date: i.event_date, coming: i.coming, maybe: i.maybe, declined: i.declined })),
+    };
+    if (answer === 'reset') {
+      const { error: err } = await supabase.from('guest_rsvps').delete().in('guest_id', guestIds).in('event_date', chosen);
+      if (err) {
+        setSaving(false);
+        setError(err.message);
+        return;
+      }
+    } else {
+      const rows = guests.flatMap((g) => chosen.map((event_date) => ({ guest_id: g.id, event_date, ...target(g.id) })));
+      const { error: err } = await supabase.from('guest_rsvps').upsert(rows, { onConflict: 'guest_id,event_date' });
+      if (err) {
+        setSaving(false);
+        setError(err.message);
+        return;
+      }
+    }
+    setSaving(false);
+    onSaved();
+    const label = BULK_ANSWERS.find((a) => a.value === answer)?.label.toLowerCase();
+    onDone(snapshot, answer === 'reset' ? `${who} reset to not invited for ${dayLabels}` : `${who} set to "${label}" for ${dayLabels}`);
+    onClose();
+  }
+
+  return (
+    <Modal opened={opened} onClose={onClose} title={`Set answer for ${who}`} centered>
+      <Stack>
+        <SimpleGrid cols={2} spacing="xs">
+          {BULK_ANSWERS.map((a) => {
+            const on = answer === a.value;
+            return (
+              <Button
+                key={a.value}
+                variant={on ? 'light' : 'default'}
+                color={a.color}
+                h={56}
+                fw={600}
+                aria-pressed={on}
+                styles={{ root: { borderWidth: 2, borderColor: on ? `var(--mantine-color-${a.color}-6)` : undefined }, label: { whiteSpace: 'normal', textAlign: 'center', lineHeight: 1.25 } }}
+                onClick={() => setAnswer(a.value)}
+              >
+                {a.label}
+              </Button>
+            );
+          })}
+        </SimpleGrid>
+        <Button
+          variant={answer === 'reset' ? 'filled' : 'default'}
+          color="red"
+          h={48}
+          fw={600}
+          aria-pressed={answer === 'reset'}
+          onClick={() => setAnswer('reset')}
+        >
+          Reset: take the invite away (not invited)
+        </Button>
+        <Text size="sm" c="dimmed">
+          {answer === 'reset' ? 'Back to the starting state: no invite and no answer for the days you tick.' : BULK_ANSWERS.find((a) => a.value === answer)?.hint + ' for the days you tick.'}
+        </Text>
+
+        <Checkbox.Group value={chosen} onChange={setChosen}>
+          <Stack gap="xs">
+            {days.map((d) => (
+              <Checkbox key={d.date} value={d.date} label={d.label} description={d.functions.join(', ')} />
+            ))}
+          </Stack>
+        </Checkbox.Group>
+
+        {householdsReplaced > 0 && (
+          <Text size="sm" c="red">
+            {householdsReplaced} household{householdsReplaced === 1 ? ' has' : 's have'} an answer that will be {answer === 'reset' ? 'removed' : 'replaced'}. You can undo right
+            after.
+          </Text>
+        )}
+        {error && (
+          <Text c="red" size="sm">
+            {error}
+          </Text>
+        )}
+        <Button onClick={save} loading={saving} disabled={chosen.length === 0 || n === 0} color={answer === 'reset' ? 'red' : undefined}>
+          {answer === 'reset' ? `Reset ${who}` : `Set ${who}`}
+        </Button>
+      </Stack>
+    </Modal>
+  );
+}

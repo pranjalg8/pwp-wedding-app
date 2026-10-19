@@ -6,7 +6,7 @@ import { supabase } from '../lib/supabase';
 import { useEditMode } from '../hooks/useEditMode';
 import { GuestEditor, type Guest } from '../components/GuestEditor';
 import { useGuestInvites } from '../hooks/useGuestInvites';
-import { BulkInviteModal, RsvpEditor, daysFromFunctions, restoreInvites, type InviteSnapshot } from '../components/RsvpEditor';
+import { BulkAnswerModal, BulkInviteModal, RsvpEditor, daysFromFunctions, restoreInvites, type InviteSnapshot } from '../components/RsvpEditor';
 import { DroppedGuests } from '../components/DroppedGuests';
 import { RoomPlan } from '../components/RoomPlan';
 import { GuestsOverview } from '../components/GuestsOverview';
@@ -43,6 +43,7 @@ export function Guests() {
   const [fnRows, setFnRows] = useState<FunctionRef[]>([]);
   const [rsvpFor, setRsvpFor] = useState<Guest | null>(null);
   const [bulk, setBulk] = useState(false);
+  const [bulkAnswer, setBulkAnswer] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [droppedCount, setDroppedCount] = useState(0);
   const { invites, totals, reload: reloadInvites } = useGuestInvites();
@@ -389,9 +390,17 @@ export function Guests() {
                       <Text size="sm" c="gray.4">
                         {sum(selectedGuests.map((g) => g.persons))} {sum(selectedGuests.map((g) => g.persons)) === 1 ? 'person' : 'people'}
                       </Text>
-                      <Button size="compact-md" color="gray.0" c="dark.8" onClick={() => setBulk(true)}>
-                        Change invites
+                      <Button size="compact-md" color="gray.0" c="dark.8" onClick={() => setBulkAnswer(true)}>
+                        Set answer
                       </Button>
+                      <Button size="compact-md" variant="default" color="gray.0" bg="transparent" c="white" onClick={() => setBulk(true)}>
+                        Invite to days
+                      </Button>
+                      {selectedIds.length < visible.length && (
+                        <Button size="compact-md" variant="subtle" color="gray.3" onClick={() => setSelected(new Set(visible.map((g) => g.id)))}>
+                          Select all {visible.length}
+                        </Button>
+                      )}
                       <Button size="compact-md" variant="subtle" color="gray.3" onClick={() => setSelected(new Set())}>
                         Clear
                       </Button>
@@ -429,6 +438,18 @@ export function Guests() {
           opened
           onClose={() => setRsvpFor(null)}
           onSaved={reloadInvites}
+        />
+      )}
+
+      {isUnlocked && bulkAnswer && (
+        <BulkAnswerModal
+          guests={selectedGuests}
+          invites={invites}
+          days={days}
+          opened
+          onClose={() => setBulkAnswer(false)}
+          onSaved={reloadInvites}
+          onDone={invitesChanged}
         />
       )}
 
