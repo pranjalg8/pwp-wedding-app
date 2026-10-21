@@ -3,14 +3,14 @@ import { Badge, Table, Tabs, Text, Title } from '@mantine/core';
 import { supabase, type AuditEntry } from '../lib/supabase';
 import { describeDevice } from '../lib/device';
 
-function AuditTable({ entries, kind }: { entries: AuditEntry[]; kind: 'manual' | 'sync' }) {
+function AuditTable({ entries, kind }: { entries: AuditEntry[]; kind: 'manual' | 'sync' | 'link' }) {
   return (
     <Table.ScrollContainer minWidth={520} mt="md">
     <Table striped highlightOnHover>
       <Table.Thead>
         <Table.Tr>
           <Table.Th>When</Table.Th>
-          <Table.Th>{kind === 'manual' ? 'Who' : 'Source'}</Table.Th>
+          <Table.Th>{kind === 'manual' ? 'Who' : kind === 'link' ? 'Link' : 'Source'}</Table.Th>
           <Table.Th>Table</Table.Th>
           <Table.Th>Action</Table.Th>
           {kind === 'manual' && <Table.Th>Device</Table.Th>}
@@ -63,6 +63,7 @@ export function Activity() {
 
   const manual = entries.filter((e) => e.actor_type === 'manual');
   const sync = entries.filter((e) => e.actor_type === 'sync');
+  const viaLink = entries.filter((e) => e.actor_type === 'link');
 
   return (
     <>
@@ -73,12 +74,16 @@ export function Activity() {
         <Tabs.List>
           <Tabs.Tab value="manual">Manual changes ({manual.length})</Tabs.Tab>
           <Tabs.Tab value="sync">Automatic / Sync changes ({sync.length})</Tabs.Tab>
+          <Tabs.Tab value="link">Shared links ({viaLink.length})</Tabs.Tab>
         </Tabs.List>
         <Tabs.Panel value="manual">
           <AuditTable entries={manual} kind="manual" />
         </Tabs.Panel>
         <Tabs.Panel value="sync">
           <AuditTable entries={sync} kind="sync" />
+        </Tabs.Panel>
+        <Tabs.Panel value="link">
+          <AuditTable entries={viaLink} kind="link" />
         </Tabs.Panel>
       </Tabs>
     </>

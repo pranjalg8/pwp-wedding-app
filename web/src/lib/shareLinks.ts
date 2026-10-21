@@ -71,7 +71,7 @@ export async function hashToken(token: string) {
 
 export const linkUrl = (token: string) => `${window.location.origin}${import.meta.env.BASE_URL}#/s/${token}`;
 
-export type NewLink = { label: string; sections: SectionKey[]; sensitive: Sensitivity; ttlDays: number };
+export type NewLink = { label: string; sections: SectionKey[]; sensitive: Sensitivity; ttlDays: number; access: 'view' | 'edit' };
 
 export async function createShareLink(input: NewLink, createdBy: string | null) {
   const token = b64url(crypto.getRandomValues(new Uint8Array(32)));
@@ -81,7 +81,7 @@ export async function createShareLink(input: NewLink, createdBy: string | null) 
   const { error } = await supabase.from('share_links').insert({
     token_hash: await hashToken(token),
     label: input.label.trim(),
-    access: 'view',
+    access: input.access,
     sections: input.sections,
     show_money: input.sensitive.money,
     show_guests: input.sensitive.guests,

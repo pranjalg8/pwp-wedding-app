@@ -21,6 +21,7 @@ Every change is audited under two headings (see the Activity page in the app):
 - **Manual** — an edit made by a person in the UI (with device info captured
   best-effort: browser user-agent + an optional self-chosen device nickname).
 - **Automatic / Sync** — the WhatsApp sync script, or Claude acting on request.
+- **Shared links** — changes made by someone using an edit share link (task status, RSVP counts), named after the link.
 
 ## What's new
 
@@ -112,6 +113,6 @@ The app can email one of you when the other finishes something. The Supabase hal
 - `planning_items` — the actual plan: decisions, todos, vendors, budget lines.
 - `messages` — raw synced WhatsApp messages, shown per-topic for traceability
   back to the source conversation.
-- `audit_log` — every change, `actor_type` of `manual` or `sync`.
+- `audit_log` — every change, `actor_type` of `manual`, `sync` or `link`.
 - `app_secrets` / `verify_pin()` — the admin PIN, hashed, checked server-side
   only (never shipped to the browser).
