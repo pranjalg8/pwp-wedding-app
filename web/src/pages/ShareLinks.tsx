@@ -46,6 +46,8 @@ function NewLinkModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
   const [sections, setSections] = useState<SectionKey[]>([...PRESETS.planning.sections]);
   const [sensitive, setSensitive] = useState<Sensitivity>(NO_SENSITIVE);
   const [ttlDays, setTtlDays] = useState('3');
+  const [access, setAccess] = useState<'view' | 'edit'>('view');
+  const [understoodEdit, setUnderstoodEdit] = useState(false);
   const [understood, setUnderstood] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +57,7 @@ function NewLinkModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
   function pickPreset(p: 'family' | 'planning' | 'custom') {
     setPreset(p);
     setUnderstood(false);
+    setUnderstoodEdit(false);
     if (p === 'family') {
       setSections([...PRESETS.family.sections]);
       setSensitive(ALL_SENSITIVE);
@@ -75,21 +78,33 @@ function NewLinkModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
       return out;
     });
     setUnderstood(false);
+    setUnderstoodEdit(false);
   }
 
   function changeSensitive(key: keyof Sensitivity, on: boolean) {
     setPreset('custom');
     setSensitive((s) => ({ ...s, [key]: on }));
     setUnderstood(false);
+    setUnderstoodEdit(false);
   }
 
-  const ready = label.trim().length > 0 && sections.length > 0 && (anySensitive.length === 0 || understood);
+  // What an edit link could actually change, given what the link shows. Task status needs the Tasks section;
+  // RSVP counts need the Guests section with guest names switched on.
+  const canEditTasks = sections.includes('tasks');
+  const canEditRsvp = sections.includes('guests') && sensitive.guests;
+  const editsNothing = access === 'edit' && !canEditTasks && !canEditRsvp;
+
+  const ready =
+    label.trim().length > 0 &&
+    sections.length > 0 &&
+    (anySensitive.length === 0 || understood) &&
+    (access === 'view' || (understoodEdit && !editsNothing));
 
   async function create() {
     setSaving(true);
     setError(null);
     try {
-      onCreated(await createShareLink({ label, sections, sensitive, ttlDays: Number(ttlDays) }, profile?.id ?? null));
+      onCreated(await createShareLink({ label, sections, sensitive, ttlDays: Number(ttlDays), access }, profile?.id ?? null));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not create the link.');
       setSaving(false);
@@ -159,12 +174,39 @@ function NewLinkModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
           </Alert>
         </Collapse>
 
+        <Collapse expanded={access === 'edit'}>
+          <Alert color="orange" variant="light" title="Anyone with this link can make changes">
+            <Stack gap="xs">
+              <Text size="sm">
+                {editsNothing
+                  ? 'With these sections there is nothing they could change. Add Tasks, or Guests with guest names switched on, or choose View only.'
+                  : `They can ${[canEditTasks ? "change a task's status (open, in progress, decided, done)" : null, canEditRsvp ? 'change how many people are coming, maybe or not coming for households already invited' : null].filter(Boolean).join(' and ')}.`}
+              </Text>
+              <Text size="sm" c="dimmed">
+                They cannot add or delete anything, invite anyone, change money or open anything outside the sections above. Every change they make is recorded
+                in Activity under this link's name.
+              </Text>
+              <Checkbox checked={understoodEdit} onChange={(e) => setUnderstoodEdit(e.currentTarget.checked)} disabled={editsNothing} label="I understand, and I trust whoever gets this link" />
+            </Stack>
+          </Alert>
+        </Collapse>
+
         <Group grow align="flex-start">
           <Stack gap={4}>
             <Text size="sm" fw={600}>
               Access
             </Text>
-            <SegmentedControl value="view" data={[{ value: 'view', label: 'View only' }, { value: 'edit', label: 'Can edit (coming next)', disabled: true }]} />
+            <SegmentedControl
+              value={access}
+              onChange={(v) => {
+                setAccess(v as 'view' | 'edit');
+                setUnderstoodEdit(false);
+              }}
+              data={[
+                { value: 'view', label: 'View only' },
+                { value: 'edit', label: 'Can edit' },
+              ]}
+            />
           </Stack>
           <Stack gap={4}>
             <Text size="sm" fw={600}>

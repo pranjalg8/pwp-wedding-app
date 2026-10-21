@@ -3,6 +3,9 @@
 // 404. A good link returns only the sections it was created for, with money, guest, honeymoon and contact
 // details left out unless that switch was turned on for the link. Nothing here ever returns messages, the
 // audit log, profiles, email addresses or source ids.
+// An edit link may also change two things, and only these: a task's status and a household's RSVP counts for a
+// day it is already invited to. Nothing is created or deleted, and money is never touched. Each change is
+// recorded in the audit log under the link's name.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const CORS = {
@@ -49,12 +52,12 @@ function scrub(text: unknown, f: Flags): string | null {
 }
 
 // Mask every text value in a response, whatever field it is in, so a stray amount or phone number in a title,
-// name or note cannot get through when its switch is off.
+// name or note cannot get through when its switch is off. Ids are left alone: a uuid can look like a phone number.
 function cleanAll(v: unknown, f: Flags): unknown {
   if (f.money && f.contacts) return v;
   if (typeof v === 'string') return scrub(v, f) ?? v;
   if (Array.isArray(v)) return v.map((x) => cleanAll(x, f));
-  if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([k, x]) => [k, cleanAll(x, f)]));
+  if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([k, x]) => [k, k === 'id' ? x : cleanAll(x, f)]));
   return v;
 }
 
@@ -69,13 +72,54 @@ function householdStatus(persons: number, rsvps: Row[]) {
   return 'declined';
 }
 
+const TASK_STATUSES = ['open', 'in_progress', 'decided', 'done'];
+const isCount = (n: unknown, max: number): n is number => typeof n === 'number' && Number.isInteger(n) && n >= 0 && n <= max;
+
+// The only two writes a link can make. Each goes through a client that names the link, so the audit trigger
+// records "who" as the link rather than as the sync.
+async function applyEdit(link: Row, body: Row, canEditTasks: boolean, canEditRsvp: boolean) {
+  if (link.access !== 'edit') return json({ error: 'not_allowed' }, 403);
+  const actor = `Shared link: ${String(link.label).replace(/[^\x20-\x7e]/g, '').slice(0, 60) || 'unnamed'}`;
+  const sbw = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
+    auth: { persistSession: false },
+    global: { headers: { 'x-actor': actor } },
+  });
+
+  if (body.action === 'task_status') {
+    if (!canEditTasks) return json({ error: 'not_allowed' }, 403);
+    if (typeof body.taskId !== 'string' || !TASK_STATUSES.includes(body.status)) return json({ error: 'bad_request' }, 400);
+    const { data, error } = await sbw.from('tasks').update({ status: body.status }).eq('id', body.taskId).select('id');
+    if (error) throw new Error(error.message);
+    return data?.length ? json({ ok: true }) : json({ error: 'not_found' }, 404);
+  }
+
+  if (body.action === 'rsvp') {
+    if (!canEditRsvp) return json({ error: 'not_allowed' }, 403);
+    if (typeof body.guestId !== 'string' || typeof body.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(body.date)) return json({ error: 'bad_request' }, 400);
+    const { data: g } = await sbw.from('guests').select('persons').eq('id', body.guestId).maybeSingle();
+    if (!g) return json({ error: 'not_found' }, 404);
+    const { coming, maybe, declined } = body;
+    if (!isCount(coming, g.persons) || !isCount(maybe, g.persons) || !isCount(declined, g.persons) || coming + maybe + declined > g.persons) {
+      return json({ error: 'bad_request' }, 400);
+    }
+    // Update only: a household already invited to that day. A link cannot invite anyone.
+    const { data, error } = await sbw.from('guest_rsvps').update({ coming, maybe, declined }).eq('guest_id', body.guestId).eq('event_date', body.date).select('id');
+    if (error) throw new Error(error.message);
+    return data?.length ? json({ ok: true }) : json({ error: 'not_found' }, 404);
+  }
+
+  return json({ error: 'bad_request' }, 400);
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
   if (req.method !== 'POST') return json({ error: 'bad_request' }, 405);
 
   let token = '';
+  // deno-lint-ignore no-explicit-any
+  let body: any = {};
   try {
-    const body = await req.json();
+    body = await req.json();
     token = typeof body?.token === 'string' ? body.token : '';
   } catch {
     return json({ error: 'bad_request' }, 400);
@@ -96,6 +140,14 @@ Deno.serve(async (req) => {
 
     const f: Flags = { money: !!link.show_money, guests: !!link.show_guests, honeymoon: !!link.show_honeymoon, contacts: !!link.show_contacts };
     const want = new Set<string>(link.sections);
+    const canEdit = link.access === 'edit';
+    const canEditTasks = canEdit && want.has('tasks');
+    const canEditRsvp = canEdit && want.has('guests') && f.guests;
+
+    if (body.action !== undefined) {
+      if (typeof body.action !== 'string') return json({ error: 'bad_request' }, 400);
+      return await applyEdit(link, body, canEditTasks, canEditRsvp);
+    }
     const topics = await all(sb.from('topics').select('id, key, label'));
     const topicLabel = Object.fromEntries(topics.map((t) => [t.id, t.label]));
 
@@ -152,6 +204,7 @@ Deno.serve(async (req) => {
           money = { paid, planned, openLow: open.length ? Math.min(...open) : 0, openHigh: open.length ? Math.max(...open) : 0 };
         }
         return {
+          ...(canEditTasks ? { id: t.id } : {}),
           title: t.title,
           area: t.topic_id ? topicLabel[t.topic_id] ?? null : null,
           status: t.status,
@@ -209,6 +262,7 @@ Deno.serve(async (req) => {
         }
         if (f.guests) {
           list.push({
+            ...(canEditRsvp ? { id: g.id } : {}),
             name: g.name,
             family_members: g.family_members,
             persons: g.persons,
@@ -294,6 +348,7 @@ Deno.serve(async (req) => {
         sections: link.sections,
         show: f,
         expiresAt: link.expires_at,
+        edit: { tasks: canEditTasks, rsvp: canEditRsvp },
       },
       data: cleanAll(data, f),
     });

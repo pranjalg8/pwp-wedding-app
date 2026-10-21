@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Accordion, Alert, Badge, Box, Container, Group, Loader, Paper, SimpleGrid, Stack, Table, Tabs, Text, Title } from '@mantine/core';
+import { Accordion, Alert, Badge, Box, Button, Container, Group, Loader, NumberInput, Paper, Select, SimpleGrid, Stack, Table, Tabs, Text, Title } from '@mantine/core';
 import { SECTIONS, SENSITIVE, timeLeft, type SectionKey } from '../lib/shareLinks';
 import { STATUS_COLOR as HOUSEHOLD_COLOR, STATUS_LABEL as HOUSEHOLD_LABEL, STATUS_ORDER } from '../lib/guestStatus';
 import { OPTION_STATUS_COLOR, OPTION_STATUS_LABEL, OWNER_LABEL, STATUS_COLOR, STATUS_LABEL, formatInr } from '../lib/topicMeta';
@@ -8,7 +8,12 @@ import { OPTION_STATUS_COLOR, OPTION_STATUS_LABEL, OWNER_LABEL, STATUS_COLOR, ST
 // What the share function sends back. It has already left out whatever the link does not allow.
 // deno-lint-ignore no-explicit-any
 type Row = Record<string, any>;
-type Payload = { link: { label: string; access: 'view' | 'edit'; sections: SectionKey[]; show: Record<string, boolean>; expiresAt: string }; data: Record<string, Row> };
+type Payload = { link: { label: string; access: 'view' | 'edit'; sections: SectionKey[]; show: Record<string, boolean>; expiresAt: string; edit?: { tasks: boolean; rsvp: boolean } }; data: Record<string, Row> };
+type Counts = { coming: number; maybe: number; declined: number };
+type Edits = {
+  taskStatus?: (taskId: string, status: string) => Promise<void>;
+  rsvp?: (guestId: string, date: string, counts: Counts) => Promise<void>;
+};
 type State = { phase: 'loading' } | { phase: 'unavailable' } | { phase: 'ready'; payload: Payload };
 
 const day = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
@@ -109,8 +114,10 @@ function Home({ d }: { d: Row }) {
   );
 }
 
-function Tasks({ tasks }: { tasks: unknown }) {
+function Tasks({ tasks, onStatus }: { tasks: unknown; onStatus?: Edits['taskStatus'] }) {
   const list = tasks as Row[];
+  const [busy, setBusy] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
   return (
     <Accordion variant="separated" radius="md">
       {list.map((t) => (
@@ -132,6 +139,30 @@ function Tasks({ tasks }: { tasks: unknown }) {
           </Accordion.Control>
           <Accordion.Panel>
             <Stack gap="sm">
+              {onStatus && t.id && (
+                <Select
+                  label="Status"
+                  size="sm"
+                  w={200}
+                  allowDeselect={false}
+                  disabled={busy === t.id}
+                  value={t.status}
+                  data={Object.entries(STATUS_LABEL).map(([value, label]) => ({ value, label }))}
+                  error={err && busy === null ? err : undefined}
+                  onChange={async (v) => {
+                    if (!v || v === t.status) return;
+                    setBusy(t.id);
+                    setErr(null);
+                    try {
+                      await onStatus(t.id, v);
+                    } catch {
+                      setErr('Could not save that change. Please try again.');
+                    } finally {
+                      setBusy(null);
+                    }
+                  }}
+                />
+              )}
               {t.summary && <Text size="sm">{t.summary}</Text>}
               {t.money && (
                 <Text size="sm" fw={600}>
@@ -219,7 +250,68 @@ function Functions({ fns }: { fns: unknown }) {
   );
 }
 
-function Guests({ g }: { g: Row }) {
+function AnswerEditor({ persons, answer, onSave }: { persons: number; answer: Row; onSave: (c: Counts) => Promise<void> }) {
+  const [v, setV] = useState<Counts>({ coming: answer.coming, maybe: answer.maybe, declined: answer.declined });
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const dirty = v.coming !== answer.coming || v.maybe !== answer.maybe || v.declined !== answer.declined;
+  const over = v.coming + v.maybe + v.declined > persons;
+  const field = (key: keyof Counts, label: string) => (
+    <NumberInput
+      key={key}
+      label={label}
+      size="xs"
+      w={64}
+      min={0}
+      max={persons}
+      allowDecimal={false}
+      allowNegative={false}
+      value={v[key]}
+      onChange={(n) => setV((x) => ({ ...x, [key]: typeof n === 'number' ? n : 0 }))}
+    />
+  );
+  return (
+    <Stack gap={4} mb="xs">
+      <Text size="xs" fw={600}>
+        {shortDay(answer.date)}
+      </Text>
+      <Group gap="xs" align="flex-end" wrap="nowrap">
+        {field('coming', 'Yes')}
+        {field('maybe', 'Maybe')}
+        {field('declined', 'No')}
+        <Button
+          size="xs"
+          disabled={!dirty || over}
+          loading={saving}
+          onClick={async () => {
+            setSaving(true);
+            setErr(null);
+            try {
+              await onSave(v);
+            } catch {
+              setErr('Could not save. Please try again.');
+              setSaving(false);
+            }
+          }}
+        >
+          Save
+        </Button>
+      </Group>
+      {over && (
+        <Text size="xs" c="red">
+          That is more than the {persons} people in this household.
+        </Text>
+      )}
+      {err && (
+        <Text size="xs" c="red">
+          {err}
+        </Text>
+      )}
+    </Stack>
+  );
+}
+
+function Guests({ g, onRsvp }: { g: Row; onRsvp?: Edits['rsvp'] }) {
   const counts = g.counts as Record<string, { households: number; people: number }>;
   const days = Object.entries(g.byDay as Record<string, Row>).sort(([a], [b]) => a.localeCompare(b));
   return (
@@ -270,7 +362,7 @@ function Guests({ g }: { g: Row }) {
       )}
       {g.list ? (
         <Paper withBorder p={0} style={{ overflow: 'hidden' }}>
-          <Table.ScrollContainer minWidth={560}>
+          <Table.ScrollContainer minWidth={onRsvp ? 640 : 560}>
             <Table verticalSpacing="xs">
               <Table.Thead>
                 <Table.Tr>
@@ -292,17 +384,21 @@ function Guests({ g }: { g: Row }) {
                       </Text>
                     </Table.Td>
                     <Table.Td ta="right">{h.persons}</Table.Td>
-                    <Table.Td>
+                    <Table.Td style={{ whiteSpace: 'nowrap' }}>
                       <Badge size="sm" variant="light" color={HOUSEHOLD_COLOR[h.status as keyof typeof HOUSEHOLD_COLOR]} tt="none">
                         {HOUSEHOLD_LABEL[h.status as keyof typeof HOUSEHOLD_LABEL]}
                       </Badge>
                     </Table.Td>
                     <Table.Td>
-                      {(h.answers as Row[]).map((a) => (
-                        <Text key={a.date} size="xs">
-                          {shortDay(a.date)}: {a.coming} yes, {a.maybe} maybe, {a.declined} no
-                        </Text>
-                      ))}
+                      {(h.answers as Row[]).map((a) =>
+                        onRsvp && h.id ? (
+                          <AnswerEditor key={`${a.date}-${a.coming}-${a.maybe}-${a.declined}`} persons={h.persons} answer={a} onSave={(c) => onRsvp(h.id, a.date, c)} />
+                        ) : (
+                          <Text key={a.date} size="xs">
+                            {shortDay(a.date)}: {a.coming} yes, {a.maybe} maybe, {a.declined} no
+                          </Text>
+                        ),
+                      )}
                     </Table.Td>
                   </Table.Tr>
                 ))}
@@ -510,15 +606,21 @@ export function SharedView() {
   const [state, setState] = useState<State>({ phase: 'loading' });
   const [tab, setTab] = useState<string | null>(null);
 
+  const call = useCallback(
+    (extra: Record<string, unknown> = {}) =>
+      fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/share`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, ...extra }),
+      }),
+    [token],
+  );
+
   useEffect(() => {
     let active = true;
     (async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/share`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token }),
-        });
+        const res = await call();
         if (!res.ok) throw new Error('unavailable');
         const payload = (await res.json()) as Payload;
         if (active) {
@@ -532,7 +634,18 @@ export function SharedView() {
     return () => {
       active = false;
     };
-  }, [token]);
+  }, [call]);
+
+  // An edit is sent to the share function, which checks the link again. Then the page is refreshed in place.
+  const send = useCallback(
+    async (extra: Record<string, unknown>) => {
+      const res = await call(extra);
+      if (!res.ok) throw new Error('rejected');
+      const fresh = await call();
+      if (fresh.ok) setState({ phase: 'ready', payload: (await fresh.json()) as Payload });
+    },
+    [call],
+  );
 
   if (state.phase === 'loading') {
     return (
@@ -558,17 +671,22 @@ export function SharedView() {
   const included = SENSITIVE.filter((s) => link.show[s.key]);
   const sections = link.sections.filter((k) => data[k] !== undefined);
 
+  const edits: Edits = {
+    taskStatus: link.edit?.tasks ? (taskId, status) => send({ action: 'task_status', taskId, status }) : undefined,
+    rsvp: link.edit?.rsvp ? (guestId, date, c) => send({ action: 'rsvp', guestId, date, ...c }) : undefined,
+  };
+
   const render = (k: SectionKey) => {
     const d = data[k] as Row;
     switch (k) {
       case 'home':
         return <Home d={d} />;
       case 'tasks':
-        return <Tasks tasks={d} />;
+        return <Tasks tasks={d} onStatus={edits.taskStatus} />;
       case 'functions':
         return <Functions fns={d} />;
       case 'guests':
-        return <Guests g={d} />;
+        return <Guests g={d} onRsvp={edits.rsvp} />;
       case 'rooms':
         return <Rooms r={d} />;
       case 'budget':
@@ -595,6 +713,11 @@ export function SharedView() {
               {timeLeft(link.expiresAt)}
             </Text>
           </Group>
+          {(edits.taskStatus || edits.rsvp) && (
+            <Text size="xs" c="dimmed" mt={4}>
+              You can change {[edits.taskStatus ? 'task status' : null, edits.rsvp ? 'RSVP counts' : null].filter(Boolean).join(' and ')} here. Changes save straight away and are recorded under this link.
+            </Text>
+          )}
           {included.length > 0 && (
             <Text size="xs" c="orange" mt={4}>
               This link includes {included.map((s) => s.label.toLowerCase()).join(', ')}. Please do not forward it.

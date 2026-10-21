@@ -99,7 +99,7 @@ export type ChatMessage = {
 
 export type AuditEntry = {
   id: string;
-  actor_type: 'manual' | 'sync';
+  actor_type: 'manual' | 'sync' | 'link';
   actor_name: string;
   device_info: Record<string, unknown> | null;
   table_name: string;
