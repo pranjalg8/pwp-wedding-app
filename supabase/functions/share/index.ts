@@ -48,6 +48,16 @@ function scrub(text: unknown, f: Flags): string | null {
   return t;
 }
 
+// Mask every text value in a response, whatever field it is in, so a stray amount or phone number in a title,
+// name or note cannot get through when its switch is off.
+function cleanAll(v: unknown, f: Flags): unknown {
+  if (f.money && f.contacts) return v;
+  if (typeof v === 'string') return scrub(v, f) ?? v;
+  if (Array.isArray(v)) return v.map((x) => cleanAll(x, f));
+  if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([k, x]) => [k, cleanAll(x, f)]));
+  return v;
+}
+
 const isDone = (s: string) => s === 'done' || s === 'decided';
 
 function householdStatus(persons: number, rsvps: Row[]) {
@@ -285,7 +295,7 @@ Deno.serve(async (req) => {
         show: f,
         expiresAt: link.expires_at,
       },
-      data,
+      data: cleanAll(data, f),
     });
   } catch (_e) {
     // Never leak internals to an anonymous caller.
