@@ -53,7 +53,7 @@ export function RoomForecast({
             What if everyone else is invited?
           </Text>
           <Text size="sm" c="dimmed">
-            {f.restHouseholds} household{f.restHouseholds === 1 ? '' : 's'} not invited yet would need up to {rooms(f.restRooms)} rooms. Households that have answered keep their answers.
+            {f.restHouseholds} of the households not invited yet {f.restHouseholds === 1 ? 'needs a room' : 'need rooms'}, up to {rooms(f.restRooms)} in all. Households that have answered keep their answers.
           </Text>
         </div>
 
