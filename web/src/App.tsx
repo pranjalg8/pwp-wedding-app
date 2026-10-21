@@ -31,10 +31,10 @@ import { useUnseenUpdates } from './hooks/useUpdates';
 import { Updates } from './pages/Updates';
 
 // Loaded on demand so the sign-in library does not weigh down the main bundle.
-const ShareAdmin = lazy(() => import('./pages/ShareAdmin').then((m) => ({ default: m.ShareAdmin })));
+const ShareLinks = lazy(() => import('./pages/ShareLinks').then((m) => ({ default: m.ShareLinks })));
 // The guest table brings in the grid library, so the page loads on demand too.
 const Guests = lazy(() => import('./pages/Guests').then((m) => ({ default: m.Guests })));
-const ShareViewer = lazy(() => import('./pages/ShareViewer').then((m) => ({ default: m.ShareViewer })));
+const SharedView = lazy(() => import('./pages/SharedView').then((m) => ({ default: m.SharedView })));
 
 const pageLoader = (
   <Group justify="center" mt={100}>
@@ -206,7 +206,7 @@ function AuthedApp() {
           <Route path="/areas" element={<Dashboard />} />
           <Route path="/topics/:topicKey" element={<TopicDetail />} />
           <Route path="/budget" element={<Budget />} />
-          <Route path="/share" element={<Suspense fallback={pageLoader}><ShareAdmin /></Suspense>} />
+          <Route path="/share" element={<Suspense fallback={pageLoader}><ShareLinks /></Suspense>} />
           <Route path="/vendors" element={<Vendors />} />
           <Route path="/functions" element={<Functions />} />
           <Route path="/guests" element={<Suspense fallback={pageLoader}><Guests /></Suspense>} />
@@ -238,7 +238,7 @@ export default function App() {
     <HashRouter>
       <Routes>
         {/* Opened from a share link: no planner login, and it must not wait for one. */}
-        <Route path="/share/:token" element={<Suspense fallback={pageLoader}><ShareViewer /></Suspense>} />
+        <Route path="/s/:token" element={<Suspense fallback={pageLoader}><SharedView /></Suspense>} />
         <Route
           path="*"
           element={
