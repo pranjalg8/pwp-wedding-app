@@ -154,3 +154,36 @@ export function suggestPlan(guests: GuestPlan[], invites: Inv[], sites: StaySite
 
   return { rows: [...rows.values()], unplaced };
 }
+
+// ---- What if: the households not invited yet are all invited ----
+
+export type ForecastScenario = 'both' | 'last';
+
+// Nights are shown from the first day on. The households not invited yet are given an invite with no reply for the
+// days of the scenario ("both" = every day, "last" = the final day only, so they need no room before it), then the
+// same night-by-night counts and the same planner as the real page run on that. Households with answers keep them.
+export function forecastRooms(guests: GuestPlan[], invites: Inv[], sites: StaySite[], nights: StayNight[], dates: string[], scenario: ForecastScenario) {
+  const invitedIds = new Set(invites.map((i) => i.guest_id));
+  const rest = guests.filter((g) => !invitedIds.has(g.id));
+  const pick = scenario === 'both' ? dates : dates.slice(-1);
+  const synth: Inv[] = rest.flatMap((g) => pick.map((event_date) => ({ guest_id: g.id, event_date, coming: 0, declined: 0 })));
+  const all = [...invites, ...synth];
+  const allNights = allNightsOf(nights);
+
+  const restNeeds = rest.map((g) => householdNeed(g, synth, allNights)).filter((x): x is NonNullable<typeof x> => !!x && x.main + x.other > 0);
+  const perNight = allNights
+    .filter((n) => n >= (dates[0] ?? ''))
+    .map((night) => {
+      const have = roomsAvailable(sites, nights, night);
+      const need = roomsWanted(guests, all, night, 'most');
+      const now = roomsWanted(guests, invites, night, 'most');
+      return { night, have: have.main + have.other, need: need.main + need.other, needNow: now.main + now.other };
+    });
+  const plan = suggestPlan(guests, all, sites, nights);
+  return {
+    restHouseholds: restNeeds.length,
+    restRooms: restNeeds.reduce((a, x) => a + x.main + x.other, 0),
+    perNight,
+    unplacedRooms: plan.unplaced.reduce((a, u) => a + u.rooms, 0),
+  };
+}
