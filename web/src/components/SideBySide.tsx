@@ -1,5 +1,5 @@
 import { Paper, Table, Text } from '@mantine/core';
-import { SIDE_LABEL, type Plan, type Side } from '../lib/budgetPlan';
+import { SIDE_LABEL, shortDate, topUps, type Plan, type Side } from '../lib/budgetPlan';
 import { formatInr } from '../lib/topicMeta';
 
 const signed = (v: number) => (v < 0 ? `−${formatInr(-v)}` : formatInr(v));
@@ -12,6 +12,13 @@ export function SideBySide({ plans, side, onPick }: { plans: Record<Side, Plan>;
     { label: 'Still to pay', cell: (p) => ({ text: formatInr(p.pendingTotal) }) },
     { label: 'Funds available', cell: (p) => ({ text: p.fundsNow === null ? 'Not set' : formatInr(p.fundsNow) }) },
     { label: 'Left after paying all', cell: (p) => (p.leftAfterAll === null ? { text: '—' } : { text: signed(p.leftAfterAll), red: p.leftAfterAll < 0 }) },
+    {
+      label: 'More funds needed',
+      cell: (p) => {
+        const t = topUps(p);
+        return p.fundsNow === null ? { text: '—' } : t.length ? { text: `${formatInr(t.reduce((a, x) => a + x.amount, 0))} by ${shortDate(t[0].by)}`, red: true } : { text: 'None' };
+      },
+    },
     { label: 'First short month', cell: (p) => (p.fundsNow === null ? { text: '—' } : p.firstShort ? { text: p.firstShort.label, red: true } : { text: 'None' }) },
   ];
   return (

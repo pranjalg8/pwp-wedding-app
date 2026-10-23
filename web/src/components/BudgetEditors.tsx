@@ -29,17 +29,18 @@ export function ScheduleEditor({
   const [note, setNote] = useState(payment?.note ?? '');
   const [estimate, setEstimate] = useState(payment?.is_estimate ?? false);
   const [paridhi, setParidhi] = useState<number | string>(payment?.paridhi_amount ?? 0);
+  const [paridhiDue, setParidhiDue] = useState(payment?.paridhi_due_date ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const amountNum = Number(amount);
   const paridhiNum = Number(paridhi) || 0;
-  const valid = payee.trim() !== '' && Number.isFinite(amountNum) && amountNum > 0 && /^\d{4}-\d{2}-\d{2}$/.test(due) && paridhiNum >= 0 && paridhiNum <= amountNum;
+  const valid = payee.trim() !== '' && Number.isFinite(amountNum) && amountNum > 0 && /^\d{4}-\d{2}-\d{2}$/.test(due) && paridhiNum >= 0 && paridhiNum <= amountNum && (paridhiDue === '' || /^\d{4}-\d{2}-\d{2}$/.test(paridhiDue));
 
   async function save() {
     setSaving(true);
     setError(null);
-    const fields = { payee: payee.trim(), amount: amountNum, due_date: due, topic_id: topicId, note: note.trim() || null, is_estimate: estimate, paridhi_amount: paridhiNum };
+    const fields = { payee: payee.trim(), amount: amountNum, due_date: due, topic_id: topicId, note: note.trim() || null, is_estimate: estimate, paridhi_amount: paridhiNum, paridhi_due_date: paridhiNum > 0 && paridhiDue !== '' ? paridhiDue : null };
     const res = payment
       ? await supabase.from('payment_schedule').update(fields).eq('id', payment.id)
       : await supabase.from('payment_schedule').insert({ ...fields, created_by: profile?.id ?? null });
@@ -77,6 +78,15 @@ export function ScheduleEditor({
           value={paridhi}
           onChange={setParidhi}
         />
+        {paridhiNum > 0 && (
+          <TextInput
+            label="Paridhi pays her share on"
+            description="Leave empty to pay on the due date. If it is later, Pranjal covers the whole payment on the due date and she pays back on this date."
+            type="date"
+            value={paridhiDue}
+            onChange={(e) => setParidhiDue(e.currentTarget.value)}
+          />
+        )}
         <Select
           label="Area"
           placeholder="Not set"

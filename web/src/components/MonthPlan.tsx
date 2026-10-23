@@ -56,8 +56,8 @@ function PaymentLine({
       </Group>
       <Group gap="xs" wrap="nowrap" style={{ flexShrink: 0, paddingLeft: 60 }} align="center">
         <div style={{ textAlign: 'right' }}>
-          <Text size="sm" fw={700} style={{ whiteSpace: 'nowrap' }}>
-            {formatInr(p.amount)}
+          <Text size="sm" fw={700} c={p.inflow ? 'teal' : undefined} style={{ whiteSpace: 'nowrap' }}>
+            {p.inflow ? `+${formatInr(-p.amount)}` : formatInr(p.amount)}
           </Text>
           {whole !== undefined && whole - p.amount > 0.005 && (
             <Text size="xs" c="dimmed" style={{ whiteSpace: 'nowrap' }}>
@@ -65,7 +65,7 @@ function PaymentLine({
             </Text>
           )}
         </div>
-        {isUnlocked && (
+        {isUnlocked && !p.inflow && (
           <>
             <Button size="compact-xs" variant="light" onClick={() => onPaid(p)}>
               Mark paid

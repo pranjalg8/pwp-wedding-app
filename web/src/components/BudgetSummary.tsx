@@ -1,5 +1,5 @@
 import { Box, Button, Group, Paper, SimpleGrid, Stack, Text } from '@mantine/core';
-import { daysBetween, monthLabel, shortDate, SIDE_LABEL, type BudgetSettings, type Plan, type Side } from '../lib/budgetPlan';
+import { daysBetween, monthLabel, shortDate, SIDE_LABEL, topUps, type BudgetSettings, type Plan, type Side } from '../lib/budgetPlan';
 import { formatInr } from '../lib/topicMeta';
 
 const signed = (v: number) => (v < 0 ? `−${formatInr(-v)}` : formatInr(v));
@@ -55,6 +55,7 @@ export function BudgetSummary({
   ].filter((s) => s.value > 0);
 
   const lastMonth = plan.months[plan.months.length - 1];
+  const needs = plan.fundsNow === null ? [] : topUps(plan);
   const next = plan.next;
 
   return (
@@ -133,6 +134,18 @@ export function BudgetSummary({
             ) : (
               <Text size="sm" c="teal" fw={600}>
                 Funds cover everything due through {lastMonth ? lastMonth.label : monthLabel(today.slice(0, 7))}.
+              </Text>
+            )}
+            {needs.length > 0 && (
+              <Text size="sm">
+                Funds needed:{' '}
+                {needs.map((n, i) => (
+                  <span key={n.by}>
+                    {i > 0 ? ', then ' : ''}
+                    <b>{formatInr(n.amount)}</b> by {shortDate(n.by)}
+                  </span>
+                ))}
+                .
               </Text>
             )}
             {next && (
