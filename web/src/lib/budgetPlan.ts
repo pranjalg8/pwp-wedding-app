@@ -11,6 +11,8 @@ export type Scheduled = {
   status: 'pending' | 'paid' | 'cancelled';
   paid_payment_id: string | null;
   paridhi_amount: number; // Paridhi's share of amount; Pranjal pays the rest
+  paridhi_due_date: string | null; // when Paridhi pays her share, if not on the vendor's due date
+  inflow?: boolean; // money coming back to Pranjal (Paridhi repaying a payment he covered); amount is negative
 };
 
 export type BudgetSettings = {
@@ -40,6 +42,25 @@ export const shareOf = (amount: number, paridhi: number, side: Side) =>
 export function forSide<T extends { amount: number; paridhi_amount: number }>(rows: T[], side: Side): T[] {
   if (side === 'both') return rows;
   return rows.map((r) => ({ ...r, amount: shareOf(r.amount, r.paridhi_amount, side) })).filter((r) => r.amount > 0.005);
+}
+
+// The schedule as one side sees it. Paridhi's share counts on her own date when she has set one. If that is later than
+// the vendor's due date, Pranjal covers the whole payment on the due date and gets her share back on her date, shown
+// as a negative line so the month-by-month balance follows his real cash.
+export function scheduleForSide(rows: Scheduled[], side: Side): Scheduled[] {
+  if (side === 'both') return rows;
+  if (side === 'paridhi')
+    return rows
+      .map((r) => ({ ...r, amount: shareOf(r.amount, r.paridhi_amount, 'paridhi'), due_date: r.paridhi_due_date ?? r.due_date }))
+      .filter((r) => r.amount > 0.005);
+  const out: Scheduled[] = [];
+  for (const r of rows) {
+    const fronted = r.paridhi_amount > 0.005 && r.paridhi_due_date !== null && r.paridhi_due_date > r.due_date;
+    out.push({ ...r, amount: fronted ? r.amount : shareOf(r.amount, r.paridhi_amount, 'pranjal') });
+    if (fronted)
+      out.push({ ...r, id: `${r.id}:repay`, payee: `Paridhi repays: ${r.payee}`, amount: -r.paridhi_amount, due_date: r.paridhi_due_date as string, inflow: true, note: null, is_estimate: r.is_estimate });
+  }
+  return out.filter((r) => Math.abs(r.amount) > 0.005);
 }
 
 export function settingsForSide(s: BudgetSettings | null, side: Side): BudgetSettings | null {
@@ -137,15 +158,33 @@ export function buildPlan(opts: { pending: Scheduled[]; paid: PaidRow[]; setting
     overdueTotal,
     months,
     pendingTotal,
-    pendingCount: pending.length,
-    estimateTotal: sum(pending.filter((p) => p.is_estimate).map((p) => p.amount)),
+    pendingCount: pending.filter((p) => !p.inflow).length,
+    estimateTotal: sum(pending.filter((p) => p.is_estimate && !p.inflow).map((p) => p.amount)),
     paidTotal: sum(paid.map((p) => p.amount)),
     fundsNow,
     // The balance after the last month, so it agrees with the month-by-month rows (monthly additions included).
     leftAfterAll: fundsNow === null ? null : (months.length > 0 ? months[months.length - 1].balance : fundsNow - pendingTotal),
     firstShort: months.find((m) => m.balance !== null && m.balance < 0) ?? null,
-    next: pending[0] ?? null,
+    next: pending.find((p) => !p.inflow) ?? null,
   };
+}
+
+export type TopUp = { by: string; amount: number };
+
+// When more money has to be in place: each month where the balance dips further below zero, the extra needed and the
+// first date that month a payment falls due.
+export function topUps(plan: Plan): TopUp[] {
+  const out: TopUp[] = [];
+  let covered = 0;
+  for (const m of plan.months) {
+    if (m.balance === null || m.balance >= 0) continue;
+    const short = -m.balance;
+    if (short <= covered + 0.005) continue;
+    const by = m.items.length ? m.items[0].due_date : `${m.key}-01`;
+    out.push({ by, amount: short - covered });
+    covered = short;
+  }
+  return out;
 }
 
 export type AreaRow = {

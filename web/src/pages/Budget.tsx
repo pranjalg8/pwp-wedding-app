@@ -15,7 +15,7 @@ import { useBudgetPlan } from '../hooks/useBudgetPlan';
 import { usePlanFacts } from '../hooks/usePlanFacts';
 import { useEditMode } from '../hooks/useEditMode';
 import { SideBySide } from '../components/SideBySide';
-import { SIDE_LABEL, buildAreas, buildPlan, forSide, settingsForSide, sum, type Plan, type Scheduled, type Side } from '../lib/budgetPlan';
+import { SIDE_LABEL, buildAreas, buildPlan, forSide, scheduleForSide, settingsForSide, sum, type Plan, type Scheduled, type Side } from '../lib/budgetPlan';
 import { KIND_LABEL, STATUS_COLOR, STATUS_LABEL, formatAsOf, formatInr } from '../lib/topicMeta';
 
 type BudgetRow = Pick<PlanningItem, 'id' | 'title' | 'type' | 'status' | 'amount' | 'amount_kind' | 'amount_note' | 'as_of'> & {
@@ -141,7 +141,7 @@ export function Budget() {
   const [side, setSide] = useState<Side>('both');
   // One plan per side, so the table can show all three and the sections below follow the toggle.
   const plans = useMemo(() => {
-    const make = (sd: Side): Plan => buildPlan({ pending: forSide(schedule, sd), paid: forSide(paid, sd), settings: settingsForSide(settings, sd), today, throughMonth });
+    const make = (sd: Side): Plan => buildPlan({ pending: scheduleForSide(schedule, sd), paid: forSide(paid, sd), settings: settingsForSide(settings, sd), today, throughMonth });
     return { both: make('both'), pranjal: make('pranjal'), paridhi: make('paridhi') } as Record<Side, Plan>;
   }, [schedule, paid, settings, today, throughMonth]);
   const plan = plans[side];
