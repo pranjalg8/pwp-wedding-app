@@ -14,6 +14,7 @@ export type Payment = {
   verification: 'receipt_checked' | 'chat_only';
   verification_note: string | null;
   topic_id?: string | null;
+  paridhi_amount?: number | string | null;
 };
 
 // Add or edit one payment. Changes are recorded in the audit log by a database trigger.
@@ -28,7 +29,7 @@ export function PaymentEditor({
   payment: Payment | null;
   topics?: { id: string; label: string }[];
   // Starting values for a new payment, for example when marking a scheduled payment as paid.
-  defaults?: { payee?: string; amount?: number; purpose?: string | null; topic_id?: string | null };
+  defaults?: { payee?: string; amount?: number; purpose?: string | null; topic_id?: string | null; paridhi_amount?: number };
   opened: boolean;
   onClose: () => void;
   onSaved: (id?: string, amount?: number) => void;
@@ -40,6 +41,7 @@ export function PaymentEditor({
   const [method, setMethod] = useState(payment?.method ?? '');
   const [reference, setReference] = useState(payment?.reference ?? '');
   const [purpose, setPurpose] = useState(payment?.purpose ?? defaults?.purpose ?? '');
+  const [paridhiAmount, setParidhiAmount] = useState<number | string>(Number(payment?.paridhi_amount ?? defaults?.paridhi_amount ?? 0) || 0);
   const [topicId, setTopicId] = useState<string | null>(payment?.topic_id ?? defaults?.topic_id ?? null);
   const [verification, setVerification] = useState<string>(payment?.verification ?? 'chat_only');
   const [note, setNote] = useState(payment?.verification_note ?? '');
@@ -47,7 +49,8 @@ export function PaymentEditor({
   const [error, setError] = useState<string | null>(null);
 
   const amountNum = typeof amount === 'number' ? amount : Number(amount);
-  const valid = paidOn !== '' && payee.trim() !== '' && Number.isFinite(amountNum) && amountNum > 0;
+  const paridhiNum = Number(paridhiAmount) || 0;
+  const valid = paidOn !== '' && payee.trim() !== '' && Number.isFinite(amountNum) && amountNum > 0 && paridhiNum >= 0 && paridhiNum <= amountNum;
 
   async function save() {
     setSaving(true);
@@ -62,6 +65,7 @@ export function PaymentEditor({
       verification,
       verification_note: note.trim() || null,
       topic_id: topicId,
+      paridhi_amount: paridhiNum,
     };
     let savedId: string | undefined = payment?.id;
     let failure: string | null = null;
@@ -96,6 +100,16 @@ export function PaymentEditor({
           value={amount}
           onChange={setAmount}
           required
+        />
+        <NumberInput
+          label="Of which Paridhi pays"
+          description={`Her share of the amount. Pranjal pays ${amountNum > 0 ? `₹${Math.max(0, amountNum - paridhiNum).toLocaleString('en-IN')}` : 'the rest'}.`}
+          prefix="₹"
+          thousandSeparator="," thousandsGroupStyle="lakh"
+          decimalScale={2}
+          min={0}
+          value={paridhiAmount}
+          onChange={setParidhiAmount}
         />
         {topics && (
           <Select

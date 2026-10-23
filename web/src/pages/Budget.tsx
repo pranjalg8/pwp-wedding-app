@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Accordion, Badge, Button, Paper, Stack, Table, Text, Title } from '@mantine/core';
+import { Accordion, Badge, Button, Group, Paper, SegmentedControl, Stack, Table, Text, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { supabase, type PlanningItem, type Topic } from '../lib/supabase';
 import { PaymentsLedger } from '../components/PaymentsLedger';
@@ -14,7 +14,8 @@ import { AreaBudgetEditor, ScheduleEditor, SettingsEditor } from '../components/
 import { useBudgetPlan } from '../hooks/useBudgetPlan';
 import { usePlanFacts } from '../hooks/usePlanFacts';
 import { useEditMode } from '../hooks/useEditMode';
-import { buildAreas, buildPlan, sum, type Scheduled } from '../lib/budgetPlan';
+import { SideBySide } from '../components/SideBySide';
+import { SIDE_LABEL, buildAreas, buildPlan, forSide, settingsForSide, sum, type Plan, type Scheduled, type Side } from '../lib/budgetPlan';
 import { KIND_LABEL, STATUS_COLOR, STATUS_LABEL, formatAsOf, formatInr } from '../lib/topicMeta';
 
 type BudgetRow = Pick<PlanningItem, 'id' | 'title' | 'type' | 'status' | 'amount' | 'amount_kind' | 'amount_note' | 'as_of'> & {
@@ -137,8 +138,15 @@ export function Budget() {
   const [areasOpen, setAreasOpen] = useState(false);
 
   const throughMonth = dates.wedding.start.toLocaleDateString('en-CA').slice(0, 7);
-  const plan = useMemo(() => buildPlan({ pending: schedule, paid, settings, today, throughMonth }), [schedule, paid, settings, today, throughMonth]);
-  const areaRows = useMemo(() => buildAreas({ topics, items, paid, pending: schedule, areas }), [topics, items, paid, schedule, areas]);
+  const [side, setSide] = useState<Side>('both');
+  // One plan per side, so the table can show all three and the sections below follow the toggle.
+  const plans = useMemo(() => {
+    const make = (sd: Side): Plan => buildPlan({ pending: forSide(schedule, sd), paid: forSide(paid, sd), settings: settingsForSide(settings, sd), today, throughMonth });
+    return { both: make('both'), pranjal: make('pranjal'), paridhi: make('paridhi') } as Record<Side, Plan>;
+  }, [schedule, paid, settings, today, throughMonth]);
+  const plan = plans[side];
+  const viewSettings = useMemo(() => settingsForSide(settings, side), [settings, side]);
+  const areaRows = useMemo(() => buildAreas({ topics, items, paid, pending: schedule, areas, side }), [topics, items, paid, schedule, areas, side]);
   const notScheduled = sum(areaRows.map((r) => r.notScheduled));
 
   // Marking a payment as paid records it in the ledger first. If less than the scheduled amount was paid, the rest
@@ -148,7 +156,10 @@ export function Budget() {
     const remaining = p.amount - (amountPaid ?? p.amount);
     const { error } =
       remaining > 0.005
-        ? await supabase.from('payment_schedule').update({ amount: Math.round(remaining * 100) / 100 }).eq('id', p.id)
+        ? await supabase
+            .from('payment_schedule')
+            .update({ amount: Math.round(remaining * 100) / 100, paridhi_amount: Math.round(p.paridhi_amount * (remaining / p.amount) * 100) / 100 })
+            .eq('id', p.id)
         : await supabase.from('payment_schedule').update({ status: 'paid', paid_payment_id: paymentId }).eq('id', p.id);
     if (error) {
       notifications.show({ color: 'red', title: 'Payment saved, schedule not updated', message: error.message });
@@ -160,26 +171,39 @@ export function Budget() {
 
   return (
     <Stack gap="xl">
-      <div>
-        <Title order={2}>Budget</Title>
-        <Text size="sm" c="dimmed">
-          What is paid, what is still to pay, and whether each month is covered.
-        </Text>
-      </div>
+      <Group justify="space-between" align="flex-end" gap="sm">
+        <div>
+          <Title order={2}>Budget</Title>
+          <Text size="sm" c="dimmed">
+            What is paid, what is still to pay, and whether each month is covered.
+          </Text>
+        </div>
+        <SegmentedControl
+          value={side}
+          onChange={(v) => setSide(v as Side)}
+          data={(['both', 'pranjal', 'paridhi'] as Side[]).map((s) => ({ value: s, label: SIDE_LABEL[s] }))}
+          aria-label="Whose share to show"
+        />
+      </Group>
 
       <Section step={1} title="Where the money stands" hint="Paid, still to pay, and the funds you have to cover it.">
-        <BudgetSummary plan={plan} settings={settings} notScheduled={notScheduled} today={today} isUnlocked={isUnlocked} onEditSettings={() => setSettingsOpen(true)} />
+        <Stack gap="md">
+        <SideBySide plans={plans} side={side} onPick={setSide} />
+        <BudgetSummary side={side} plan={plan} settings={viewSettings} notScheduled={notScheduled} today={today} isUnlocked={isUnlocked} onEditSettings={() => setSettingsOpen(true)} />
+        </Stack>
       </Section>
 
       <Section step={2} title="Month by month" hint="What falls due each month and the funds left after paying it. Overdue payments are counted from today.">
         <MonthPlan
           plan={plan}
+          side={side}
+          schedule={schedule}
           topics={topics}
           today={today}
           isUnlocked={isUnlocked}
           onAdd={() => setScheduleEditing('new')}
-          onPaid={setMarkPaid}
-          onEdit={setScheduleEditing}
+          onPaid={(p) => setMarkPaid(schedule.find((x) => x.id === p.id) ?? p)}
+          onEdit={(p) => setScheduleEditing(schedule.find((x) => x.id === p.id) ?? p)}
         />
       </Section>
 
@@ -229,7 +253,7 @@ export function Budget() {
           key={markPaid.id}
           payment={null}
           topics={topics}
-          defaults={{ payee: markPaid.payee, amount: markPaid.amount, purpose: markPaid.note, topic_id: markPaid.topic_id }}
+          defaults={{ payee: markPaid.payee, amount: markPaid.amount, purpose: markPaid.note, topic_id: markPaid.topic_id, paridhi_amount: markPaid.paridhi_amount }}
           opened
           onClose={() => setMarkPaid(null)}
           onSaved={(id, amount) => afterPaid(markPaid, id, amount)}

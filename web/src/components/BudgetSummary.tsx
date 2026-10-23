@@ -1,5 +1,5 @@
 import { Box, Button, Group, Paper, SimpleGrid, Stack, Text } from '@mantine/core';
-import { daysBetween, monthLabel, shortDate, type BudgetSettings, type Plan } from '../lib/budgetPlan';
+import { daysBetween, monthLabel, shortDate, SIDE_LABEL, type BudgetSettings, type Plan, type Side } from '../lib/budgetPlan';
 import { formatInr } from '../lib/topicMeta';
 
 const signed = (v: number) => (v < 0 ? `−${formatInr(-v)}` : formatInr(v));
@@ -25,6 +25,7 @@ function Stat({ label, value, hint, color }: { label: string; value: string; hin
 // Step 1: where the money stands. Paid, still to pay, the funds on hand and what is left if everything is paid,
 // on one bar, followed by a plain verdict so the answer to "can we manage" is the first thing read.
 export function BudgetSummary({
+  side,
   plan,
   settings,
   notScheduled,
@@ -32,6 +33,7 @@ export function BudgetSummary({
   isUnlocked,
   onEditSettings,
 }: {
+  side: Side;
   plan: Plan;
   settings: BudgetSettings | null;
   notScheduled: number;
@@ -58,6 +60,11 @@ export function BudgetSummary({
   return (
     <Paper withBorder p="lg">
       <Stack gap="md">
+        {side !== 'both' && (
+          <Text size="sm" fw={600} c="rose.6">
+            {SIDE_LABEL[side]}'s share only
+          </Text>
+        )}
         <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="lg">
           <Stat label="Paid so far" value={formatInr(plan.paidTotal)} hint="From the payments ledger" />
           <Stat
@@ -72,7 +79,7 @@ export function BudgetSummary({
           <Stat
             label="Funds available"
             value={plan.fundsNow === null ? 'Not set' : formatInr(plan.fundsNow)}
-            hint={plan.fundsNow === null ? 'Add your funds to check each month' : `as of ${shortDate(settings?.funds_as_of ?? today)}, less payments since`}
+            hint={plan.fundsNow === null ? 'Add the funds to check each month' : `as of ${shortDate(settings?.funds_as_of ?? today)}, less payments since`}
           />
           <Stat
             label="Left after paying all"

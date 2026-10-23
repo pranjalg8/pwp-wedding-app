@@ -28,16 +28,18 @@ export function ScheduleEditor({
   const [topicId, setTopicId] = useState<string | null>(payment?.topic_id ?? null);
   const [note, setNote] = useState(payment?.note ?? '');
   const [estimate, setEstimate] = useState(payment?.is_estimate ?? false);
+  const [paridhi, setParidhi] = useState<number | string>(payment?.paridhi_amount ?? 0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const amountNum = Number(amount);
-  const valid = payee.trim() !== '' && Number.isFinite(amountNum) && amountNum > 0 && /^\d{4}-\d{2}-\d{2}$/.test(due);
+  const paridhiNum = Number(paridhi) || 0;
+  const valid = payee.trim() !== '' && Number.isFinite(amountNum) && amountNum > 0 && /^\d{4}-\d{2}-\d{2}$/.test(due) && paridhiNum >= 0 && paridhiNum <= amountNum;
 
   async function save() {
     setSaving(true);
     setError(null);
-    const fields = { payee: payee.trim(), amount: amountNum, due_date: due, topic_id: topicId, note: note.trim() || null, is_estimate: estimate };
+    const fields = { payee: payee.trim(), amount: amountNum, due_date: due, topic_id: topicId, note: note.trim() || null, is_estimate: estimate, paridhi_amount: paridhiNum };
     const res = payment
       ? await supabase.from('payment_schedule').update(fields).eq('id', payment.id)
       : await supabase.from('payment_schedule').insert({ ...fields, created_by: profile?.id ?? null });
@@ -65,6 +67,16 @@ export function ScheduleEditor({
           <NumberInput label="Amount" prefix="₹" thousandSeparator="," thousandsGroupStyle="lakh" decimalScale={2} min={0} value={amount} onChange={setAmount} required />
           <TextInput label="Due on" type="date" value={due} onChange={(e) => setDue(e.currentTarget.value)} required />
         </Group>
+        <NumberInput
+          label="Of which Paridhi pays"
+          description={`Her share of the amount above. Pranjal pays ${amountNum > 0 ? `₹${Math.max(0, amountNum - paridhiNum).toLocaleString('en-IN')}` : 'the rest'}. Leave 0 if Pranjal pays it all.`}
+          prefix="₹"
+          thousandSeparator="," thousandsGroupStyle="lakh"
+          decimalScale={2}
+          min={0}
+          value={paridhi}
+          onChange={setParidhi}
+        />
         <Select
           label="Area"
           placeholder="Not set"
@@ -110,10 +122,12 @@ export function SettingsEditor({ settings, opened, onClose, onSaved }: { setting
   const [funds, setFunds] = useState<number | string>(settings?.funds_available ?? '');
   const [asOf, setAsOf] = useState(settings?.funds_as_of ?? todayIso());
   const [monthly, setMonthly] = useState<number | string>(settings?.monthly_addition ?? 0);
+  const [pFunds, setPFunds] = useState<number | string>(settings?.paridhi_funds_available ?? '');
+  const [pMonthly, setPMonthly] = useState<number | string>(settings?.paridhi_monthly_addition ?? 0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const valid = (funds === '' || /^\d{4}-\d{2}-\d{2}$/.test(asOf)) && Number(monthly) >= 0;
+  const valid = (funds === '' && pFunds === '' || /^\d{4}-\d{2}-\d{2}$/.test(asOf)) && Number(monthly) >= 0 && Number(pMonthly) >= 0;
 
   async function save() {
     setSaving(true);
@@ -123,8 +137,10 @@ export function SettingsEditor({ settings, opened, onClose, onSaved }: { setting
       .update({
         total_budget: n(total),
         funds_available: n(funds),
-        funds_as_of: funds === '' ? null : asOf,
+        funds_as_of: funds === '' && pFunds === '' ? null : asOf,
         monthly_addition: Number(monthly) || 0,
+        paridhi_funds_available: n(pFunds),
+        paridhi_monthly_addition: Number(pMonthly) || 0,
       })
       .eq('id', 1);
     setSaving(false);
@@ -146,8 +162,8 @@ export function SettingsEditor({ settings, opened, onClose, onSaved }: { setting
           onChange={setTotal}
         />
         <NumberInput
-          label="Funds available"
-          description="The money you have ready for the wedding, as it stands on the date below."
+          label="Pranjal's funds available"
+          description="The money Pranjal has ready for the wedding, as it stands on the date below."
           prefix="₹"
           thousandSeparator="," thousandsGroupStyle="lakh"
           min={0}
@@ -155,9 +171,9 @@ export function SettingsEditor({ settings, opened, onClose, onSaved }: { setting
           onChange={setFunds}
         />
         <Group grow align="flex-start">
-          <TextInput label="Funds as of" type="date" value={asOf} onChange={(e) => setAsOf(e.currentTarget.value)} disabled={funds === ''} />
+          <TextInput label="Funds as of" type="date" value={asOf} onChange={(e) => setAsOf(e.currentTarget.value)} disabled={funds === '' && pFunds === ''} />
           <NumberInput
-            label="Added each month"
+            label="Pranjal adds each month"
             description="Optional"
             prefix="₹"
             thousandSeparator="," thousandsGroupStyle="lakh"
@@ -167,6 +183,25 @@ export function SettingsEditor({ settings, opened, onClose, onSaved }: { setting
             disabled={funds === ''}
           />
         </Group>
+        <NumberInput
+          label="Paridhi's funds available"
+          description="The money Paridhi has ready for the wedding, as of the same date. Optional."
+          prefix="₹"
+          thousandSeparator="," thousandsGroupStyle="lakh"
+          min={0}
+          value={pFunds}
+          onChange={setPFunds}
+        />
+        <NumberInput
+          label="Paridhi adds each month"
+          description="Optional"
+          prefix="₹"
+          thousandSeparator="," thousandsGroupStyle="lakh"
+          min={0}
+          value={pMonthly}
+          onChange={setPMonthly}
+          disabled={pFunds === ''}
+        />
         <Text size="xs" c="dimmed">
           Payments you record after the "as of" date come off the funds automatically. The monthly amount is added at the start of each month after that
           date, so the month-by-month view shows a running balance.
