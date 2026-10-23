@@ -17,7 +17,7 @@ export function PaymentsLedger({ topics = [] }: { topics?: { id: string; label: 
   async function load() {
     const { data } = await supabase
       .from('payments')
-      .select('id, paid_on, payee, amount, method, reference, purpose, verification, verification_note, topic_id')
+      .select('id, paid_on, payee, amount, method, reference, purpose, verification, verification_note, topic_id, paridhi_amount')
       .order('paid_on', { ascending: false });
     setRows((data ?? []) as Payment[]);
   }

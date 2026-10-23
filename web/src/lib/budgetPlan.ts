@@ -10,6 +10,7 @@ export type Scheduled = {
   is_estimate: boolean;
   status: 'pending' | 'paid' | 'cancelled';
   paid_payment_id: string | null;
+  paridhi_amount: number; // Paridhi's share of amount; Pranjal pays the rest
 };
 
 export type BudgetSettings = {
@@ -17,12 +18,38 @@ export type BudgetSettings = {
   funds_available: number | null;
   funds_as_of: string | null; // the date the funds figure was true
   monthly_addition: number;
+  paridhi_funds_available: number | null;
+  paridhi_monthly_addition: number;
 };
 
 export type AreaBudget = { id: string; topic_id: string; allocation: number };
-export type PaidRow = { id: string; paid_on: string; amount: number; topic_id: string | null };
+export type PaidRow = { id: string; paid_on: string; amount: number; topic_id: string | null; paridhi_amount: number };
 export type ItemMoney = { topic_id: string; status: string; amount: number | null; amount_kind: string | null; slug: string | null };
 export type TopicRef = { id: string; key: string; label: string };
+
+export type Side = 'both' | 'pranjal' | 'paridhi';
+
+export const SIDE_LABEL: Record<Side, string> = { both: 'Together', pranjal: 'Pranjal', paridhi: 'Paridhi' };
+
+// The amount of a payment that falls on one side. `amount` is the whole payment to the vendor.
+export const shareOf = (amount: number, paridhi: number, side: Side) =>
+  side === 'both' ? amount : side === 'paridhi' ? Math.min(paridhi, amount) : amount - Math.min(paridhi, amount);
+
+// The same schedule, ledger and funds seen from one side. Payments that cost that side nothing are left out.
+// Together adds the two sides' funds; a side whose funds are not set shows no funds at all.
+export function forSide<T extends { amount: number; paridhi_amount: number }>(rows: T[], side: Side): T[] {
+  if (side === 'both') return rows;
+  return rows.map((r) => ({ ...r, amount: shareOf(r.amount, r.paridhi_amount, side) })).filter((r) => r.amount > 0.005);
+}
+
+export function settingsForSide(s: BudgetSettings | null, side: Side): BudgetSettings | null {
+  if (!s) return s;
+  if (side === 'pranjal') return { ...s, total_budget: null };
+  if (side === 'paridhi')
+    return { ...s, total_budget: null, funds_available: s.paridhi_funds_available, monthly_addition: s.paridhi_monthly_addition };
+  const funds = s.funds_available === null && s.paridhi_funds_available === null ? null : (s.funds_available ?? 0) + (s.paridhi_funds_available ?? 0);
+  return { ...s, funds_available: funds, monthly_addition: s.monthly_addition + s.paridhi_monthly_addition };
+}
 
 export const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
 
@@ -137,24 +164,26 @@ export type AreaRow = {
 // Money by area. Paid comes from the ledger, still-to-pay from the schedule. Chosen quotes with nothing scheduled
 // against them are shown separately as a nudge to schedule them, and open quotes are only a range, never added up.
 // Shared planner facts (the honeymoon cap and the like) are not money to spend, so they are left out.
-export function buildAreas(opts: { topics: TopicRef[]; items: ItemMoney[]; paid: PaidRow[]; pending: Scheduled[]; areas: AreaBudget[] }): AreaRow[] {
+export function buildAreas(opts: { topics: TopicRef[]; items: ItemMoney[]; paid: PaidRow[]; pending: Scheduled[]; areas: AreaBudget[]; side?: Side }): AreaRow[] {
+  const side = opts.side ?? 'both';
   return opts.topics.map((topic) => {
     const mine = opts.items.filter((i) => i.topic_id === topic.id && !i.slug);
     const money = summarizeMoney(mine.filter((i) => i.amount_kind !== 'paid'));
-    const paid = sum(opts.paid.filter((p) => p.topic_id === topic.id).map((p) => p.amount));
-    const pendingRows = opts.pending.filter((p) => p.status === 'pending' && p.topic_id === topic.id);
-    const pending = sum(pendingRows.map((p) => p.amount));
-    const allocation = opts.areas.find((a) => a.topic_id === topic.id)?.allocation ?? null;
+    const paid = sum(opts.paid.filter((p) => p.topic_id === topic.id).map((p) => shareOf(p.amount, p.paridhi_amount, side)));
+    const pendingRows = opts.pending.filter((p) => p.status === 'pending' && p.topic_id === topic.id && shareOf(p.amount, p.paridhi_amount, side) > 0.005);
+    const pending = sum(pendingRows.map((p) => shareOf(p.amount, p.paridhi_amount, side)));
+    // Area budgets and the planner's quotes are for the wedding as a whole, so they only show in the Together view.
+    const allocation = side === 'both' ? (opts.areas.find((a) => a.topic_id === topic.id)?.allocation ?? null) : null;
     return {
       topic,
       allocation,
       paid,
       pending,
       estimate: pendingRows.some((p) => p.is_estimate),
-      notScheduled: Math.max(0, money.planned - pending),
+      notScheduled: side === 'both' ? Math.max(0, money.planned - pending) : 0,
       openLow: money.openLow,
       openHigh: money.openHigh,
-      openCount: money.openCount,
+      openCount: side === 'both' ? money.openCount : 0,
       left: allocation === null ? null : allocation - paid - pending,
     };
   });

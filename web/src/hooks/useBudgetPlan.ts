@@ -22,26 +22,28 @@ export function useBudgetPlan() {
 
   const reload = useCallback(async () => {
     const [s, st, a, p, i, t] = await Promise.all([
-      supabase.from('payment_schedule').select('id, payee, amount, due_date, topic_id, note, is_estimate, status, paid_payment_id').order('due_date'),
-      supabase.from('budget_settings').select('total_budget, funds_available, funds_as_of, monthly_addition').eq('id', 1).maybeSingle(),
+      supabase.from('payment_schedule').select('id, payee, amount, due_date, topic_id, note, is_estimate, status, paid_payment_id, paridhi_amount').order('due_date'),
+      supabase.from('budget_settings').select('total_budget, funds_available, funds_as_of, monthly_addition, paridhi_funds_available, paridhi_monthly_addition').eq('id', 1).maybeSingle(),
       supabase.from('budget_areas').select('id, topic_id, allocation'),
-      supabase.from('payments').select('id, paid_on, amount, topic_id'),
+      supabase.from('payments').select('id, paid_on, amount, topic_id, paridhi_amount'),
       supabase.from('planning_items').select('topic_id, status, amount, amount_kind, slug').not('amount', 'is', null),
       supabase.from('topics').select('id, key, label').order('sort_order'),
     ]);
-    const st0 = st.data as { total_budget: number | string | null; funds_available: number | string | null; funds_as_of: string | null; monthly_addition: number | string } | null;
+    const st0 = st.data as { total_budget: number | string | null; funds_available: number | string | null; funds_as_of: string | null; monthly_addition: number | string; paridhi_funds_available: number | string | null; paridhi_monthly_addition: number | string } | null;
     setData({
-      schedule: ((s.data ?? []) as Scheduled[]).map((r) => ({ ...r, amount: num(r.amount) })),
+      schedule: ((s.data ?? []) as Scheduled[]).map((r) => ({ ...r, amount: num(r.amount), paridhi_amount: num(r.paridhi_amount) })),
       settings: st0
         ? {
             total_budget: st0.total_budget === null ? null : num(st0.total_budget),
             funds_available: st0.funds_available === null ? null : num(st0.funds_available),
             funds_as_of: st0.funds_as_of,
             monthly_addition: num(st0.monthly_addition),
+            paridhi_funds_available: st0.paridhi_funds_available === null ? null : num(st0.paridhi_funds_available),
+            paridhi_monthly_addition: num(st0.paridhi_monthly_addition),
           }
         : null,
       areas: ((a.data ?? []) as AreaBudget[]).map((r) => ({ ...r, allocation: num(r.allocation) })),
-      paid: ((p.data ?? []) as PaidRow[]).map((r) => ({ ...r, amount: num(r.amount) })),
+      paid: ((p.data ?? []) as PaidRow[]).map((r) => ({ ...r, amount: num(r.amount), paridhi_amount: num(r.paridhi_amount) })),
       items: ((i.data ?? []) as ItemMoney[]).map((r) => ({ ...r, amount: r.amount === null ? null : num(r.amount) })),
       topics: (t.data ?? []) as TopicRef[],
     });
