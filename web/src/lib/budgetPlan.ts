@@ -1,5 +1,7 @@
 import { summarizeMoney } from './topicMeta';
 
+export type ShareInstalment = { on: string; amount: number };
+
 export type Scheduled = {
   id: string;
   payee: string;
@@ -12,6 +14,8 @@ export type Scheduled = {
   paid_payment_id: string | null;
   paridhi_amount: number; // Paridhi's share of amount; Pranjal pays the rest
   paridhi_due_date: string | null; // when Paridhi pays her share, if not on the vendor's due date
+  paridhi_plan: ShareInstalment[]; // dated instalments of her share; the rest falls on the due date
+  sourceId?: string; // the stored payment a derived line comes from
   inflow?: boolean; // money coming back to Pranjal (Paridhi repaying a payment he covered); amount is negative
 };
 
@@ -44,21 +48,30 @@ export function forSide<T extends { amount: number; paridhi_amount: number }>(ro
   return rows.map((r) => ({ ...r, amount: shareOf(r.amount, r.paridhi_amount, side) })).filter((r) => r.amount > 0.005);
 }
 
-// The schedule as one side sees it. Paridhi's share counts on her own date when she has set one. If that is later than
-// the vendor's due date, Pranjal covers the whole payment on the due date and gets her share back on her date, shown
-// as a negative line so the month-by-month balance follows his real cash.
+// Paridhi's share as dated parts: her instalments, then whatever is left on her own date (or the due date).
+export function paridhiParts(r: Scheduled): ShareInstalment[] {
+  const plan = [...(r.paridhi_plan ?? [])].filter((i) => i.amount > 0.005).sort((a, b) => a.on.localeCompare(b.on));
+  const left = Math.round((r.paridhi_amount - sum(plan.map((i) => i.amount))) * 100) / 100;
+  return left > 0.005 ? [...plan, { on: r.paridhi_due_date ?? r.due_date, amount: left }] : plan;
+}
+
+// The schedule as one side sees it. Paridhi's share counts on her own dates. Any part of it that falls after the
+// vendor's due date is covered by Pranjal on the due date and shown coming back as a negative line on her date, so
+// his month-by-month balance follows his real cash.
 export function scheduleForSide(rows: Scheduled[], side: Side): Scheduled[] {
   if (side === 'both') return rows;
-  if (side === 'paridhi')
-    return rows
-      .map((r) => ({ ...r, amount: shareOf(r.amount, r.paridhi_amount, 'paridhi'), due_date: r.paridhi_due_date ?? r.due_date }))
-      .filter((r) => r.amount > 0.005);
   const out: Scheduled[] = [];
   for (const r of rows) {
-    const fronted = r.paridhi_amount > 0.005 && r.paridhi_due_date !== null && r.paridhi_due_date > r.due_date;
-    out.push({ ...r, amount: fronted ? r.amount : shareOf(r.amount, r.paridhi_amount, 'pranjal') });
-    if (fronted)
-      out.push({ ...r, id: `${r.id}:repay`, payee: `Paridhi repays: ${r.payee}`, amount: -r.paridhi_amount, due_date: r.paridhi_due_date as string, inflow: true, note: null, is_estimate: r.is_estimate });
+    const parts = paridhiParts(r);
+    if (side === 'paridhi') {
+      parts.forEach((x, i) => out.push({ ...r, id: `${r.id}:p${i}`, sourceId: r.id, amount: x.amount, due_date: x.on }));
+      continue;
+    }
+    const direct = sum(parts.filter((x) => x.on <= r.due_date).map((x) => x.amount));
+    out.push({ ...r, sourceId: r.id, amount: r.amount - direct });
+    parts
+      .filter((x) => x.on > r.due_date)
+      .forEach((x, i) => out.push({ ...r, id: `${r.id}:r${i}`, sourceId: r.id, payee: `Paridhi repays: ${r.payee}`, amount: -x.amount, due_date: x.on, inflow: true, note: null }));
   }
   return out.filter((r) => Math.abs(r.amount) > 0.005);
 }

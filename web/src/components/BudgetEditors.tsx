@@ -2,10 +2,21 @@ import { useState } from 'react';
 import { Button, Checkbox, Group, Modal, NumberInput, ScrollArea, Select, Stack, Text, Textarea, TextInput } from '@mantine/core';
 import { supabase } from '../lib/supabase';
 import { useProfile } from '../hooks/useProfile';
-import type { AreaBudget, BudgetSettings, Scheduled, TopicRef } from '../lib/budgetPlan';
+import type { AreaBudget, BudgetSettings, Scheduled, ShareInstalment, TopicRef } from '../lib/budgetPlan';
+import { shortDate } from '../lib/budgetPlan';
 
 const todayIso = () => new Date().toLocaleDateString('en-CA');
 const n = (v: number | string) => (v === '' ? null : Number(v));
+
+// The same day in a later month, kept inside shorter months, as YYYY-MM-DD.
+function addMonthsIso(iso: string, k: number) {
+  const [y, m, d] = iso.split('-').map(Number);
+  const total = y * 12 + (m - 1) + k;
+  const ny = Math.floor(total / 12);
+  const nm = (total % 12) + 1;
+  const day = Math.min(d, new Date(Date.UTC(ny, nm, 0)).getUTCDate());
+  return `${ny}-${String(nm).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
 
 // Add or edit a payment that is still to be made. Changes are recorded in the audit log by a database trigger.
 export function ScheduleEditor({
@@ -29,18 +40,22 @@ export function ScheduleEditor({
   const [note, setNote] = useState(payment?.note ?? '');
   const [estimate, setEstimate] = useState(payment?.is_estimate ?? false);
   const [paridhi, setParidhi] = useState<number | string>(payment?.paridhi_amount ?? 0);
-  const [paridhiDue, setParidhiDue] = useState(payment?.paridhi_due_date ?? '');
+  const [plan, setPlan] = useState<{ on: string; amount: number | string }[]>(payment?.paridhi_plan?.map((i) => ({ ...i })) ?? []);
+  const [spreadMonths, setSpreadMonths] = useState<number | string>(3);
+  const [spreadStart, setSpreadStart] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const amountNum = Number(amount);
   const paridhiNum = Number(paridhi) || 0;
-  const valid = payee.trim() !== '' && Number.isFinite(amountNum) && amountNum > 0 && /^\d{4}-\d{2}-\d{2}$/.test(due) && paridhiNum >= 0 && paridhiNum <= amountNum && (paridhiDue === '' || /^\d{4}-\d{2}-\d{2}$/.test(paridhiDue));
+  const planSum = plan.reduce((a, i) => a + (Number(i.amount) || 0), 0);
+  const planOk = plan.every((i) => /^\d{4}-\d{2}-\d{2}$/.test(i.on) && Number(i.amount) > 0) && planSum <= paridhiNum + 0.005;
+  const valid = payee.trim() !== '' && Number.isFinite(amountNum) && amountNum > 0 && /^\d{4}-\d{2}-\d{2}$/.test(due) && paridhiNum >= 0 && paridhiNum <= amountNum && planOk;
 
   async function save() {
     setSaving(true);
     setError(null);
-    const fields = { payee: payee.trim(), amount: amountNum, due_date: due, topic_id: topicId, note: note.trim() || null, is_estimate: estimate, paridhi_amount: paridhiNum, paridhi_due_date: paridhiNum > 0 && paridhiDue !== '' ? paridhiDue : null };
+    const fields = { payee: payee.trim(), amount: amountNum, due_date: due, topic_id: topicId, note: note.trim() || null, is_estimate: estimate, paridhi_amount: paridhiNum, paridhi_due_date: null, paridhi_plan: paridhiNum > 0 ? plan.map((i): ShareInstalment => ({ on: i.on, amount: Number(i.amount) })) : [] };
     const res = payment
       ? await supabase.from('payment_schedule').update(fields).eq('id', payment.id)
       : await supabase.from('payment_schedule').insert({ ...fields, created_by: profile?.id ?? null });
@@ -79,13 +94,69 @@ export function ScheduleEditor({
           onChange={setParidhi}
         />
         {paridhiNum > 0 && (
-          <TextInput
-            label="Paridhi pays her share on"
-            description="Leave empty to pay on the due date. If it is later, Pranjal covers the whole payment on the due date and she pays back on this date."
-            type="date"
-            value={paridhiDue}
-            onChange={(e) => setParidhiDue(e.currentTarget.value)}
-          />
+          <Stack gap="xs">
+            <Text size="sm" fw={500}>
+              Paridhi's instalments
+            </Text>
+            <Text size="xs" c="dimmed">
+              Dates she pays her share on. Whatever is not listed falls on the due date. If she pays after the due date, Pranjal covers it until then and
+              his plan shows her paying back.
+            </Text>
+            {plan.map((i, idx) => (
+              <Group key={idx} gap="xs" wrap="nowrap" align="flex-end">
+                <TextInput
+                  type="date"
+                  aria-label={`Instalment ${idx + 1} date`}
+                  value={i.on}
+                  onChange={(e) => setPlan((p) => p.map((x, j) => (j === idx ? { ...x, on: e.currentTarget.value } : x)))}
+                  style={{ flex: 1 }}
+                />
+                <NumberInput
+                  aria-label={`Instalment ${idx + 1} amount`}
+                  prefix="₹"
+                  thousandSeparator="," thousandsGroupStyle="lakh"
+                  decimalScale={2}
+                  min={0}
+                  value={i.amount}
+                  onChange={(v) => setPlan((p) => p.map((x, j) => (j === idx ? { ...x, amount: v } : x)))}
+                  style={{ flex: 1 }}
+                />
+                <Button size="compact-sm" variant="subtle" color="red" onClick={() => setPlan((p) => p.filter((_, j) => j !== idx))}>
+                  Remove
+                </Button>
+              </Group>
+            ))}
+            <Group gap="xs" align="flex-end">
+              <Button size="compact-sm" variant="light" onClick={() => setPlan((p) => [...p, { on: due, amount: '' }])}>
+                Add an instalment
+              </Button>
+            </Group>
+            <Group gap="xs" align="flex-end" wrap="wrap">
+              <NumberInput label="Or spread over" suffix=" months" min={1} max={24} value={spreadMonths} onChange={setSpreadMonths} w={140} />
+              <TextInput label="Starting" type="date" value={spreadStart} onChange={(e) => setSpreadStart(e.currentTarget.value)} w={160} />
+              <Button
+                size="compact-md"
+                variant="light"
+                disabled={!/^\d{4}-\d{2}-\d{2}$/.test(spreadStart) || !(Number(spreadMonths) >= 1)}
+                onClick={() => {
+                  const k = Math.floor(Number(spreadMonths));
+                  const each = Math.floor((paridhiNum / k) * 100) / 100;
+                  setPlan(Array.from({ length: k }, (_, j) => ({ on: addMonthsIso(spreadStart, j), amount: j === k - 1 ? Math.round((paridhiNum - each * (k - 1)) * 100) / 100 : each })));
+                }}
+              >
+                Spread evenly
+              </Button>
+            </Group>
+            {planSum > paridhiNum + 0.005 ? (
+              <Text size="xs" c="red">
+                The instalments add up to more than her share.
+              </Text>
+            ) : paridhiNum - planSum > 0.005 ? (
+              <Text size="xs" c="dimmed">
+                ₹{(paridhiNum - planSum).toLocaleString('en-IN')} still falls on {due ? shortDate(due) : 'the due date'}.
+              </Text>
+            ) : null}
+          </Stack>
         )}
         <Select
           label="Area"

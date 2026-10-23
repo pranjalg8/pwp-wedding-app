@@ -202,8 +202,8 @@ export function Budget() {
           today={today}
           isUnlocked={isUnlocked}
           onAdd={() => setScheduleEditing('new')}
-          onPaid={(p) => setMarkPaid(schedule.find((x) => x.id === p.id) ?? p)}
-          onEdit={(p) => setScheduleEditing(schedule.find((x) => x.id === p.id) ?? p)}
+          onPaid={(p) => setMarkPaid(schedule.find((x) => x.id === (p.sourceId ?? p.id)) ?? p)}
+          onEdit={(p) => setScheduleEditing(schedule.find((x) => x.id === (p.sourceId ?? p.id)) ?? p)}
         />
       </Section>
 
