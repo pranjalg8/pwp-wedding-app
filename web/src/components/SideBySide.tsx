@@ -13,10 +13,10 @@ export function SideBySide({ plans, side, onPick }: { plans: Record<Side, Plan>;
     { label: 'Funds available', cell: (p) => ({ text: p.fundsNow === null ? 'Not set' : formatInr(p.fundsNow) }) },
     { label: 'Left after paying all', cell: (p) => (p.leftAfterAll === null ? { text: '—' } : { text: signed(p.leftAfterAll), red: p.leftAfterAll < 0 }) },
     {
-      label: 'More funds needed',
+      label: 'First top-up needed',
       cell: (p) => {
         const t = topUps(p);
-        return p.fundsNow === null ? { text: '—' } : t.length ? { text: `${formatInr(t.reduce((a, x) => a + x.amount, 0))} by ${shortDate(t[0].by)}`, red: true } : { text: 'None' };
+        return p.fundsNow === null ? { text: '—' } : t.length ? { text: `${formatInr(t[0].amount)} by ${shortDate(t[0].by)}`, red: true } : { text: 'None' };
       },
     },
     { label: 'First short month', cell: (p) => (p.fundsNow === null ? { text: '—' } : p.firstShort ? { text: p.firstShort.label, red: true } : { text: 'None' }) },
