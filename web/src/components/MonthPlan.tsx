@@ -139,7 +139,7 @@ export function MonthPlan({
                 </Text>
               </Group>
               {plan.overdue.map((p) => (
-                <PaymentLine key={p.id} p={p} whole={side === 'both' ? undefined : schedule.find((x) => x.id === p.id)?.amount} topics={topics} late={daysBetween(p.due_date, today)} isUnlocked={isUnlocked} onPaid={onPaid} onEdit={onEdit} />
+                <PaymentLine key={p.id} p={p} whole={side === 'both' ? undefined : schedule.find((x) => x.id === (p.sourceId ?? p.id))?.amount} topics={topics} late={daysBetween(p.due_date, today)} isUnlocked={isUnlocked} onPaid={onPaid} onEdit={onEdit} />
               ))}
             </Stack>
             <Divider />
@@ -180,7 +180,7 @@ export function MonthPlan({
             {m.items.length > 0 && (
               <Stack gap="xs">
                 {m.items.map((p) => (
-                  <PaymentLine key={p.id} p={p} whole={side === 'both' ? undefined : schedule.find((x) => x.id === p.id)?.amount} topics={topics} isUnlocked={isUnlocked} onPaid={onPaid} onEdit={onEdit} />
+                  <PaymentLine key={p.id} p={p} whole={side === 'both' ? undefined : schedule.find((x) => x.id === (p.sourceId ?? p.id))?.amount} topics={topics} isUnlocked={isUnlocked} onPaid={onPaid} onEdit={onEdit} />
                 ))}
               </Stack>
             )}
