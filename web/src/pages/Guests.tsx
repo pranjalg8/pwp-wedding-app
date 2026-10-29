@@ -11,6 +11,9 @@ import { DroppedGuests } from '../components/DroppedGuests';
 import { RoomPlan } from '../components/RoomPlan';
 import { RoomCeiling } from '../components/RoomCeiling';
 import { RoomForecast } from '../components/RoomForecast';
+import { RoomBoard } from '../components/RoomBoard';
+import { RoomingList } from '../components/RoomingList';
+import { useRoomBoard } from '../hooks/useRoomBoard';
 import { GuestsOverview } from '../components/GuestsOverview';
 import { HouseholdList } from '../components/HouseholdList';
 import { useGuestStays } from '../hooks/useGuestStays';
@@ -51,6 +54,8 @@ export function Guests() {
   const { invites, totals, reload: reloadInvites } = useGuestInvites();
   const { sites, nights } = useStay();
   const { stays, reload: reloadStays } = useGuestStays();
+  const { rooms: stayRooms, roomStays, reload: reloadRoomBoard } = useRoomBoard();
+  const roomsView = (['plan', 'board', 'list'] as const).find((v) => v === params.get('view')) ?? 'plan';
   const days = useMemo(() => daysFromFunctions(fnRows), [fnRows]);
 
   async function loadFunctions() {
@@ -415,9 +420,27 @@ export function Guests() {
 
           {tab === 'rooms' && (
             <Stack gap="lg">
-              <RoomCeiling guests={guests} invites={invites} sites={sites} nights={nights} days={days} />
-              <RoomForecast guests={guests} invites={invites} sites={sites} nights={nights} days={days} />
-              <RoomPlan guests={guests} invites={invites} sites={sites} nights={nights} stays={stays} reloadStays={reloadStays} onGuestsChanged={load} />
+              <SegmentedControl
+                size="xs"
+                value={roomsView}
+                onChange={(v) => setParams({ tab: 'rooms', ...(v === 'plan' ? {} : { view: v }) })}
+                data={[
+                  { value: 'plan', label: 'How many rooms' },
+                  { value: 'board', label: 'Room board' },
+                  { value: 'list', label: 'Rooming list' },
+                ]}
+              />
+              {roomsView === 'plan' && (
+                <>
+                  <RoomCeiling guests={guests} invites={invites} sites={sites} nights={nights} days={days} />
+                  <RoomForecast guests={guests} invites={invites} sites={sites} nights={nights} days={days} />
+                  <RoomPlan guests={guests} invites={invites} sites={sites} nights={nights} stays={stays} reloadStays={reloadStays} onGuestsChanged={load} />
+                </>
+              )}
+              {roomsView === 'board' && (
+                <RoomBoard guests={guests} invites={invites} sites={sites} nights={nights} rooms={stayRooms} roomStays={roomStays} reload={reloadRoomBoard} />
+              )}
+              {roomsView === 'list' && <RoomingList guests={guests} invites={invites} sites={sites} nights={nights} rooms={stayRooms} roomStays={roomStays} />}
             </Stack>
           )}
         </>
