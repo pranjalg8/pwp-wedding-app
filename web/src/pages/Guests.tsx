@@ -9,6 +9,7 @@ import { useGuestInvites } from '../hooks/useGuestInvites';
 import { BulkAnswerModal, BulkInviteModal, RsvpEditor, daysFromFunctions, restoreInvites, type InviteSnapshot } from '../components/RsvpEditor';
 import { DroppedGuests } from '../components/DroppedGuests';
 import { RoomPlan } from '../components/RoomPlan';
+import { RoomCeiling } from '../components/RoomCeiling';
 import { RoomForecast } from '../components/RoomForecast';
 import { GuestsOverview } from '../components/GuestsOverview';
 import { HouseholdList } from '../components/HouseholdList';
@@ -414,6 +415,7 @@ export function Guests() {
 
           {tab === 'rooms' && (
             <Stack gap="lg">
+              <RoomCeiling guests={guests} invites={invites} sites={sites} nights={nights} days={days} />
               <RoomForecast guests={guests} invites={invites} sites={sites} nights={nights} days={days} />
               <RoomPlan guests={guests} invites={invites} sites={sites} nights={nights} stays={stays} reloadStays={reloadStays} onGuestsChanged={load} />
             </Stack>
