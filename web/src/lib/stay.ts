@@ -187,3 +187,36 @@ export function forecastRooms(guests: GuestPlan[], invites: Inv[], sites: StaySi
     unplacedRooms: plan.unplaced.reduce((a, u) => a + u.rooms, 0),
   };
 }
+
+// ---- Room ceiling: how many people the rooms can take, worked backwards from the rooms ----
+
+export type CeilingSetup = { key: string; label: string; hint: string; rooms: number; people: number };
+
+// Rooms are spread over the guest list at a rate of rooms per person (the whole list, or the households invited
+// so far), scaled by how many of the invited are expected to come. Each night has its own rooms, so a setup's
+// rooms are what that night offers after the rooms held back (photographers, make-up artists and so on, taken
+// from the main stay). Everyone staying both nights is held by the tighter night; a household invited to one day
+// only uses that night, so one household per night fits in the sum of the nights.
+export function roomCeiling(sites: StaySite[], nights: StayNight[], dates: string[], held: number, roomsPerPerson: number, attendance: number) {
+  const perNight = dates.map((date) => {
+    const a = roomsAvailable(sites, nights, date);
+    const total = a.main + a.other;
+    return { date, total, usable: Math.max(0, total - Math.min(held, a.main)) };
+  });
+  const rate = roomsPerPerson * Math.min(1, Math.max(0.05, attendance));
+  const people = (rooms: number) => (rate > 0 ? Math.floor(rooms / rate) : 0);
+
+  const setups: CeilingSetup[] = [];
+  if (perNight.length > 0) {
+    const both = Math.min(...perNight.map((n) => n.usable));
+    setups.push({ key: 'both', label: 'Everyone for every day', hint: `Held by the tightest night`, rooms: both, people: people(both) });
+    for (const n of perNight) {
+      setups.push({ key: n.date, label: `Everyone for ${n.date} only`, hint: `One night's rooms`, rooms: n.usable, people: people(n.usable) });
+    }
+  }
+  if (perNight.length > 1) {
+    const sum = perNight.reduce((a, n) => a + n.usable, 0);
+    setups.push({ key: 'split', label: 'Each household one day, split across the days', hint: 'Both nights used', rooms: sum, people: people(sum) });
+  }
+  return { perNight, setups, rate };
+}
