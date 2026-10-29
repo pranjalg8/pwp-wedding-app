@@ -103,7 +103,7 @@ export function Functions() {
                 tint={tintFor(rows.indexOf(r))}
                 outfits={outfits}
                 detailed
-                showRsvp
+                showRsvp={!r.family_only}
                 rsvp={totals[r.event_date]}
                 onEdit={isUnlocked ? () => setEditing(r) : undefined}
               />

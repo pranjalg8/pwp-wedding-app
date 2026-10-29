@@ -303,7 +303,7 @@ export function Home() {
         </Group>
         <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
           {functions.map((f, i) => (
-            <FunctionCard key={f.id} fn={f} tint={tintFor(i)} outfits={outfits} showRsvp rsvp={totals[f.event_date]} to="/functions" />
+            <FunctionCard key={f.id} fn={f} tint={tintFor(i)} outfits={outfits} showRsvp={!f.family_only} rsvp={totals[f.event_date]} to="/functions" />
           ))}
         </SimpleGrid>
       </Stack>
