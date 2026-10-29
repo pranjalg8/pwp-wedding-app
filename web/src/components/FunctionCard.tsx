@@ -16,6 +16,7 @@ export type WeddingFunction = {
   avoid_colours: string[];
   notes: string | null;
   status: 'open' | 'in_progress' | 'decided';
+  family_only: boolean; // family ceremonies: no guest RSVP, invites or room night
 };
 
 export const FUNCTION_STATUS_LABEL = { open: 'Open', in_progress: 'In progress', decided: 'Decided' } as const;

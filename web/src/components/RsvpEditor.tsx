@@ -15,7 +15,9 @@ const used = (r: Row) => n(r.coming) + n(r.maybe) + n(r.declined);
 const zero = { coming: 0, maybe: 0, declined: 0 };
 
 // Days with their functions, e.g. [{ date: '2027-02-14', label: 'Sun 14 Feb', functions: ['Tilak', ...] }].
-export function daysFromFunctions(fns: { name: string; event_date: string }[]): RsvpDay[] {
+// Family-only functions (no guest invited) do not make a day.
+export function daysFromFunctions(allFns: { name: string; event_date: string; family_only?: boolean }[]): RsvpDay[] {
+  const fns = allFns.filter((f) => !f.family_only);
   const dates = [...new Set(fns.map((f) => f.event_date))].sort();
   return dates.map((date) => ({
     date,

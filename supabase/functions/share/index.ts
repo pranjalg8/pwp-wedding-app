@@ -227,7 +227,7 @@ Deno.serve(async (req) => {
     }
 
     if (want.has('functions')) {
-      const fns = await all(sb.from('wedding_functions').select('name, event_date, slot, theme, colours, avoid_colours, notes, status').order('sort_order'));
+      const fns = await all(sb.from('wedding_functions').select('name, event_date, slot, theme, colours, avoid_colours, notes, status, family_only').order('sort_order'));
       data.functions = fns.map((x) => ({ ...x, notes: scrub(x.notes, f), theme: scrub(x.theme, f) }));
     }
 

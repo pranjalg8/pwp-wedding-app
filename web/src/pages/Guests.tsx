@@ -18,7 +18,7 @@ import { splitOf } from '../lib/rsvp';
 import { allNightsOf, householdNeed } from '../lib/stay';
 import { countByStatus, type HouseholdStatus } from '../lib/guestStatus';
 
-type FunctionRef = { name: string; event_date: string };
+type FunctionRef = { name: string; event_date: string; family_only: boolean };
 type Tab = 'overview' | 'households' | 'rooms' | 'dropped';
 type ListView = 'all' | 'not_invited' | 'waiting' | 'answered';
 
@@ -53,7 +53,7 @@ export function Guests() {
   const days = useMemo(() => daysFromFunctions(fnRows), [fnRows]);
 
   async function loadFunctions() {
-    const { data } = await supabase.from('wedding_functions').select('name, event_date').order('sort_order');
+    const { data } = await supabase.from('wedding_functions').select('name, event_date, family_only').order('sort_order');
     setFnRows((data ?? []) as FunctionRef[]);
   }
 
