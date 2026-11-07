@@ -19,7 +19,7 @@ import { HouseholdList } from '../components/HouseholdList';
 import { useGuestStays } from '../hooks/useGuestStays';
 import { useStay } from '../hooks/useStay';
 import { splitOf } from '../lib/rsvp';
-import { allNightsOf, householdNeed } from '../lib/stay';
+import { guestNightsOf, householdNeed } from '../lib/stay';
 import { countByStatus, type HouseholdStatus } from '../lib/guestStatus';
 
 type FunctionRef = { name: string; event_date: string; family_only: boolean };
@@ -113,7 +113,7 @@ export function Guests() {
 
   // Households that need rooms and are not fully placed yet: the number on the Rooms tab and the Overview.
   const toPlace = useMemo(() => {
-    const all = allNightsOf(nights);
+    const all = guestNightsOf(nights, invites);
     return guests.filter((g) => {
       const need = householdNeed(g, invites, all);
       if (!need || need.main + need.other <= 0) return false;

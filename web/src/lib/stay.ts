@@ -74,6 +74,16 @@ export function householdNeed(g: GuestRooms, invites: Inv[], allNights: string[]
 
 export const allNightsOf = (nights: StayNight[]) => [...new Set(nights.map((n) => n.night))].sort();
 
+// The nights a household can need a room: from the first day anyone is invited to the last. The stay table also holds
+// nights with rooms but no guest function (13 Feb before, 16 Feb after, when only the family is around). Those must
+// not count as nights every household stays, or the main stay would look empty on 16 Feb and checkout would move.
+export function guestNightsOf(nights: StayNight[], invites: Pick<Invite, 'event_date'>[]) {
+  const all = allNightsOf(nights);
+  if (invites.length === 0) return all;
+  const days = invites.map((i) => i.event_date).sort();
+  return all.filter((n) => n >= days[0] && n <= days[days.length - 1]);
+}
+
 const capacity = (nights: StayNight[], siteId: string, night: string) => nights.find((n) => n.site_id === siteId && n.night === night)?.rooms ?? 0;
 
 // Rooms placed at each place on each night: a household's rooms count on every night it is there.
@@ -96,7 +106,7 @@ export type Unplaced = { guest_id: string; kind: 'main' | 'other'; rooms: number
 // (Hotel Sai only when the nearer one is full, or the household needs a lift). Nothing is placed where a night has
 // no room left, and a household needing a lift never goes to a place without one.
 export function suggestPlan(guests: GuestPlan[], invites: Inv[], sites: StaySite[], nights: StayNight[]) {
-  const all = allNightsOf(nights);
+  const all = guestNightsOf(nights, invites);
   const used: Record<string, Record<string, number>> = {};
   const left = (siteId: string, ns: string[]) =>
     Math.min(...ns.map((n) => capacity(nights, siteId, n) - (used[siteId]?.[n] ?? 0)));
@@ -168,7 +178,7 @@ export function forecastRooms(guests: GuestPlan[], invites: Inv[], sites: StaySi
   const pick = scenario === 'both' ? dates : dates.slice(-1);
   const synth: Inv[] = rest.flatMap((g) => pick.map((event_date) => ({ guest_id: g.id, event_date, coming: 0, declined: 0 })));
   const all = [...invites, ...synth];
-  const allNights = allNightsOf(nights);
+  const allNights = guestNightsOf(nights, all);
 
   const restNeeds = rest.map((g) => householdNeed(g, synth, allNights)).filter((x): x is NonNullable<typeof x> => !!x && x.main + x.other > 0);
   const perNight = allNights
