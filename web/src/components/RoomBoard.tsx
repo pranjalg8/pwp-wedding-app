@@ -3,7 +3,7 @@ import { Alert, Badge, Box, Button, Group, Paper, ScrollArea, SegmentedControl, 
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
 import { useEditMode } from '../hooks/useEditMode';
-import { allNightsOf, type StayNight, type StaySite } from '../lib/stay';
+import { allNightsOf, guestNightsOf, type StayNight, type StaySite } from '../lib/stay';
 import type { Invite } from '../lib/rsvp';
 import {
   ISSUE_TEXT,
@@ -48,16 +48,17 @@ export function RoomBoard({
 }) {
   const { isUnlocked } = useEditMode();
   const allNights = useMemo(() => allNightsOf(nights), [nights]);
+  const guestNights = useMemo(() => guestNightsOf(nights, invites), [nights, invites]);
   const [night, setNight] = useState<string | null>(null);
-  const shownNight = night && allNights.includes(night) ? night : (allNights[allNights.length - 1] ?? '');
+  const shownNight = night && allNights.includes(night) ? night : (guestNights[guestNights.length - 1] ?? allNights[allNights.length - 1] ?? '');
   const [picked, setPicked] = useState<string | null>(null);
   const [openRoom, setOpenRoom] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [over, setOver] = useState<string | null>(null);
   const drag = useRef<Drag | null>(null);
 
-  const households = useMemo(() => householdsNeedingRooms(guests, invites, allNights), [guests, invites, allNights]);
-  const occ = useMemo(() => occupantsByRoom(roomStays, households, guests, allNights), [roomStays, households, guests, allNights]);
+  const households = useMemo(() => householdsNeedingRooms(guests, invites, guestNights), [guests, invites, guestNights]);
+  const occ = useMemo(() => occupantsByRoom(roomStays, households, guests, guestNights), [roomStays, households, guests, guestNights]);
   const roomsOf = useMemo(() => {
     const m = new Map<string, number>();
     for (const s of roomStays) m.set(s.guest_id, (m.get(s.guest_id) ?? 0) + 1);
@@ -84,9 +85,9 @@ export function RoomBoard({
 
   const issuesByRoom = useMemo(() => {
     const m = new Map<string, ReturnType<typeof roomIssues>>();
-    for (const r of rooms) m.set(r.id, roomIssues(r, siteById[r.site_id], occ.get(r.id) ?? [], allNights));
+    for (const r of rooms) m.set(r.id, roomIssues(r, siteById[r.site_id], occ.get(r.id) ?? [], guestNights));
     return m;
-  }, [rooms, occ, siteById, allNights]);
+  }, [rooms, occ, siteById, guestNights]);
   const problems = [...issuesByRoom.values()].filter((i) => i.some(isProblem)).length;
 
   async function place(guestId: string, roomId: string) {
@@ -200,7 +201,7 @@ export function RoomBoard({
                     canDrag={isUnlocked}
                     onPick={() => isUnlocked && setPicked((cur) => (cur === h.g.id ? null : h.g.id))}
                     onDragStart={() => (drag.current = { guestId: h.g.id, stayId: null })}
-                    allNights={allNights}
+                    allNights={guestNights}
                   />
                 ))}
               </Group>

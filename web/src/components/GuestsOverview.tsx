@@ -4,6 +4,7 @@ import type { RsvpDay } from './RsvpEditor';
 import type { Invite, RsvpTotals } from '../lib/rsvp';
 import { STATUS_COLOR, STATUS_LABEL, STATUS_ORDER, type HouseholdStatus, type StatusCounts } from '../lib/guestStatus';
 import { roomsAvailable, roomsWanted, type StayNight, type StaySite } from '../lib/stay';
+import { checkoutOf } from '../lib/rooms';
 
 type GuestRooms = { id: string; persons: number; rooms_inside: number | string; rooms_outside: number | string };
 
@@ -69,6 +70,13 @@ export function GuestsOverview({
   const shade = (s: HouseholdStatus) => `var(--mantine-color-${STATUS_COLOR[s]}-${s === 'not_invited' ? 4 : 6})`;
   const dayDates = new Set(days.map((d) => d.date));
   const extraNights = [...new Set(nights.map((n) => n.night))].filter((n) => !dayDates.has(n)).sort();
+  const firstDay = [...dayDates].sort()[0] ?? '';
+  // Each place checks out the day after its last booked night.
+  const checkouts = sites
+    .map((s) => ({ s, last: nights.filter((n) => n.site_id === s.id).map((n) => n.night).sort().pop() }))
+    .filter((x): x is { s: StaySite; last: string } => !!x.last)
+    .map((x) => `${x.s.name.split(',')[0]} ${dayLabel(checkoutOf([x.last])!)}`)
+    .join(', ');
 
   return (
     <Stack gap="xl">
@@ -186,9 +194,9 @@ export function GuestsOverview({
           <Text size="sm" c="dimmed">
             {extraNights.map((n) => {
               const h = roomsAvailable(sites, nights, n);
-              return `${dayLabel(n)}, the night before: ${h.bySite.map((x) => `${x.rooms} rooms at ${x.site.name.split(',')[0]}`).join(', ')}, no function`;
+              return `${dayLabel(n)}, the night ${n < firstDay ? 'before' : 'after'}: ${h.bySite.map((x) => `${x.rooms} rooms at ${x.site.name.split(',')[0]}`).join(', ')}, no function`;
             }).join('. ')}
-            . Everyone checks out on 16 Feb.
+            . Checkout: {checkouts}.
           </Text>
         )}
       </Stack>

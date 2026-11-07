@@ -3,7 +3,7 @@ import { Badge, Box, Button, CloseButton, Group, Progress, ScrollArea, Segmented
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
 import { useEditMode } from '../hooks/useEditMode';
-import { allNightsOf, householdNeed, suggestPlan, usedByNight, type GuestStay, type StayNight, type StaySite } from '../lib/stay';
+import { allNightsOf, guestNightsOf, householdNeed, suggestPlan, usedByNight, type GuestStay, type StayNight, type StaySite } from '../lib/stay';
 import type { Invite } from '../lib/rsvp';
 import { StayAssign, SuggestModal, restoreStays } from './StayAssign';
 
@@ -75,6 +75,7 @@ export function RoomPlan({
   const [error, setError] = useState<string | null>(null);
 
   const allNights = useMemo(() => allNightsOf(nights), [nights]);
+  const guestNights = useMemo(() => guestNightsOf(nights, invites), [nights, invites]);
   const siteName = useMemo(() => Object.fromEntries(sites.map((s) => [s.id, s.name])), [sites]);
   const siteById = useMemo(() => Object.fromEntries(sites.map((s) => [s.id, s])), [sites]);
   const names = useMemo(() => Object.fromEntries(guests.map((g) => [g.id, g.name])), [guests]);
@@ -82,7 +83,7 @@ export function RoomPlan({
   const households = useMemo(
     () =>
       guests
-        .map((g) => ({ g, need: householdNeed(g, invites, allNights) }))
+        .map((g) => ({ g, need: householdNeed(g, invites, guestNights) }))
         .filter((x): x is { g: PlanGuest; need: NonNullable<ReturnType<typeof householdNeed>> } => !!x.need && x.need.main + x.need.other > 0)
         .map((x) => {
           const mine = stays.filter((s) => s.guest_id === x.g.id);
@@ -91,11 +92,11 @@ export function RoomPlan({
           const state: 'placed' | 'partly' | 'none' = placed >= wanted - 0.01 ? 'placed' : placed > 0 ? 'partly' : 'none';
           return { ...x, mine, placed, wanted, state };
         }),
-    [guests, invites, allNights, stays]
+    [guests, invites, guestNights, stays]
   );
 
   const nightsOfGuest = useMemo(() => new Map(households.map((h) => [h.g.id, h.need.nights])), [households]);
-  const used = useMemo(() => usedByNight(stays, nightsOfGuest, allNights), [stays, nightsOfGuest, allNights]);
+  const used = useMemo(() => usedByNight(stays, nightsOfGuest, guestNights), [stays, nightsOfGuest, guestNights]);
 
   const totalWanted = households.reduce((a, h) => a + h.wanted, 0);
   const totalPlaced = households.reduce((a, h) => a + Math.min(h.placed, h.wanted), 0);
@@ -345,7 +346,7 @@ export function RoomPlan({
           guest={assigning}
           sites={sites}
           stays={stays.filter((s) => s.guest_id === assigning.id)}
-          need={households.find((h) => h.g.id === assigning.id)?.need ?? householdNeed(assigning, invites, allNights)}
+          need={households.find((h) => h.g.id === assigning.id)?.need ?? householdNeed(assigning, invites, guestNights)}
           opened
           onClose={() => setAssigning(null)}
           onSaved={() => {

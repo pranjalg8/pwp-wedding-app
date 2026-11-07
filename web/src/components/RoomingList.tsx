@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Button, Group, SegmentedControl, Stack, Switch, Table, Text } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { allNightsOf, type StayNight, type StaySite } from '../lib/stay';
+import { guestNightsOf, type StayNight, type StaySite } from '../lib/stay';
 import type { Invite } from '../lib/rsvp';
 import { householdsNeedingRooms, occupantsByRoom, roomingCsv, roomingHtml, roomingRows, type RoomGuest, type RoomStay, type StayRoom } from '../lib/rooms';
 
@@ -33,7 +33,7 @@ export function RoomingList({
   rooms: StayRoom[];
   roomStays: RoomStay[];
 }) {
-  const allNights = useMemo(() => allNightsOf(nights), [nights]);
+  const allNights = useMemo(() => guestNightsOf(nights, invites), [nights, invites]);
   const [siteId, setSiteId] = useState<string>('all');
   const [members, setMembers] = useState(true);
 

@@ -3,7 +3,7 @@ import { ActionIcon, Badge, Box, Button, Checkbox, Group, Menu, Paper, Stack, Te
 import type { Guest } from './GuestEditor';
 import type { RsvpDay } from './RsvpEditor';
 import { splitOf, type Invite } from '../lib/rsvp';
-import { allNightsOf, householdNeed, type GuestStay, type StayNight, type StaySite } from '../lib/stay';
+import { guestNightsOf, householdNeed, type GuestStay, type StayNight, type StaySite } from '../lib/stay';
 
 const PAGE = 40;
 const rooms = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
@@ -62,7 +62,7 @@ export function HouseholdList({
   onDelete: (g: Guest) => void;
 }) {
   const [limit, setLimit] = useState(PAGE);
-  const allNights = useMemo(() => allNightsOf(nights), [nights]);
+  const allNights = useMemo(() => guestNightsOf(nights, invites), [nights, invites]);
   const siteName = useMemo(() => Object.fromEntries(sites.map((s) => [s.id, s.name.split(',')[0]])), [sites]);
 
   const shown = guests.slice(0, limit);
