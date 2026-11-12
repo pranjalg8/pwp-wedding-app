@@ -119,7 +119,9 @@ export function suggestPlan(guests: GuestPlan[], invites: Inv[], sites: StaySite
 
   const households = guests
     .map((g) => ({ g, need: householdNeed(g, invites, all) }))
-    .filter((x): x is { g: GuestPlan; need: NonNullable<ReturnType<typeof householdNeed>> } => !!x.need && x.need.main + x.need.other > 0)
+    // A household with no night in the stay table (its only day is after the last night) needs no room. Without
+    // this, Math.min over no nights is Infinity and it would be placed anywhere.
+    .filter((x): x is { g: GuestPlan; need: NonNullable<ReturnType<typeof householdNeed>> } => !!x.need && x.need.main + x.need.other > 0 && x.need.nights.length > 0)
     .sort(
       (a, b) =>
         a.need.firstNight.localeCompare(b.need.firstNight) ||

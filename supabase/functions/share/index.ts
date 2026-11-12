@@ -280,7 +280,22 @@ Deno.serve(async (req) => {
     if (want.has('rooms')) {
       const sites = await all(sb.from('stay_sites').select('id, name, role, has_lift, floors, people_per_room, distance_note, booking_note, notes, sort_order').order('sort_order'));
       const nights = await all(sb.from('stay_nights').select('site_id, night, rooms').order('night'));
-      const stays = await all(sb.from('guest_stays').select('guest_id, site_id, rooms'));
+      // Placements come from the room board (one row per household per room). guest_stays is the old per-place
+      // table and is no longer written.
+      const rooms = await all(sb.from('stay_rooms').select('id, site_id'));
+      const siteOfRoom = new Map(rooms.map((r) => [r.id, r.site_id]));
+      const roomStays = await all(sb.from('room_stays').select('room_id, guest_id'));
+      const byHouseholdSite = new Map<string, { guest_id: string; site_id: string; rooms: Set<string> }>();
+      for (const rs of roomStays) {
+        const site_id = siteOfRoom.get(rs.room_id);
+        if (!site_id) continue;
+        const key = `${rs.guest_id}:${site_id}`;
+        const row = byHouseholdSite.get(key) ?? { guest_id: rs.guest_id, site_id, rooms: new Set<string>() };
+        row.rooms.add(rs.room_id);
+        byHouseholdSite.set(key, row);
+      }
+      const stays = [...byHouseholdSite.values()].map((x) => ({ guest_id: x.guest_id, site_id: x.site_id, rooms: x.rooms.size }));
+      const usedRooms = (siteId: string) => new Set(roomStays.filter((rs) => siteOfRoom.get(rs.room_id) === siteId).map((rs) => rs.room_id)).size;
       data.rooms = {
         sites: sites.map((s) => ({
           name: s.name,
@@ -292,7 +307,8 @@ Deno.serve(async (req) => {
           booking_note: scrub(s.booking_note, f),
           notes: scrub(s.notes, f),
           nights: nights.filter((n) => n.site_id === s.id).map((n) => ({ night: n.night, rooms: n.rooms })),
-          placedRooms: stays.filter((x) => x.site_id === s.id).reduce((a, x) => a + Number(x.rooms), 0),
+          // A room shared by two households counts once.
+          placedRooms: usedRooms(s.id),
         })),
         placements: f.guests
           ? stays.map((x) => ({ name: guests.find((g) => g.id === x.guest_id)?.name ?? 'Household', site: sites.find((s) => s.id === x.site_id)?.name ?? '', rooms: Number(x.rooms) }))
@@ -306,12 +322,13 @@ Deno.serve(async (req) => {
       } else {
         const settings = (await all(sb.from('budget_settings').select('total_budget, funds_available, funds_as_of, monthly_addition')))[0] ?? null;
         const payments = await all(sb.from('payments').select('paid_on, payee, amount, purpose, topic_id').order('paid_on', { ascending: false }));
-        const schedule = await all(sb.from('payment_schedule').select('payee, amount, due_date, status, is_estimate, note, topic_id').order('due_date'));
+        // Notes are left out: they can describe who pays what and why, which a shared view does not need.
+        const schedule = await all(sb.from('payment_schedule').select('payee, amount, due_date, status, is_estimate, topic_id').order('due_date'));
         const areas = await all(sb.from('budget_areas').select('topic_id, allocation'));
         data.budget = {
           settings,
           payments: payments.map((p) => ({ paid_on: p.paid_on, payee: p.payee, amount: Number(p.amount), purpose: p.purpose, area: p.topic_id ? topicLabel[p.topic_id] ?? null : null })),
-          schedule: schedule.map((s) => ({ payee: s.payee, amount: Number(s.amount), due_date: s.due_date, status: s.status, is_estimate: s.is_estimate, note: s.note, area: s.topic_id ? topicLabel[s.topic_id] ?? null : null })),
+          schedule: schedule.map((s) => ({ payee: s.payee, amount: Number(s.amount), due_date: s.due_date, status: s.status, is_estimate: s.is_estimate, area: s.topic_id ? topicLabel[s.topic_id] ?? null : null })),
           areas: areas.map((a) => ({ area: topicLabel[a.topic_id] ?? null, allocation: Number(a.allocation) })),
         };
       }

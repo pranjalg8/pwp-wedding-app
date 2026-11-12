@@ -1,11 +1,13 @@
 name: Check pull request
 
 # Runs on every pull request so a broken build, a type error or a stale changelog shows up before merging,
-# not when the deploy runs on main. Lint warnings are listed but do not fail the check.
+# not when the deploy runs on main. Lint warnings are listed but do not fail the check. The tests cover the money and
+# room logic; the realtime check fails when a page listens to a table that is not published for live updates.
 on:
   pull_request:
     paths:
       - 'web/**'
+      - 'supabase/migrations/**'
       - '.github/workflows/check.yml'
 
 permissions:
@@ -22,7 +24,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: web/package-lock.json
       - name: Install dependencies
@@ -31,6 +33,12 @@ jobs:
       - name: Check the changelog is up to date
         working-directory: web
         run: npm run changelog:check
+      - name: Tests
+        working-directory: web
+        run: npm test
+      - name: Realtime subscriptions are published
+        working-directory: web
+        run: npm run realtime:check
       - name: Type-check and build
         working-directory: web
         run: npm run build
