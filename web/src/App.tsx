@@ -18,6 +18,7 @@ import { TopicDetail } from './pages/TopicDetail';
 import { Activity } from './pages/Activity';
 import { Budget } from './pages/Budget';
 import { Vendors } from './pages/Vendors';
+import { Knowledge } from './pages/Knowledge';
 import { Functions } from './pages/Functions';
 import { FunctionResults } from './pages/FunctionResults';
 import { Swipe } from './pages/Swipe';
@@ -58,6 +59,7 @@ const NAV_GROUPS = [
     items: [
       { to: '/budget', label: 'Budget', icon: '💰' },
       { to: '/vendors', label: 'Vendors', icon: '🤝' },
+      { to: '/knowledge', label: 'Knowledge', icon: '📚' },
       { to: '/honeymoon', label: 'Honeymoon', icon: '🏝️' },
     ],
   },
@@ -208,6 +210,7 @@ function AuthedApp() {
           <Route path="/budget" element={<Budget />} />
           <Route path="/share" element={<Suspense fallback={pageLoader}><ShareLinks /></Suspense>} />
           <Route path="/vendors" element={<Vendors />} />
+          <Route path="/knowledge" element={<Knowledge />} />
           <Route path="/functions" element={<Functions />} />
           <Route path="/guests" element={<Suspense fallback={pageLoader}><Guests /></Suspense>} />
           <Route path="/functions/swipe" element={<Swipe scope="wedding" />} />
