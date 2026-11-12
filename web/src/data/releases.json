@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.7",
+    "date": "2026-11-12",
+    "title": "Knowledge base",
+    "items": [
+      { "kind": "new", "text": "Knowledge page: a short reference for the wedding (dates, stay and food, money rules, the home move) with search, kept in step with the planner." }
+    ]
+  },
+  {
     "version": "1.6",
     "date": "2026-10-09",
     "title": "Function decks, results and this log",

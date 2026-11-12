@@ -2,6 +2,12 @@
 
 Every version of the planner, newest first. This file is generated from `web/src/data/releases.json`; edit that file and run `npm run changelog`. The same list shows in the app under Activity, What's new.
 
+## 1.7 - 2026-11-12: Knowledge base
+
+**New**
+
+- Knowledge page: a short reference for the wedding (dates, stay and food, money rules, the home move) with search, kept in step with the planner.
+
 ## 1.6 - 2026-10-09: Function decks, results and this log
 
 **New**
