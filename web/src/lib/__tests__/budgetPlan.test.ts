@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildAreas, buildPlan, forSide, paridhiParts, scheduleForSide, shareOf, topUps, type BudgetSettings } from '../budgetPlan';
+import { buildAreas, buildPlan, filterScope, forSide, paridhiParts, scheduleForSide, shareOf, topUps, withFullFunds, type BudgetSettings } from '../budgetPlan';
 import { line } from './fixtures';
 
 const settings = (over: Partial<BudgetSettings> = {}): BudgetSettings => ({
@@ -101,5 +101,32 @@ describe('buildAreas', () => {
     };
     expect(buildAreas({ ...opts, side: 'both' })[0]).toMatchObject({ paid: 9_000, pending: 12_000, allocation: 50_000, left: 29_000 });
     expect(buildAreas({ ...opts, side: 'paridhi' })[0]).toMatchObject({ paid: 3_000, pending: 7_000, allocation: null });
+  });
+});
+
+describe('wedding and after-the-wedding scopes', () => {
+  const topics = [
+    { id: 't-decor', key: 'decor', label: 'Decor', budget_group: 'wedding' as const },
+    { id: 't-honey', key: 'honey', label: 'Honeymoon', budget_group: 'post_wedding' as const },
+  ];
+  const rows = [
+    line({ id: 'decor', amount: 40_000, due_date: '2026-12-10', topic_id: 't-decor' }),
+    line({ id: 'trip', amount: 60_000, due_date: '2026-12-15', topic_id: 't-honey' }),
+  ];
+  const opts = { paid: [], settings: settings(), today: '2026-11-15', throughMonth: '2026-12' };
+
+  it('lists and totals each scope apart, but keeps the funds picture of everything', () => {
+    const all = buildPlan({ pending: rows, ...opts });
+    const wedding = withFullFunds(buildPlan({ pending: filterScope(rows, topics, 'wedding'), ...opts }), all);
+    expect(wedding.pendingTotal).toBe(40_000);
+    expect(wedding.months.find((m) => m.key === '2026-12')?.items.map((i) => i.id)).toEqual(['decor']);
+    // the funds are one pool: 100,000 less both payments, not less the wedding alone
+    expect(wedding.months.find((m) => m.key === '2026-12')?.balance).toBe(0);
+    expect(wedding.leftAfterAll).toBe(0);
+  });
+
+  it('treats a payment with no area as part of the wedding', () => {
+    expect(filterScope([line({ id: 'x', amount: 1, due_date: '2026-12-01', topic_id: null })], topics, 'wedding')).toHaveLength(1);
+    expect(filterScope([line({ id: 'x', amount: 1, due_date: '2026-12-01', topic_id: null })], topics, 'post_wedding')).toHaveLength(0);
   });
 });
