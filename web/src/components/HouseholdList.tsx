@@ -4,7 +4,8 @@ import type { Guest } from './GuestEditor';
 import { KIND_LABEL } from '../lib/guestKind';
 import type { RsvpDay } from './RsvpEditor';
 import { splitOf, type Invite } from '../lib/rsvp';
-import { guestNightsOf, householdNeed, type GuestStay, type StayNight, type StaySite } from '../lib/stay';
+import { guestNightsOf, householdNeed, type StayNight, type StaySite } from '../lib/stay';
+import type { RoomStay, StayRoom } from '../lib/rooms';
 
 const PAGE = 40;
 
@@ -76,7 +77,8 @@ export function HouseholdList({
   guests,
   invites,
   days,
-  stays,
+  roomStays,
+  stayRooms,
   sites,
   nights,
   contacts,
@@ -90,7 +92,8 @@ export function HouseholdList({
   guests: Guest[];
   invites: Invite[];
   days: RsvpDay[];
-  stays: GuestStay[];
+  roomStays: RoomStay[];
+  stayRooms: StayRoom[];
   sites: StaySite[];
   nights: StayNight[];
   contacts: GuestContact[];
@@ -111,21 +114,35 @@ export function HouseholdList({
   const allNights = useMemo(() => guestNightsOf(nights, invites), [nights, invites]);
   const siteName = useMemo(() => Object.fromEntries(sites.map((s) => [s.id, s.name.split(',')[0]])), [sites]);
 
+  // Rooms each household has on the room board, counted per place.
+  const placedOf = useMemo(() => {
+    const siteOfRoom = new Map(stayRooms.map((r) => [r.id, r.site_id]));
+    const m = new Map<string, Map<string, number>>();
+    for (const s of roomStays) {
+      const site = siteOfRoom.get(s.room_id);
+      if (!site) continue;
+      const mine = m.get(s.guest_id) ?? new Map<string, number>();
+      mine.set(site, (mine.get(site) ?? 0) + 1);
+      m.set(s.guest_id, mine);
+    }
+    return m;
+  }, [roomStays, stayRooms]);
+
   const shown = guests.slice(0, limit);
   const rows = useMemo(
     () =>
       shown.map((g) => {
         const mine = invites.filter((i) => i.guest_id === g.id);
         const need = householdNeed(g, mine, allNights);
-        const placed = stays.filter((s) => s.guest_id === g.id);
+        const placed = placedOf.get(g.id);
         let room: { text: string; color: string };
-        if (placed.length > 0) room = { text: placed.map((s) => `${siteName[s.site_id]} ${rooms(Number(s.rooms))}`).join(', '), color: 'teal' };
+        if (placed && placed.size > 0) room = { text: [...placed].map(([site, n]) => `${siteName[site]} ${rooms(n)}`).join(', '), color: 'teal' };
         else if (!need) room = { text: '—', color: 'dimmed' };
         else if (need.main + need.other === 0) room = { text: 'None needed', color: 'dimmed' };
         else room = { text: 'Not placed', color: 'yellow.9' };
         return { g, d: days.map((d) => ({ d, pill: answerPill(mine.find((i) => i.event_date === d.date), g.persons) })), room };
       }),
-    [shown, invites, days, stays, allNights, siteName]
+    [shown, invites, days, placedOf, allNights, siteName]
   );
 
   const allTicked = shown.length > 0 && shown.every((g) => selected.has(g.id));

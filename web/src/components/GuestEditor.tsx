@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Group, Modal, NumberInput, Select, Stack, Text, Textarea, TextInput } from '@mantine/core';
+import { Button, Checkbox, Group, Modal, NumberInput, Select, Stack, Text, Textarea, TextInput } from '@mantine/core';
 import { supabase } from '../lib/supabase';
 import { useProfile } from '../hooks/useProfile';
 import { KIND_LABEL, type GuestKind } from '../lib/guestKind';
@@ -50,6 +50,7 @@ export function GuestEditor({
   const [priority, setPriority] = useState<string | null>(guest?.priority ? String(guest.priority) : null);
   const [functions, setFunctions] = useState(guest?.functions ?? '');
   const [kind, setKind] = useState<GuestKind>(guest?.kind ?? 'guest');
+  const [needsLift, setNeedsLift] = useState(!!guest?.needs_lift);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -71,6 +72,7 @@ export function GuestEditor({
       priority: priority ? Number(priority) : null,
       functions: functions.trim() || null,
       kind,
+      needs_lift: needsLift,
     };
     const res = guest
       ? await supabase.from('guests').update(fields).eq('id', guest.id)
@@ -128,6 +130,12 @@ export function GuestEditor({
           />
           <TextInput label="Functions" description='As in the list, e.g. "All"' value={functions} onChange={(e) => setFunctions(e.currentTarget.value)} />
         </Group>
+        <Checkbox
+          label="Needs a lift (cannot manage stairs)"
+          description="Fill rooms only puts them at a place with a lift, and the room board flags it otherwise."
+          checked={needsLift}
+          onChange={(e) => setNeedsLift(e.currentTarget.checked)}
+        />
         {error && (
           <Text c="red" size="sm">
             {error}

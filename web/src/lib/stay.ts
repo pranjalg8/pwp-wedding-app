@@ -51,7 +51,6 @@ export function roomsAvailable(sites: StaySite[], nights: StayNight[], night: st
 
 // ---- Room assignment: which place each household sleeps at ----
 
-export type GuestStay = { id: string; guest_id: string; site_id: string; rooms: number | string };
 type Inv = Pick<Invite, 'guest_id' | 'event_date' | 'coming' | 'declined'>;
 type GuestPlan = GuestRooms & { name: string; priority: 1 | 2 | null; needs_lift?: boolean };
 
@@ -85,18 +84,6 @@ export function guestNightsOf(nights: StayNight[], invites: Pick<Invite, 'event_
 }
 
 const capacity = (nights: StayNight[], siteId: string, night: string) => nights.find((n) => n.site_id === siteId && n.night === night)?.rooms ?? 0;
-
-// Rooms placed at each place on each night: a household's rooms count on every night it is there.
-export function usedByNight(stays: Pick<GuestStay, 'guest_id' | 'site_id' | 'rooms'>[], nightsOfGuest: Map<string, string[]>, allNights: string[]) {
-  const used: Record<string, Record<string, number>> = {};
-  for (const s of stays) {
-    for (const n of nightsOfGuest.get(s.guest_id) ?? allNights) {
-      const site = (used[s.site_id] ??= {});
-      site[n] = (site[n] ?? 0) + Number(s.rooms);
-    }
-  }
-  return used;
-}
 
 export type PlanRow = { guest_id: string; site_id: string; rooms: number };
 export type Unplaced = { guest_id: string; kind: 'main' | 'other'; rooms: number };

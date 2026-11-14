@@ -83,6 +83,7 @@ export type Household = {
   g: RoomGuest;
   people: number; // people who might come: the household minus those who said no
   roomsNeeded: number; // whole rooms (a half room still takes a room)
+  mainRooms: number; // of roomsNeeded, the ones meant for the main stay; the rest go elsewhere
   nights: string[]; // the nights it is there; every night when it is not invited yet
   firstNight: string | null;
 };
@@ -95,7 +96,8 @@ export function householdsNeedingRooms(guests: RoomGuest[], invites: Inv[], allN
     if (!need) continue;
     const roomsNeeded = Math.ceil(need.main + need.other - 0.001);
     if (roomsNeeded <= 0) continue;
-    out.push({ g, people: need.people, roomsNeeded, nights: need.nights, firstNight: need.firstNight });
+    const mainRooms = Math.min(roomsNeeded, Math.ceil(need.main - 0.001));
+    out.push({ g, people: need.people, roomsNeeded, mainRooms, nights: need.nights, firstNight: need.firstNight });
   }
   return out;
 }
@@ -133,6 +135,60 @@ export function occupantsByRoom(stays: RoomStay[], households: Household[], gues
     out.set(s.room_id, list);
   }
   return out;
+}
+
+// ---- Fill rooms: put the households still to place into rooms that are free on all their nights ----
+
+export type AutoPlace = { rows: { guest_id: string; room_id: string }[]; short: { guest_id: string; rooms: number }[] };
+
+// Households that arrive first go first, then bigger before smaller, then by priority. Main-stay rooms go to the main
+// place first and the rest to the other places first, in the places' order. A room is used only when it is open and
+// empty on every night the household is there, and a household needing a lift only goes where there is one. A
+// household is kept at one place when one place has all the rooms it still needs. Rooms already placed stay as they
+// are; nothing is moved.
+export function autoPlace(households: Household[], rooms: StayRoom[], sites: StaySite[], occ: Map<string, Occupant[]>, placed: Map<string, number>): AutoPlace {
+  const busy = new Map<string, Set<string>>();
+  for (const [roomId, list] of occ) busy.set(roomId, new Set(list.flatMap((o) => o.nights)));
+  const bySite = (siteId: string) =>
+    rooms.filter((r) => r.site_id === siteId).sort((a, b) => a.sort_order - b.sort_order || a.label.localeCompare(b.label, undefined, { numeric: true }));
+  const ordered = [...sites].sort((a, b) => a.sort_order - b.sort_order);
+  const main = ordered.filter((s) => s.role === 'main');
+  const other = ordered.filter((s) => s.role !== 'main');
+
+  const todo = households
+    .filter((h) => h.nights.length > 0 && (placed.get(h.g.id) ?? 0) < h.roomsNeeded)
+    .sort(
+      (a, b) =>
+        (a.firstNight ?? '').localeCompare(b.firstNight ?? '') ||
+        b.roomsNeeded - a.roomsNeeded ||
+        (a.g.priority ?? 9) - (b.g.priority ?? 9) ||
+        a.g.sort_order - b.g.sort_order
+    );
+
+  const rows: AutoPlace['rows'] = [];
+  const short: AutoPlace['short'] = [];
+  for (const h of todo) {
+    const have = placed.get(h.g.id) ?? 0;
+    const mainLeft = Math.max(0, h.mainRooms - have);
+    const otherLeft = h.roomsNeeded - have - mainLeft;
+    const free = (siteId: string) => bySite(siteId).filter((r) => h.nights.every((n) => roomOpenOn(r, n) && !busy.get(r.id)?.has(n)));
+    const take = (count: number, order: StaySite[]) => {
+      if (count <= 0) return 0;
+      const usable = order.filter((s) => !h.g.needs_lift || s.has_lift);
+      const whole = usable.find((s) => free(s.id).length >= count);
+      const picks = whole ? free(whole.id).slice(0, count) : usable.flatMap((s) => free(s.id)).slice(0, count);
+      for (const r of picks) {
+        rows.push({ guest_id: h.g.id, room_id: r.id });
+        const set = busy.get(r.id) ?? new Set<string>();
+        h.nights.forEach((n) => set.add(n));
+        busy.set(r.id, set);
+      }
+      return count - picks.length;
+    };
+    const left = take(mainLeft, [...main, ...other]) + take(otherLeft, [...other, ...main]);
+    if (left > 0) short.push({ guest_id: h.g.id, rooms: left });
+  }
+  return { rows, short };
 }
 
 export type RoomIssue = 'over' | 'stairs' | 'not_open' | 'shared';
