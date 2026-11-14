@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Badge, Button, Group, Modal, NumberInput, Select, Stack, Text, TextInput, Textarea } from '@mantine/core';
+import { Badge, Button, Group, Modal, MultiSelect, NumberInput, Select, Stack, Text, TextInput, Textarea } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
 import type { StaySite } from '../lib/stay';
@@ -38,6 +38,7 @@ export function RoomModal({
   const [floor, setFloor] = useState<number | string>(room.floor ?? '');
   const [capacity, setCapacity] = useState<number | string>(room.capacity);
   const [from, setFrom] = useState<string | null>(room.available_from);
+  const [until, setUntil] = useState<string | null>(room.available_until ?? null);
   const [paidBy, setPaidBy] = useState<string | null>(room.paid_by);
   const [notes, setNotes] = useState(room.notes ?? '');
   const [add, setAdd] = useState<string | null>(null);
@@ -60,6 +61,7 @@ export function RoomModal({
         floor: floor === '' ? null : Number(floor),
         capacity: Math.max(1, Number(capacity) || 1),
         available_from: from,
+        available_until: until,
         paid_by: paidBy,
         notes: notes.trim() || null,
       })
@@ -87,6 +89,12 @@ export function RoomModal({
   async function setPeople(id: string, v: number | string) {
     const people = v === '' ? null : Math.max(1, Number(v));
     const { error } = await supabase.from('room_stays').update({ people }).eq('id', id);
+    if (error) return fail('Could not save', error.message);
+    await reload();
+  }
+
+  async function setExtraNights(id: string, nights: string[]) {
+    const { error } = await supabase.from('room_stays').update({ extra_nights: nights.sort() }).eq('id', id);
     if (error) return fail('Could not save', error.message);
     await reload();
   }
@@ -130,7 +138,8 @@ export function RoomModal({
                 <Text size="xs" c="dimmed">
                   {(roomsOf.get(o.guest.id) ?? 1) > 1 ? `In ${roomsOf.get(o.guest.id)} rooms` : 'One room'}
                   {o.guest.needs_lift ? ' · needs a lift' : ''}
-                  {o.firstNight ? ` · from ${nightLabel(o.firstNight)}` : ''}
+                  {o.baseNights[0] ? ` · from ${nightLabel(o.baseNights[0])}` : ''}
+                  {(o.stay.extra_nights ?? []).length > 0 ? ` · also ${(o.stay.extra_nights ?? []).map(nightLabel).join(', ')}` : ''}
                 </Text>
               </div>
               {editable ? (
@@ -172,6 +181,26 @@ export function RoomModal({
               </Button>
             </Group>
           )}
+          {editable &&
+            occupants.length > 0 &&
+            allNights.some((n) => occupants.some((o) => !o.baseNights.includes(n))) && (
+              <Stack gap={6}>
+                {occupants.map((o) => {
+                  const options = allNights.filter((n) => !o.baseNights.includes(n));
+                  return options.length === 0 ? null : (
+                    <MultiSelect
+                      key={o.stay.id}
+                      size="xs"
+                      label={`${o.guest.name}: extra nights in this room`}
+                      placeholder="None"
+                      data={options.map((n) => ({ value: n, label: nightLabel(n) }))}
+                      value={o.stay.extra_nights ?? []}
+                      onChange={(v) => setExtraNights(o.stay.id, v)}
+                    />
+                  );
+                })}
+              </Stack>
+            )}
           {editable && occupants.length > 0 && (
             <Text size="xs" c="dimmed">
               Leave the number blank to split a household evenly across its rooms.
@@ -197,6 +226,15 @@ export function RoomModal({
                 allowDeselect={false}
                 data={[{ value: '', label: 'Every night' }, ...allNights.map((n) => ({ value: n, label: nightLabel(n) }))]}
               />
+              <Select
+                label="Open until"
+                value={until ?? ''}
+                onChange={(v) => setUntil(v || null)}
+                allowDeselect={false}
+                data={[{ value: '', label: 'No end' }, ...allNights.map((n) => ({ value: n, label: nightLabel(n) }))]}
+              />
+            </Group>
+            <Group grow gap="xs" align="flex-start">
               <Select label="Paid by" value={paidBy} onChange={setPaidBy} data={PAID_DATA} clearable placeholder="Not set" />
             </Group>
             <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} autosize minRows={1} maxRows={4} placeholder="Connecting room, ground floor, extra bed" />
