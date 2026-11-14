@@ -9,6 +9,7 @@ import { useGuestInvites } from '../hooks/useGuestInvites';
 import { BulkAnswerModal, BulkInviteModal, RsvpEditor, daysFromFunctions, restoreInvites, type InviteSnapshot } from '../components/RsvpEditor';
 import { DroppedGuests } from '../components/DroppedGuests';
 import { RoomPlan } from '../components/RoomPlan';
+import { UndoMessage } from '../components/UndoMessage';
 import { RoomCeiling } from '../components/RoomCeiling';
 import { RoomForecast } from '../components/RoomForecast';
 import { RoomBoard } from '../components/RoomBoard';
@@ -161,14 +162,7 @@ export function Guests() {
       autoClose: 20000,
       withCloseButton: true,
       title: 'Invites updated',
-      message: (
-        <Group justify="space-between" wrap="nowrap" gap="sm">
-          <Text size="sm">{summary}.</Text>
-          <Button size="compact-sm" variant="light" onClick={() => undoInvites(snapshot)}>
-            Undo
-          </Button>
-        </Group>
-      ),
+      message: <UndoMessage text={`${summary}.`} onUndo={() => undoInvites(snapshot)} />,
     });
   }
 
