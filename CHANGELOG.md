@@ -2,6 +2,12 @@
 
 Every version of the planner, newest first. This file is generated from `web/src/data/releases.json`; edit that file and run `npm run changelog`. The same list shows in the app under Activity, What's new.
 
+## 1.8 - 2026-11-14: Guest contacts
+
+**New**
+
+- Guests: each household shows its saved phone numbers and emails under Contacts, with tap-to-call and tap-to-email. Search also finds a household by number, email or person.
+
 ## 1.7 - 2026-11-12: Knowledge base
 
 **New**

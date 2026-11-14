@@ -15,7 +15,7 @@ import { RoomBoard } from '../components/RoomBoard';
 import { RoomingList } from '../components/RoomingList';
 import { useRoomBoard } from '../hooks/useRoomBoard';
 import { GuestsOverview } from '../components/GuestsOverview';
-import { HouseholdList } from '../components/HouseholdList';
+import { HouseholdList, type GuestContact } from '../components/HouseholdList';
 import { useGuestStays } from '../hooks/useGuestStays';
 import { useStay } from '../hooks/useStay';
 import { splitOf } from '../lib/rsvp';
@@ -51,6 +51,7 @@ export function Guests() {
   const [bulkAnswer, setBulkAnswer] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [droppedCount, setDroppedCount] = useState(0);
+  const [contacts, setContacts] = useState<GuestContact[]>([]);
   const { invites, totals, reload: reloadInvites } = useGuestInvites();
   const { sites, nights } = useStay();
   const { stays, reload: reloadStays } = useGuestStays();
@@ -61,6 +62,11 @@ export function Guests() {
   async function loadFunctions() {
     const { data } = await supabase.from('wedding_functions').select('name, event_date, family_only').order('sort_order');
     setFnRows((data ?? []) as FunctionRef[]);
+  }
+
+  async function loadContacts() {
+    const { data } = await supabase.from('guest_contacts').select('id, guest_id, person, kind, value, rank');
+    setContacts((data ?? []) as GuestContact[]);
   }
 
   async function load() {
@@ -74,9 +80,11 @@ export function Guests() {
   useEffect(() => {
     load();
     loadFunctions();
+    loadContacts();
     const channel = supabase
       .channel('guests_page')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'guests' }, load)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'guest_contacts' }, loadContacts)
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
@@ -106,9 +114,13 @@ export function Guests() {
         .filter((g) => !priority || (priority === 'none' ? g.priority === null : String(g.priority) === priority))
         .filter((g) => {
           const q = query.trim().toLowerCase();
-          return !q || [g.name, g.family_members, g.location, g.relation].some((v) => v?.toLowerCase().includes(q));
+          return (
+            !q ||
+            [g.name, g.family_members, g.location, g.relation].some((v) => v?.toLowerCase().includes(q)) ||
+            contacts.some((c) => c.guest_id === g.id && (c.value.toLowerCase().includes(q) || c.person.toLowerCase().includes(q)))
+          );
         }),
-    [guests, group, priority, query, view, statusById]
+    [guests, group, priority, query, view, statusById, contacts]
   );
 
   // Households that need rooms and are not fully placed yet: the number on the Rooms tab and the Overview.
@@ -365,6 +377,7 @@ export function Guests() {
               </Group>
 
               <HouseholdList
+                contacts={contacts}
                 guests={visible}
                 invites={invites}
                 days={days}
