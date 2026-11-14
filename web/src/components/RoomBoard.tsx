@@ -85,9 +85,9 @@ export function RoomBoard({
 
   const issuesByRoom = useMemo(() => {
     const m = new Map<string, ReturnType<typeof roomIssues>>();
-    for (const r of rooms) m.set(r.id, roomIssues(r, siteById[r.site_id], occ.get(r.id) ?? [], guestNights));
+    for (const r of rooms) m.set(r.id, roomIssues(r, siteById[r.site_id], occ.get(r.id) ?? [], allNights));
     return m;
-  }, [rooms, occ, siteById, guestNights]);
+  }, [rooms, occ, siteById, allNights]);
   const problems = [...issuesByRoom.values()].filter((i) => i.some(isProblem)).length;
 
   async function place(guestId: string, roomId: string) {
@@ -400,7 +400,7 @@ function RoomTile({
           {room.label}
         </Text>
         <Text size="xs" c={people > room.capacity ? 'red' : 'dimmed'}>
-          {closed ? `from ${room.available_from ? nightShort(room.available_from) : ''}` : `${people}/${room.capacity}`}
+          {closed ? (room.available_from && night < room.available_from ? `from ${nightShort(room.available_from)}` : 'closed') : `${people}/${room.capacity}`}
         </Text>
       </Group>
       <Stack gap={2} mt={2}>
@@ -424,7 +424,7 @@ function RoomTile({
       </Stack>
       {issues.some((i) => i === 'stairs' || i === 'not_open') && (
         <Text size="10px" c="red" lh={1.2} mt={2}>
-          {issues.includes('stairs') ? 'No lift' : 'Not open yet'}
+          {issues.includes('stairs') ? 'No lift' : 'Night not open'}
         </Text>
       )}
     </Box>
