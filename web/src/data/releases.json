@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.8",
+    "date": "2026-11-14",
+    "title": "Guest contacts",
+    "items": [
+      { "kind": "new", "text": "Guests: each household shows its saved phone numbers and emails under Contacts, with tap-to-call and tap-to-email. Search also finds a household by number, email or person." }
+    ]
+  },
+  {
     "version": "1.7",
     "date": "2026-11-12",
     "title": "Knowledge base",

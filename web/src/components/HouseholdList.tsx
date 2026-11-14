@@ -6,6 +6,43 @@ import { splitOf, type Invite } from '../lib/rsvp';
 import { guestNightsOf, householdNeed, type GuestStay, type StayNight, type StaySite } from '../lib/stay';
 
 const PAGE = 40;
+
+export type GuestContact = { id: string; guest_id: string; person: string; kind: 'phone' | 'email'; value: string; rank: number };
+
+// A household's saved numbers and addresses, grouped by person, each one a tap-to-call or tap-to-email link.
+function ContactList({ contacts }: { contacts: GuestContact[] }) {
+  const people = [...new Set(contacts.map((c) => c.person))];
+  return (
+    <Stack gap={6} mt={6}>
+      {people.map((person) => {
+        const mine = contacts.filter((c) => c.person === person).sort((a, b) => (a.kind === b.kind ? a.rank - b.rank : a.kind === 'phone' ? -1 : 1));
+        return (
+          <div key={person}>
+            {people.length > 1 && (
+              <Text size="xs" c="dimmed">
+                {person}
+              </Text>
+            )}
+            {mine.map((c) => (
+              <Text key={c.id} size="sm">
+                <a href={c.kind === 'phone' ? `tel:${c.value.replace(/[^+\d]/g, '')}` : `mailto:${c.value}`}>{c.value}</a>
+              </Text>
+            ))}
+          </div>
+        );
+      })}
+    </Stack>
+  );
+}
+
+function ContactsToggle({ count, open, onToggle, name }: { count: number; open: boolean; onToggle: () => void; name: string }) {
+  if (count === 0) return null;
+  return (
+    <Button size="compact-xs" variant="subtle" onClick={onToggle} aria-expanded={open} aria-label={`${open ? 'Hide' : 'Show'} contacts for ${name}`}>
+      {open ? 'Hide contacts' : `Contacts (${count})`}
+    </Button>
+  );
+}
 const rooms = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 
 // One day's answer as a small pill: who is coming, unsure, not coming and still to reply. The colour follows the
@@ -41,6 +78,7 @@ export function HouseholdList({
   stays,
   sites,
   nights,
+  contacts,
   isUnlocked,
   selected,
   onSelect,
@@ -54,6 +92,7 @@ export function HouseholdList({
   stays: GuestStay[];
   sites: StaySite[];
   nights: StayNight[];
+  contacts: GuestContact[];
   isUnlocked: boolean;
   selected: Set<string>;
   onSelect: (ids: Set<string>) => void;
@@ -62,6 +101,12 @@ export function HouseholdList({
   onDelete: (g: Guest) => void;
 }) {
   const [limit, setLimit] = useState(PAGE);
+  const [openContacts, setOpenContacts] = useState<string | null>(null);
+  const contactsOf = useMemo(() => {
+    const m = new Map<string, GuestContact[]>();
+    contacts.forEach((c) => m.set(c.guest_id, [...(m.get(c.guest_id) ?? []), c]));
+    return m;
+  }, [contacts]);
   const allNights = useMemo(() => guestNightsOf(nights, invites), [nights, invites]);
   const siteName = useMemo(() => Object.fromEntries(sites.map((s) => [s.id, s.name.split(',')[0]])), [sites]);
 
@@ -151,6 +196,8 @@ export function HouseholdList({
                 <Text size="xs" c="dimmed" truncate>
                   {[g.list_group, g.location].filter(Boolean).join(' · ') || g.family_members || ' '}
                 </Text>
+                <ContactsToggle count={contactsOf.get(g.id)?.length ?? 0} open={openContacts === g.id} onToggle={() => setOpenContacts(openContacts === g.id ? null : g.id)} name={g.name} />
+                {openContacts === g.id && <ContactList contacts={contactsOf.get(g.id) ?? []} />}
               </div>
               <Text ta="right" fw={600} size="sm">
                 {g.persons}
@@ -192,6 +239,8 @@ export function HouseholdList({
                     {g.persons} {g.persons === 1 ? 'person' : 'people'}
                     {[g.list_group, g.location].filter(Boolean).length > 0 ? ` · ${[g.list_group, g.location].filter(Boolean).join(' · ')}` : ''}
                   </Text>
+                  <ContactsToggle count={contactsOf.get(g.id)?.length ?? 0} open={openContacts === g.id} onToggle={() => setOpenContacts(openContacts === g.id ? null : g.id)} name={g.name} />
+                  {openContacts === g.id && <ContactList contacts={contactsOf.get(g.id) ?? []} />}
                 </div>
               </Group>
               {isUnlocked && (
