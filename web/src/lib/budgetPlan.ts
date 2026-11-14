@@ -32,7 +32,7 @@ export type BudgetSettings = {
 export type AreaBudget = { id: string; topic_id: string; allocation: number };
 export type PaidRow = { id: string; paid_on: string; amount: number; topic_id: string | null; paridhi_amount: number };
 export type ItemMoney = { topic_id: string; status: string; amount: number | null; amount_kind: string | null; slug: string | null };
-export type TopicRef = { id: string; key: string; label: string; budget_group?: 'wedding' | 'post_wedding' };
+export type TopicRef = { id: string; key: string; label: string; budget_group?: 'wedding' | 'post_wedding' | 'buffer' };
 
 export type Side = 'both' | 'pranjal' | 'paridhi';
 
