@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { Badge, Button, Group, Modal, MultiSelect, NumberInput, Select, Stack, Text, TextInput, Textarea } from '@mantine/core';
+import { Badge, Button, Group, Modal, NumberInput, Select, Stack, Text, TextInput, Textarea } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
 import type { StaySite } from '../lib/stay';
-import { ISSUE_TEXT, PAID_BY_LABEL, isProblem, roomIssues, type Household, type Occupant, type PaidBy, type StayRoom } from '../lib/rooms';
+import { ISSUE_TEXT, PAID_BY_LABEL, addDays, checkoutOf, isProblem, roomIssues, type Household, type Occupant, type PaidBy, type StayRoom } from '../lib/rooms';
 
 const nightLabel = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
 const PAID_DATA = (Object.keys(PAID_BY_LABEL) as PaidBy[]).map((v) => ({ value: v, label: PAID_BY_LABEL[v] }));
@@ -93,8 +93,19 @@ export function RoomModal({
     await reload();
   }
 
-  async function setExtraNights(id: string, nights: string[]) {
-    const { error } = await supabase.from('room_stays').update({ extra_nights: nights.sort() }).eq('id', id);
+  // Give one stay its own dates. The other end keeps what the stay has now. Clearing both puts it back on the
+  // household's guest days.
+  async function setDates(o: Occupant, change: { check_in?: string; check_out?: string } | null) {
+    let fields: { check_in: string | null; check_out: string | null; extra_nights?: string[] };
+    if (change === null) fields = { check_in: null, check_out: null };
+    else {
+      const check_in = change.check_in ?? o.nights[0];
+      const check_out = change.check_out ?? checkoutOf(o.nights);
+      if (!check_in || !check_out) return;
+      if (check_out <= check_in) return fail('Check the dates', 'The check-out day has to be after the check-in night.');
+      fields = { check_in, check_out, extra_nights: [] };
+    }
+    const { error } = await supabase.from('room_stays').update(fields).eq('id', o.stay.id);
     if (error) return fail('Could not save', error.message);
     await reload();
   }
@@ -138,8 +149,8 @@ export function RoomModal({
                 <Text size="xs" c="dimmed">
                   {(roomsOf.get(o.guest.id) ?? 1) > 1 ? `In ${roomsOf.get(o.guest.id)} rooms` : 'One room'}
                   {o.guest.needs_lift ? ' · needs a lift' : ''}
-                  {o.baseNights[0] ? ` · from ${nightLabel(o.baseNights[0])}` : ''}
-                  {(o.stay.extra_nights ?? []).length > 0 ? ` · also ${(o.stay.extra_nights ?? []).map(nightLabel).join(', ')}` : ''}
+                  {o.nights[0] ? ` · ${nightLabel(o.nights[0])} to ${nightLabel(checkoutOf(o.nights) ?? o.nights[0])}` : ''}
+                  {o.stay.check_in ? ' (own dates)' : ''}
                 </Text>
               </div>
               {editable ? (
@@ -181,29 +192,41 @@ export function RoomModal({
               </Button>
             </Group>
           )}
-          {editable &&
-            occupants.length > 0 &&
-            allNights.some((n) => occupants.some((o) => !o.baseNights.includes(n))) && (
-              <Stack gap={6}>
-                {occupants.map((o) => {
-                  const options = allNights.filter((n) => !o.baseNights.includes(n));
-                  return options.length === 0 ? null : (
-                    <MultiSelect
-                      key={o.stay.id}
-                      size="xs"
-                      label={`${o.guest.name}: extra nights in this room`}
-                      placeholder="None"
-                      data={options.map((n) => ({ value: n, label: nightLabel(n) }))}
-                      value={o.stay.extra_nights ?? []}
-                      onChange={(v) => setExtraNights(o.stay.id, v)}
-                    />
-                  );
-                })}
-              </Stack>
-            )}
+          {editable && occupants.length > 0 && allNights.length > 0 && (
+            <Stack gap={6}>
+              {occupants.map((o) => (
+                <Group key={o.stay.id} gap="xs" wrap="nowrap" align="flex-end">
+                  <Select
+                    style={{ flex: 1 }}
+                    size="xs"
+                    label={`${o.guest.name}: check in`}
+                    allowDeselect={false}
+                    data={allNights.map((n) => ({ value: n, label: nightLabel(n) }))}
+                    value={o.nights[0] ?? null}
+                    onChange={(v) => v && setDates(o, { check_in: v })}
+                  />
+                  <Select
+                    style={{ flex: 1 }}
+                    size="xs"
+                    label="Check out"
+                    allowDeselect={false}
+                    data={allNights.map((n) => addDays(n, 1)).map((d) => ({ value: d, label: nightLabel(d) }))}
+                    value={checkoutOf(o.nights)}
+                    onChange={(v) => v && setDates(o, { check_out: v })}
+                  />
+                  {o.stay.check_in && (
+                    <Button size="compact-xs" variant="subtle" onClick={() => setDates(o, null)}>
+                      Guest days
+                    </Button>
+                  )}
+                </Group>
+              ))}
+            </Stack>
+          )}
           {editable && occupants.length > 0 && (
             <Text size="xs" c="dimmed">
-              Leave the number blank to split a household evenly across its rooms.
+              Leave the number blank to split a household evenly across its rooms. The dates start from the household's guest
+              days; change them for a stay that arrives early or leaves late, and Guest days puts them back.
             </Text>
           )}
         </Stack>

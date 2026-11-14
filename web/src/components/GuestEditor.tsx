@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Button, Group, Modal, NumberInput, Select, Stack, Text, Textarea, TextInput } from '@mantine/core';
 import { supabase } from '../lib/supabase';
 import { useProfile } from '../hooks/useProfile';
+import { KIND_LABEL, type GuestKind } from '../lib/guestKind';
 
 export type Guest = {
   id: string;
@@ -17,6 +18,7 @@ export type Guest = {
   priority: 1 | 2 | null;
   functions: string | null;
   needs_lift?: boolean;
+  kind?: GuestKind;
   sort_order: number;
 };
 
@@ -47,6 +49,7 @@ export function GuestEditor({
   const [roomsOut, setRoomsOut] = useState<number | string>(Number(guest?.rooms_outside ?? 0));
   const [priority, setPriority] = useState<string | null>(guest?.priority ? String(guest.priority) : null);
   const [functions, setFunctions] = useState(guest?.functions ?? '');
+  const [kind, setKind] = useState<GuestKind>(guest?.kind ?? 'guest');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -67,6 +70,7 @@ export function GuestEditor({
       rooms_outside: Number(roomsOut) || 0,
       priority: priority ? Number(priority) : null,
       functions: functions.trim() || null,
+      kind,
     };
     const res = guest
       ? await supabase.from('guests').update(fields).eq('id', guest.id)
@@ -95,7 +99,16 @@ export function GuestEditor({
           <TextInput label="Group" placeholder="e.g. Relatives" value={group} onChange={(e) => setGroup(e.currentTarget.value)} />
           <TextInput label="Relation" value={relation} onChange={(e) => setRelation(e.currentTarget.value)} />
         </Group>
-        <TextInput label="Where they live" value={location} onChange={(e) => setLocation(e.currentTarget.value)} />
+        <Group grow align="flex-start">
+          <TextInput label="Where they live" value={location} onChange={(e) => setLocation(e.currentTarget.value)} />
+          <Select
+            label="Kind"
+            allowDeselect={false}
+            data={(Object.keys(KIND_LABEL) as GuestKind[]).map((v) => ({ value: v, label: KIND_LABEL[v] }))}
+            value={kind}
+            onChange={(v) => v && setKind(v as GuestKind)}
+          />
+        </Group>
         <Group grow align="flex-start">
           <NumberInput label="People" min={0} allowDecimal={false} value={persons} onChange={setPersons} required />
           <NumberInput label="Rooms at the main stay" min={0} step={0.5} decimalScale={1} value={roomsIn} onChange={setRoomsIn} />

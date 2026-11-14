@@ -12,7 +12,7 @@ export function useRoomBoard() {
   const reload = useCallback(async () => {
     const [r, s] = await Promise.all([
       supabase.from('stay_rooms').select('*').order('sort_order'),
-      supabase.from('room_stays').select('id, room_id, guest_id, people, extra_nights'),
+      supabase.from('room_stays').select('id, room_id, guest_id, people, extra_nights, check_in, check_out'),
     ]);
     setRooms((r.data ?? []) as StayRoom[]);
     setRoomStays((s.data ?? []) as RoomStay[]);
