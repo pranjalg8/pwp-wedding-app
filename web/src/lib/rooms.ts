@@ -24,7 +24,17 @@ export type StayRoom = {
 
 // One household in one room. people null = the household's people split evenly across its rooms.
 // extra_nights: nights outside the household's own guest nights that it also keeps this room (12 or 16 Feb at Shri Kanth).
-export type RoomStay = { id: string; room_id: string; guest_id: string; people: number | null; extra_nights?: string[] | null };
+// check_in / check_out: when set, the stay's own dates; the nights run from check_in up to the night before check_out,
+// and extra_nights is ignored. When empty the stay follows the household's guest nights plus extra_nights.
+export type RoomStay = {
+  id: string;
+  room_id: string;
+  guest_id: string;
+  people: number | null;
+  extra_nights?: string[] | null;
+  check_in?: string | null;
+  check_out?: string | null;
+};
 
 export type RoomGuest = {
   id: string;
@@ -42,13 +52,31 @@ type Inv = Pick<Invite, 'guest_id' | 'event_date' | 'coming' | 'declined'>;
 
 export const roomOpenOn = (room: StayRoom, night: string) => (!room.available_from || room.available_from <= night) && (!room.available_until || night <= room.available_until);
 
+const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+export function addDays(day: string, n: number) {
+  const d = new Date(day + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  return iso(d);
+}
+
 // The day after the last night: everyone checks out then.
 export function checkoutOf(allNights: string[]) {
   const last = allNights[allNights.length - 1];
-  if (!last) return null;
-  const d = new Date(last + 'T00:00:00');
-  d.setDate(d.getDate() + 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return last ? addDays(last, 1) : null;
+}
+
+// The nights of a stay from check-in up to, not including, check-out. Capped at 60 so bad data cannot hang the page.
+export function nightsBetween(checkIn: string, checkOut: string) {
+  const out: string[] = [];
+  for (let d = checkIn; d < checkOut && out.length < 60; d = addDays(d, 1)) out.push(d);
+  return out;
+}
+
+// The nights one stay covers: its own dates when set, otherwise the household's guest nights plus its extra nights.
+export function stayNights(stay: Pick<RoomStay, 'check_in' | 'check_out' | 'extra_nights'>, baseNights: string[]) {
+  if (stay.check_in && stay.check_out) return nightsBetween(stay.check_in, stay.check_out);
+  return [...new Set([...baseNights, ...(stay.extra_nights ?? [])])].sort();
 }
 
 export type Household = {
@@ -80,7 +108,8 @@ export function stateOf(roomsPlaced: number, roomsNeeded: number): HouseholdStat
   return roomsPlaced > roomsNeeded ? 'extra' : 'placed';
 }
 
-// nights = the household's guest nights plus its extra nights in this room; baseNights = the guest nights alone.
+// nights = the nights the household is in this room (its own dates, or its guest nights plus extra nights);
+// baseNights = the guest nights alone.
 export type Occupant = { stay: RoomStay; guest: RoomGuest; people: number; nights: string[]; baseNights: string[]; firstNight: string | null };
 
 // Who sleeps in each room: the households in it, how many people each puts there, and the nights they are there.
@@ -99,7 +128,7 @@ export function occupantsByRoom(stays: RoomStay[], households: Household[], gues
     const people = s.people ?? Math.max(1, Math.ceil(total / (roomsOfGuest.get(s.guest_id) ?? 1)));
     const list = out.get(s.room_id) ?? [];
     const baseNights = h?.nights ?? allNights;
-    const nights = [...new Set([...baseNights, ...(s.extra_nights ?? [])])].sort();
+    const nights = stayNights(s, baseNights);
     list.push({ stay: s, guest, people, nights, baseNights, firstNight: nights[0] ?? null });
     out.set(s.room_id, list);
   }

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { ActionIcon, Badge, Box, Button, Checkbox, Group, Menu, Paper, Stack, Text } from '@mantine/core';
 import type { Guest } from './GuestEditor';
+import { KIND_LABEL } from '../lib/guestKind';
 import type { RsvpDay } from './RsvpEditor';
 import { splitOf, type Invite } from '../lib/rsvp';
 import { guestNightsOf, householdNeed, type GuestStay, type StayNight, type StaySite } from '../lib/stay';
@@ -194,7 +195,7 @@ export function HouseholdList({
                   {g.name}
                 </Text>
                 <Text size="xs" c="dimmed" truncate>
-                  {[g.list_group, g.location].filter(Boolean).join(' · ') || g.family_members || ' '}
+                  {[g.kind && g.kind !== 'guest' ? KIND_LABEL[g.kind] : null, g.list_group, g.location].filter(Boolean).join(' · ') || g.family_members || ' '}
                 </Text>
                 <ContactsToggle count={contactsOf.get(g.id)?.length ?? 0} open={openContacts === g.id} onToggle={() => setOpenContacts(openContacts === g.id ? null : g.id)} name={g.name} />
                 {openContacts === g.id && <ContactList contacts={contactsOf.get(g.id) ?? []} />}
@@ -237,6 +238,7 @@ export function HouseholdList({
                   <Text fw={600}>{g.name}</Text>
                   <Text size="xs" c="dimmed">
                     {g.persons} {g.persons === 1 ? 'person' : 'people'}
+                    {g.kind && g.kind !== 'guest' ? ` · ${KIND_LABEL[g.kind]}` : ''}
                     {[g.list_group, g.location].filter(Boolean).length > 0 ? ` · ${[g.list_group, g.location].filter(Boolean).join(' · ')}` : ''}
                   </Text>
                   <ContactsToggle count={contactsOf.get(g.id)?.length ?? 0} open={openContacts === g.id} onToggle={() => setOpenContacts(openContacts === g.id ? null : g.id)} name={g.name} />
