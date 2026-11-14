@@ -201,6 +201,7 @@ export function ScheduleEditor({
 export function SettingsEditor({ settings, opened, onClose, onSaved }: { settings: BudgetSettings | null; opened: boolean; onClose: () => void; onSaved: () => void }) {
   const [total, setTotal] = useState<number | string>(settings?.total_budget ?? '');
   const [postTotal, setPostTotal] = useState<number | string>(settings?.post_wedding_budget ?? '');
+  const [goldTotal, setGoldTotal] = useState<number | string>(settings?.gold_budget ?? '');
   const [funds, setFunds] = useState<number | string>(settings?.funds_available ?? '');
   const [asOf, setAsOf] = useState(settings?.funds_as_of ?? todayIso());
   const [monthly, setMonthly] = useState<number | string>(settings?.monthly_addition ?? 0);
@@ -219,6 +220,7 @@ export function SettingsEditor({ settings, opened, onClose, onSaved }: { setting
       .update({
         total_budget: n(total),
         post_wedding_budget: n(postTotal),
+        gold_budget: n(goldTotal),
         funds_available: n(funds),
         funds_as_of: funds === '' && pFunds === '' ? null : asOf,
         monthly_addition: Number(monthly) || 0,
@@ -236,6 +238,15 @@ export function SettingsEditor({ settings, opened, onClose, onSaved }: { setting
     <Modal opened={opened} onClose={onClose} title="Budget and funds" centered>
       <Stack>
         <NumberInput
+          label="Pranjal's gold budget"
+          description="Optional. The jewellery, kept apart from the wedding budget."
+          prefix="₹"
+          thousandSeparator="," thousandsGroupStyle="lakh"
+          min={0}
+          value={goldTotal}
+          onChange={setGoldTotal}
+        />
+        <NumberInput
           label="Pranjal's wedding budget"
           description="Optional. The most Pranjal plans to spend on the wedding itself."
           prefix="₹"
@@ -245,7 +256,7 @@ export function SettingsEditor({ settings, opened, onClose, onSaved }: { setting
           onChange={setTotal}
         />
         <NumberInput
-          label="Pranjal's budget after the wedding"
+          label="Pranjal's post-wedding budget"
           description="Optional. The honeymoon and the new home, kept apart from the wedding budget."
           prefix="₹"
           thousandSeparator="," thousandsGroupStyle="lakh"

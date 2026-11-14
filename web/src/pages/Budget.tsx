@@ -139,7 +139,7 @@ export function Budget() {
 
   const throughMonth = dates.wedding.start.toLocaleDateString('en-CA').slice(0, 7);
   const [side, setSide] = useState<Side>('both');
-  const [scope, setScope] = useState<Scope>('wedding');
+  const [scope, setScope] = useState<Scope>('all');
   // One plan per side, so the table can show all three and the sections below follow the toggles. The scope decides which
   // payments are listed and totalled; the funds picture always counts everything, because the money is one pool.
   const plans = useMemo(() => {
@@ -159,13 +159,13 @@ export function Budget() {
     return { both: make('both'), pranjal: make('pranjal'), paridhi: make('paridhi') } as Record<Side, Plan>;
   }, [schedule, paid, settings, topics, scope, today, throughMonth]);
   const plan = plans[side];
-  // The total budgets are Pranjal's: one for the wedding, one for what comes after it.
+  // The budgets are Pranjal's, one for each header; Everything adds up the ones that are set.
   const viewSettings = useMemo(() => {
     const st = settingsForSide(settings, side);
     if (!st) return st;
-    const w = settings?.total_budget ?? null;
-    const a = settings?.post_wedding_budget ?? null;
-    const total = side !== 'pranjal' ? null : scope === 'wedding' ? w : scope === 'post_wedding' ? a : w === null && a === null ? null : (w ?? 0) + (a ?? 0);
+    const parts = [settings?.gold_budget ?? null, settings?.total_budget ?? null, settings?.post_wedding_budget ?? null];
+    const set = parts.filter((v): v is number => v !== null);
+    const total = side !== 'pranjal' ? null : scope === 'gold' ? parts[0] : scope === 'wedding' ? parts[1] : scope === 'post_wedding' ? parts[2] : set.length ? sum(set) : null;
     return { ...st, total_budget: total };
   }, [settings, side, scope]);
   const scopedTopics = useMemo(() => (scope === 'all' ? topics : topics.filter((t) => (t.budget_group ?? 'wedding') === scope)), [topics, scope]);
@@ -206,7 +206,7 @@ export function Budget() {
             size="xs"
             value={scope}
             onChange={(v) => setScope(v as Scope)}
-            data={(['wedding', 'post_wedding', 'all'] as Scope[]).map((s) => ({ value: s, label: SCOPE_LABEL[s] }))}
+            data={(['gold', 'wedding', 'post_wedding', 'all'] as Scope[]).map((s) => ({ value: s, label: SCOPE_LABEL[s] }))}
             aria-label="Which spending to show"
           />
           <SegmentedControl
@@ -222,8 +222,8 @@ export function Budget() {
         <Stack gap="md">
         {scope !== 'all' && (
           <Text size="xs" c="dimmed">
-            Showing {SCOPE_LABEL[scope].toLowerCase()} only. {scope === 'wedding' ? 'The honeymoon and the new home are kept apart under "After the wedding". ' : 'The wedding is kept apart under "Wedding". '}
-            Funds are one pool, so funds available, the month balances and "left after paying all" count both together.
+            Showing {SCOPE_LABEL[scope].toLowerCase()} only. The budget has three headers: Gold (the jewellery), Wedding, and Post-wedding (the honeymoon and the new home).
+            Funds are one pool, so funds available, the month balances and "left after paying all" count all of them together.
           </Text>
         )}
         <SideBySide plans={plans} side={side} onPick={setSide} />
