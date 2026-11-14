@@ -171,6 +171,12 @@ export function Budget() {
   const scopedTopics = useMemo(() => (scope === 'all' ? topics : topics.filter((t) => (t.budget_group ?? 'wedding') === scope)), [topics, scope]);
   const areaRows = useMemo(() => buildAreas({ topics: scopedTopics, items, paid, pending: schedule, areas, side }), [scopedTopics, items, paid, schedule, areas, side]);
   const notScheduled = sum(areaRows.map((r) => r.notScheduled));
+  // The contingency buffer is kept outside the budget, so Everything does not count it against the budgets.
+  const outsideBudget = useMemo(() => {
+    if (scope !== 'all') return 0;
+    const buffer = scheduleForSide(schedule, side === 'both' ? 'both' : side).filter((p) => p.status === 'pending' && topics.find((t) => t.id === p.topic_id)?.budget_group === 'buffer');
+    return sum(buffer.map((p) => p.amount));
+  }, [schedule, topics, scope, side]);
 
   // Marking a payment as paid records it in the ledger first. If less than the scheduled amount was paid, the rest
   // stays on the schedule as still to pay; otherwise the scheduled payment is marked paid and linked to the ledger entry.
@@ -227,7 +233,7 @@ export function Budget() {
           </Text>
         )}
         <SideBySide plans={plans} side={side} onPick={setSide} />
-        <BudgetSummary side={side} plan={plan} settings={viewSettings} notScheduled={notScheduled} today={today} isUnlocked={isUnlocked} onEditSettings={() => setSettingsOpen(true)} />
+        <BudgetSummary side={side} plan={plan} settings={viewSettings} notScheduled={notScheduled} outsideBudget={outsideBudget} today={today} isUnlocked={isUnlocked} onEditSettings={() => setSettingsOpen(true)} />
         </Stack>
       </Section>
 

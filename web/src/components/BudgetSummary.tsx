@@ -29,6 +29,7 @@ export function BudgetSummary({
   plan,
   settings,
   notScheduled,
+  outsideBudget = 0,
   today,
   isUnlocked,
   onEditSettings,
@@ -37,19 +38,21 @@ export function BudgetSummary({
   plan: Plan;
   settings: BudgetSettings | null;
   notScheduled: number;
+  outsideBudget?: number;
   today: string;
   isUnlocked: boolean;
   onEditSettings: () => void;
 }) {
   const total = settings?.total_budget ?? null;
-  const committed = plan.paidTotal + plan.pendingTotal + notScheduled;
+  // Money kept outside the budget (the contingency buffer) is not counted against it.
+  const committed = plan.paidTotal + plan.pendingTotal + notScheduled - outsideBudget;
   const scale = Math.max(total ?? 0, committed, 1);
   const free = total === null ? 0 : Math.max(0, total - committed);
   const over = total !== null && committed > total;
 
   const segments = [
     { key: 'paid', label: 'Paid', value: plan.paidTotal, color: 'var(--mantine-color-teal-6)' },
-    { key: 'pending', label: 'Still to pay', value: plan.pendingTotal, color: 'var(--mantine-color-rose-6)' },
+    { key: 'pending', label: 'Still to pay', value: plan.pendingTotal - outsideBudget, color: 'var(--mantine-color-rose-6)' },
     { key: 'unscheduled', label: 'Chosen, not scheduled yet', value: notScheduled, color: 'var(--mantine-color-orange-5)' },
     { key: 'free', label: 'Left in the budget', value: free, color: 'var(--mantine-color-gray-4)' },
   ].filter((s) => s.value > 0);
