@@ -23,13 +23,13 @@ export function useBudgetPlan() {
   const reload = useCallback(async () => {
     const [s, st, a, p, i, t] = await Promise.all([
       supabase.from('payment_schedule').select('id, payee, amount, due_date, topic_id, note, is_estimate, status, paid_payment_id, paridhi_amount, paridhi_due_date, paridhi_plan').order('due_date'),
-      supabase.from('budget_settings').select('total_budget, funds_available, funds_as_of, monthly_addition, paridhi_funds_available, paridhi_monthly_addition').eq('id', 1).maybeSingle(),
+      supabase.from('budget_settings').select('total_budget, funds_available, funds_as_of, monthly_addition, paridhi_funds_available, paridhi_monthly_addition, post_wedding_budget').eq('id', 1).maybeSingle(),
       supabase.from('budget_areas').select('id, topic_id, allocation'),
       supabase.from('payments').select('id, paid_on, amount, topic_id, paridhi_amount'),
       supabase.from('planning_items').select('topic_id, status, amount, amount_kind, slug').not('amount', 'is', null),
-      supabase.from('topics').select('id, key, label').order('sort_order'),
+      supabase.from('topics').select('id, key, label, budget_group').order('sort_order'),
     ]);
-    const st0 = st.data as { total_budget: number | string | null; funds_available: number | string | null; funds_as_of: string | null; monthly_addition: number | string; paridhi_funds_available: number | string | null; paridhi_monthly_addition: number | string } | null;
+    const st0 = st.data as { total_budget: number | string | null; funds_available: number | string | null; funds_as_of: string | null; monthly_addition: number | string; paridhi_funds_available: number | string | null; paridhi_monthly_addition: number | string; post_wedding_budget: number | string | null } | null;
     setData({
       schedule: ((s.data ?? []) as Scheduled[]).map((r) => ({ ...r, amount: num(r.amount), paridhi_amount: num(r.paridhi_amount), paridhi_plan: ((r.paridhi_plan ?? []) as { on: string; amount: number | string }[]).map((i) => ({ on: i.on, amount: num(i.amount) })) })),
       settings: st0
@@ -40,6 +40,7 @@ export function useBudgetPlan() {
             monthly_addition: num(st0.monthly_addition),
             paridhi_funds_available: st0.paridhi_funds_available === null ? null : num(st0.paridhi_funds_available),
             paridhi_monthly_addition: num(st0.paridhi_monthly_addition),
+            post_wedding_budget: st0.post_wedding_budget === null ? null : num(st0.post_wedding_budget),
           }
         : null,
       areas: ((a.data ?? []) as AreaBudget[]).map((r) => ({ ...r, allocation: num(r.allocation) })),

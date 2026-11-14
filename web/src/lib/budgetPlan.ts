@@ -26,14 +26,40 @@ export type BudgetSettings = {
   monthly_addition: number;
   paridhi_funds_available: number | null;
   paridhi_monthly_addition: number;
+  post_wedding_budget?: number | null; // budget for the honeymoon and the new home, kept apart from the wedding's
 };
 
 export type AreaBudget = { id: string; topic_id: string; allocation: number };
 export type PaidRow = { id: string; paid_on: string; amount: number; topic_id: string | null; paridhi_amount: number };
 export type ItemMoney = { topic_id: string; status: string; amount: number | null; amount_kind: string | null; slug: string | null };
-export type TopicRef = { id: string; key: string; label: string };
+export type TopicRef = { id: string; key: string; label: string; budget_group?: 'wedding' | 'post_wedding' };
 
 export type Side = 'both' | 'pranjal' | 'paridhi';
+
+// The wedding's own spending, or what comes after it (the honeymoon and the new home). The funds are one pool, so
+// the funds figures always count everything; the scope only decides which payments are listed and totalled.
+export type Scope = 'wedding' | 'post_wedding' | 'all';
+
+export const SCOPE_LABEL: Record<Scope, string> = { wedding: 'Wedding', post_wedding: 'After the wedding', all: 'Everything' };
+
+export const inScope = (topicId: string | null, topics: TopicRef[], scope: Scope) =>
+  scope === 'all' || ((topics.find((t) => t.id === topicId)?.budget_group ?? 'wedding') === scope);
+
+export const filterScope = <T extends { topic_id: string | null }>(rows: T[], topics: TopicRef[], scope: Scope): T[] =>
+  scope === 'all' ? rows : rows.filter((r) => inScope(r.topic_id, topics, scope));
+
+// A plan for one scope that keeps the funds picture of the full plan: balances, funds left and shortfalls are what is
+// left after paying everything, wherever it falls, because the money is shared.
+export function withFullFunds(scoped: Plan, full: Plan): Plan {
+  const byKey = new Map(full.months.map((m) => [m.key, m]));
+  return {
+    ...scoped,
+    months: scoped.months.map((m) => ({ ...m, balance: byKey.get(m.key)?.balance ?? m.balance, cumulativeDue: byKey.get(m.key)?.cumulativeDue ?? m.cumulativeDue })),
+    fundsNow: full.fundsNow,
+    leftAfterAll: full.leftAfterAll,
+    firstShort: full.firstShort,
+  };
+}
 
 export const SIDE_LABEL: Record<Side, string> = { both: 'Together', pranjal: 'Pranjal', paridhi: 'Paridhi' };
 
@@ -78,7 +104,7 @@ export function scheduleForSide(rows: Scheduled[], side: Side): Scheduled[] {
 
 export function settingsForSide(s: BudgetSettings | null, side: Side): BudgetSettings | null {
   if (!s) return s;
-  if (side === 'pranjal') return { ...s, total_budget: null };
+  if (side === 'pranjal') return s;
   if (side === 'paridhi')
     return { ...s, total_budget: null, funds_available: s.paridhi_funds_available, monthly_addition: s.paridhi_monthly_addition };
   const funds = s.funds_available === null && s.paridhi_funds_available === null ? null : (s.funds_available ?? 0) + (s.paridhi_funds_available ?? 0);

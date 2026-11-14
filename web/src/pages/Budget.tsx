@@ -15,7 +15,7 @@ import { useBudgetPlan } from '../hooks/useBudgetPlan';
 import { usePlanFacts } from '../hooks/usePlanFacts';
 import { useEditMode } from '../hooks/useEditMode';
 import { SideBySide } from '../components/SideBySide';
-import { SIDE_LABEL, buildAreas, buildPlan, forSide, scheduleForSide, settingsForSide, sum, type Plan, type Scheduled, type Side } from '../lib/budgetPlan';
+import { SCOPE_LABEL, SIDE_LABEL, buildAreas, buildPlan, filterScope, forSide, scheduleForSide, settingsForSide, sum, withFullFunds, type Plan, type Scheduled, type Scope, type Side } from '../lib/budgetPlan';
 import { KIND_LABEL, STATUS_COLOR, STATUS_LABEL, formatAsOf, formatInr } from '../lib/topicMeta';
 
 type BudgetRow = Pick<PlanningItem, 'id' | 'title' | 'type' | 'status' | 'amount' | 'amount_kind' | 'amount_note' | 'as_of'> & {
@@ -139,14 +139,37 @@ export function Budget() {
 
   const throughMonth = dates.wedding.start.toLocaleDateString('en-CA').slice(0, 7);
   const [side, setSide] = useState<Side>('both');
-  // One plan per side, so the table can show all three and the sections below follow the toggle.
+  const [scope, setScope] = useState<Scope>('wedding');
+  // One plan per side, so the table can show all three and the sections below follow the toggles. The scope decides which
+  // payments are listed and totalled; the funds picture always counts everything, because the money is one pool.
   const plans = useMemo(() => {
-    const make = (sd: Side): Plan => buildPlan({ pending: scheduleForSide(schedule, sd), paid: forSide(paid, sd), settings: settingsForSide(settings, sd), today, throughMonth });
+    const make = (sd: Side): Plan => {
+      const st = settingsForSide(settings, sd);
+      const all = buildPlan({ pending: scheduleForSide(schedule, sd), paid: forSide(paid, sd), settings: st, today, throughMonth });
+      if (scope === 'all') return all;
+      const scoped = buildPlan({
+        pending: scheduleForSide(filterScope(schedule, topics, scope), sd),
+        paid: forSide(filterScope(paid, topics, scope), sd),
+        settings: st,
+        today,
+        throughMonth,
+      });
+      return withFullFunds(scoped, all);
+    };
     return { both: make('both'), pranjal: make('pranjal'), paridhi: make('paridhi') } as Record<Side, Plan>;
-  }, [schedule, paid, settings, today, throughMonth]);
+  }, [schedule, paid, settings, topics, scope, today, throughMonth]);
   const plan = plans[side];
-  const viewSettings = useMemo(() => settingsForSide(settings, side), [settings, side]);
-  const areaRows = useMemo(() => buildAreas({ topics, items, paid, pending: schedule, areas, side }), [topics, items, paid, schedule, areas, side]);
+  // The total budgets are Pranjal's: one for the wedding, one for what comes after it.
+  const viewSettings = useMemo(() => {
+    const st = settingsForSide(settings, side);
+    if (!st) return st;
+    const w = settings?.total_budget ?? null;
+    const a = settings?.post_wedding_budget ?? null;
+    const total = side !== 'pranjal' ? null : scope === 'wedding' ? w : scope === 'post_wedding' ? a : w === null && a === null ? null : (w ?? 0) + (a ?? 0);
+    return { ...st, total_budget: total };
+  }, [settings, side, scope]);
+  const scopedTopics = useMemo(() => (scope === 'all' ? topics : topics.filter((t) => (t.budget_group ?? 'wedding') === scope)), [topics, scope]);
+  const areaRows = useMemo(() => buildAreas({ topics: scopedTopics, items, paid, pending: schedule, areas, side }), [scopedTopics, items, paid, schedule, areas, side]);
   const notScheduled = sum(areaRows.map((r) => r.notScheduled));
 
   // Marking a payment as paid records it in the ledger first. If less than the scheduled amount was paid, the rest
@@ -178,16 +201,31 @@ export function Budget() {
             What is paid, what is still to pay, and whether each month is covered.
           </Text>
         </div>
-        <SegmentedControl
-          value={side}
-          onChange={(v) => setSide(v as Side)}
-          data={(['both', 'pranjal', 'paridhi'] as Side[]).map((s) => ({ value: s, label: SIDE_LABEL[s] }))}
-          aria-label="Whose share to show"
-        />
+        <Stack gap={6} align="flex-end">
+          <SegmentedControl
+            size="xs"
+            value={scope}
+            onChange={(v) => setScope(v as Scope)}
+            data={(['wedding', 'post_wedding', 'all'] as Scope[]).map((s) => ({ value: s, label: SCOPE_LABEL[s] }))}
+            aria-label="Which spending to show"
+          />
+          <SegmentedControl
+            value={side}
+            onChange={(v) => setSide(v as Side)}
+            data={(['both', 'pranjal', 'paridhi'] as Side[]).map((s) => ({ value: s, label: SIDE_LABEL[s] }))}
+            aria-label="Whose share to show"
+          />
+        </Stack>
       </Group>
 
       <Section step={1} title="Where the money stands" hint="Paid, still to pay, and the funds you have to cover it.">
         <Stack gap="md">
+        {scope !== 'all' && (
+          <Text size="xs" c="dimmed">
+            Showing {SCOPE_LABEL[scope].toLowerCase()} only. {scope === 'wedding' ? 'The honeymoon and the new home are kept apart under "After the wedding". ' : 'The wedding is kept apart under "Wedding". '}
+            Funds are one pool, so funds available, the month balances and "left after paying all" count both together.
+          </Text>
+        )}
         <SideBySide plans={plans} side={side} onPick={setSide} />
         <BudgetSummary side={side} plan={plan} settings={viewSettings} notScheduled={notScheduled} today={today} isUnlocked={isUnlocked} onEditSettings={() => setSettingsOpen(true)} />
         </Stack>
