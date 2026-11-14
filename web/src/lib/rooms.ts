@@ -16,13 +16,15 @@ export type StayRoom = {
   floor: number | null;
   capacity: number;
   available_from: string | null;
+  available_until?: string | null; // the last night the room is open; null = open to the end
   paid_by: PaidBy | null;
   notes: string | null;
   sort_order: number;
 };
 
 // One household in one room. people null = the household's people split evenly across its rooms.
-export type RoomStay = { id: string; room_id: string; guest_id: string; people: number | null };
+// extra_nights: nights outside the household's own guest nights that it also keeps this room (12 or 16 Feb at Shri Kanth).
+export type RoomStay = { id: string; room_id: string; guest_id: string; people: number | null; extra_nights?: string[] | null };
 
 export type RoomGuest = {
   id: string;
@@ -38,7 +40,7 @@ export type RoomGuest = {
 
 type Inv = Pick<Invite, 'guest_id' | 'event_date' | 'coming' | 'declined'>;
 
-export const roomOpenOn = (room: StayRoom, night: string) => !room.available_from || room.available_from <= night;
+export const roomOpenOn = (room: StayRoom, night: string) => (!room.available_from || room.available_from <= night) && (!room.available_until || night <= room.available_until);
 
 // The day after the last night: everyone checks out then.
 export function checkoutOf(allNights: string[]) {
@@ -78,7 +80,8 @@ export function stateOf(roomsPlaced: number, roomsNeeded: number): HouseholdStat
   return roomsPlaced > roomsNeeded ? 'extra' : 'placed';
 }
 
-export type Occupant = { stay: RoomStay; guest: RoomGuest; people: number; nights: string[]; firstNight: string | null };
+// nights = the household's guest nights plus its extra nights in this room; baseNights = the guest nights alone.
+export type Occupant = { stay: RoomStay; guest: RoomGuest; people: number; nights: string[]; baseNights: string[]; firstNight: string | null };
 
 // Who sleeps in each room: the households in it, how many people each puts there, and the nights they are there.
 export function occupantsByRoom(stays: RoomStay[], households: Household[], guests: RoomGuest[], allNights: string[]) {
@@ -95,7 +98,9 @@ export function occupantsByRoom(stays: RoomStay[], households: Household[], gues
     const total = h?.people ?? guest.persons;
     const people = s.people ?? Math.max(1, Math.ceil(total / (roomsOfGuest.get(s.guest_id) ?? 1)));
     const list = out.get(s.room_id) ?? [];
-    list.push({ stay: s, guest, people, nights: h?.nights ?? allNights, firstNight: h?.firstNight ?? allNights[0] ?? null });
+    const baseNights = h?.nights ?? allNights;
+    const nights = [...new Set([...baseNights, ...(s.extra_nights ?? [])])].sort();
+    list.push({ stay: s, guest, people, nights, baseNights, firstNight: nights[0] ?? null });
     out.set(s.room_id, list);
   }
   return out;
@@ -104,14 +109,14 @@ export function occupantsByRoom(stays: RoomStay[], households: Household[], gues
 export type RoomIssue = 'over' | 'stairs' | 'not_open' | 'shared';
 
 // What is worth a look in a room. "over" is the most people on any night against its capacity; "stairs" is a household
-// that cannot manage stairs in a place without a lift; "not_open" is a household arriving before the room is open;
+// that cannot manage stairs in a place without a lift; "not_open" is a household with a night when the room is not open;
 // "shared" is information, not a problem: two households in one room.
 export function roomIssues(room: StayRoom, site: StaySite | undefined, occupants: Occupant[], allNights: string[]): RoomIssue[] {
   const issues: RoomIssue[] = [];
-  const worst = Math.max(0, ...allNights.map((n) => occupants.filter((o) => o.nights.includes(n)).reduce((a, o) => a + o.people, 0)));
+  const worst = Math.max(0, ...[...new Set([...allNights, ...occupants.flatMap((o) => o.nights)])].map((n) => occupants.filter((o) => o.nights.includes(n)).reduce((a, o) => a + o.people, 0)));
   if (worst > room.capacity) issues.push('over');
   if (site && !site.has_lift && occupants.some((o) => o.guest.needs_lift)) issues.push('stairs');
-  if (room.available_from && occupants.some((o) => o.firstNight && o.firstNight < room.available_from!)) issues.push('not_open');
+  if (occupants.some((o) => o.nights.some((n) => !roomOpenOn(room, n)))) issues.push('not_open');
   if (occupants.length > 1) issues.push('shared');
   return issues;
 }
@@ -119,7 +124,7 @@ export function roomIssues(room: StayRoom, site: StaySite | undefined, occupants
 export const ISSUE_TEXT: Record<RoomIssue, string> = {
   over: 'More people than the room holds',
   stairs: 'Needs a lift, but this place has none',
-  not_open: 'Arrives before the room is open',
+  not_open: 'Stays a night when the room is not open',
   shared: 'Shared by more than one household',
 };
 
@@ -144,13 +149,14 @@ const dayLabel = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('en
 // One row per room that has someone in it, in the order of the places and the rooms.
 export function roomingRows(sites: StaySite[], rooms: StayRoom[], occ: Map<string, Occupant[]>, allNights: string[], withMembers: boolean): RoomingRow[] {
   const out: RoomingRow[] = [];
-  const checkout = checkoutOf(allNights);
   for (const site of sites) {
     const mine = rooms.filter((r) => r.site_id === site.id).sort((a, b) => a.sort_order - b.sort_order || a.label.localeCompare(b.label, undefined, { numeric: true }));
     for (const room of mine) {
       const here = occ.get(room.id) ?? [];
       if (here.length === 0) continue;
-      const first = here.map((o) => o.firstNight).filter((x): x is string => !!x).sort()[0] ?? allNights[0];
+      const nightsHere = here.flatMap((o) => o.nights).sort();
+      const first = nightsHere[0] ?? allNights[0];
+      const checkout = checkoutOf(nightsHere.length > 0 ? nightsHere : allNights);
       out.push({
         site: site.name,
         room: room.label,
