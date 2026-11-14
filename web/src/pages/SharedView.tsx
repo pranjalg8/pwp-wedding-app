@@ -361,51 +361,41 @@ function Guests({ g, onRsvp }: { g: Row; onRsvp?: Edits['rsvp'] }) {
         </Paper>
       )}
       {g.list ? (
-        <Paper withBorder p={0} style={{ overflow: 'hidden' }}>
-          <Table.ScrollContainer minWidth={onRsvp ? 640 : 560}>
-            <Table verticalSpacing="xs">
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Household</Table.Th>
-                  <Table.Th ta="right">People</Table.Th>
-                  <Table.Th>Status</Table.Th>
-                  <Table.Th>Answers</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {(g.list as Row[]).map((h) => (
-                  <Table.Tr key={h.name + h.persons}>
-                    <Table.Td>
-                      <Text size="sm" fw={500}>
-                        {h.name}
+        <Stack gap="sm">
+          {(g.list as Row[]).map((h) => (
+            <Paper key={h.id ?? h.name + h.persons} withBorder p="md">
+              <Group justify="space-between" align="flex-start" wrap="nowrap" gap="sm">
+                <div style={{ minWidth: 0 }}>
+                  <Text size="sm" fw={600}>
+                    {h.name}
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    {[h.family_members, h.group, h.location].filter(Boolean).join(' · ')}
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    {h.persons} {h.persons === 1 ? 'person' : 'people'}
+                  </Text>
+                </div>
+                <Badge size="sm" variant="light" color={HOUSEHOLD_COLOR[h.status as keyof typeof HOUSEHOLD_COLOR]} tt="none" style={{ flexShrink: 0 }}>
+                  {HOUSEHOLD_LABEL[h.status as keyof typeof HOUSEHOLD_LABEL]}
+                </Badge>
+              </Group>
+              {(h.answers as Row[]).length > 0 && (
+                <Stack gap={0} mt="sm">
+                  {(h.answers as Row[]).map((a) =>
+                    onRsvp && h.id ? (
+                      <AnswerEditor key={`${a.date}-${a.coming}-${a.maybe}-${a.declined}`} persons={h.persons} answer={a} onSave={(c) => onRsvp(h.id, a.date, c)} />
+                    ) : (
+                      <Text key={a.date} size="xs">
+                        {shortDay(a.date)}: {a.coming} yes, {a.maybe} maybe, {a.declined} no
                       </Text>
-                      <Text size="xs" c="dimmed">
-                        {[h.family_members, h.group, h.location].filter(Boolean).join(' · ')}
-                      </Text>
-                    </Table.Td>
-                    <Table.Td ta="right">{h.persons}</Table.Td>
-                    <Table.Td style={{ whiteSpace: 'nowrap' }}>
-                      <Badge size="sm" variant="light" color={HOUSEHOLD_COLOR[h.status as keyof typeof HOUSEHOLD_COLOR]} tt="none">
-                        {HOUSEHOLD_LABEL[h.status as keyof typeof HOUSEHOLD_LABEL]}
-                      </Badge>
-                    </Table.Td>
-                    <Table.Td>
-                      {(h.answers as Row[]).map((a) =>
-                        onRsvp && h.id ? (
-                          <AnswerEditor key={`${a.date}-${a.coming}-${a.maybe}-${a.declined}`} persons={h.persons} answer={a} onSave={(c) => onRsvp(h.id, a.date, c)} />
-                        ) : (
-                          <Text key={a.date} size="xs">
-                            {shortDay(a.date)}: {a.coming} yes, {a.maybe} maybe, {a.declined} no
-                          </Text>
-                        ),
-                      )}
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </Table.ScrollContainer>
-        </Paper>
+                    ),
+                  )}
+                </Stack>
+              )}
+            </Paper>
+          ))}
+        </Stack>
       ) : (
         <Text size="xs" c="dimmed">
           Guest names are not included in this link, only the totals.

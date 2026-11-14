@@ -6,6 +6,7 @@ import { useEditMode } from '../hooks/useEditMode';
 import { allNightsOf, guestNightsOf, householdNeed, suggestPlan, usedByNight, type GuestStay, type StayNight, type StaySite } from '../lib/stay';
 import type { Invite } from '../lib/rsvp';
 import { StayAssign, SuggestModal, restoreStays } from './StayAssign';
+import { UndoMessage } from './UndoMessage';
 
 type PlanGuest = {
   id: string;
@@ -128,14 +129,19 @@ export function RoomPlan({
       autoClose: 20000,
       withCloseButton: true,
       title: 'Room plan applied',
-      message: (
-        <Group justify="space-between" wrap="nowrap" gap="sm">
-          <Text size="sm">{suggestion.rows.length} placements saved.</Text>
-          <Button size="compact-sm" variant="light" onClick={() => undo(before)}>
-            Undo
-          </Button>
-        </Group>
-      ),
+      message: <UndoMessage text={`${suggestion.rows.length} placements saved.`} onUndo={() => undo(before)} />,
+    });
+  }
+
+  // One household placed or changed by hand: the same Undo as a whole plan.
+  function placedByHand(before: { guest_id: string; site_id: string; rooms: number }[], name: string) {
+    notifications.show({
+      id: 'rooms-applied',
+      color: 'teal',
+      autoClose: 20000,
+      withCloseButton: true,
+      title: 'Rooms saved',
+      message: <UndoMessage text={`${name} placed.`} onUndo={() => undo(before)} />,
     });
   }
 
@@ -350,6 +356,11 @@ export function RoomPlan({
           opened
           onClose={() => setAssigning(null)}
           onSaved={() => {
+            // `stays` is still what it was before this save, so it is what Undo puts back.
+            placedByHand(
+              stays.map((s) => ({ guest_id: s.guest_id, site_id: s.site_id, rooms: Number(s.rooms) })),
+              assigning.name,
+            );
             reloadStays();
             onGuestsChanged();
           }}
