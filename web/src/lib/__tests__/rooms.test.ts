@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { checkoutOf, householdsNeedingRooms, nightsBetween, occupantsByRoom, roomIssues, roomOpenOn, roomingRows, stateOf, stayNights, type RoomStay, type StayRoom } from '../rooms';
-import { DAY1, DAY2, HOTEL_SAI, SHRI_KANTH, guest, invite } from './fixtures';
+import { autoPlace, checkoutOf, householdsNeedingRooms, nightsBetween, occupantsByRoom, roomIssues, roomOpenOn, roomingRows, stateOf, stayNights, type RoomStay, type StayRoom } from '../rooms';
+import { DAY1, DAY2, HOTEL_SAI, ROYAL_PEPPER, SHRI_KANTH, guest, invite } from './fixtures';
 
 const room = (over: Partial<StayRoom> = {}): StayRoom => ({
   id: 'r1', site_id: SHRI_KANTH.id, label: '101', floor: 1, capacity: 4, available_from: null, paid_by: null, notes: null, sort_order: 0, ...over,
@@ -121,5 +121,51 @@ describe('stays with their own dates', () => {
     const [row] = roomingRows([SHRI_KANTH], [room()], occ, guestNights, false);
     expect(row.checkIn).toMatch(/13/);
     expect(row.checkOut).toMatch(/16/);
+  });
+});
+
+describe('autoPlace (Fill rooms)', () => {
+  const nights = [DAY1, DAY2];
+  const rp = (n: number, from: string | null = null) => room({ id: `rp${n}`, site_id: ROYAL_PEPPER.id, label: `R${n}`, sort_order: n, available_from: from });
+  const sk = (n: number) => room({ id: `sk${n}`, site_id: SHRI_KANTH.id, label: `F${n}`, sort_order: n });
+  const sai = (n: number) => room({ id: `sai${n}`, site_id: HOTEL_SAI.id, label: `S${n}`, sort_order: n });
+  const sites = [ROYAL_PEPPER, SHRI_KANTH, HOTEL_SAI];
+  const run = (guests: ReturnType<typeof guest>[], inv: ReturnType<typeof invite>[], rooms: StayRoom[], stays: RoomStay[] = []) => {
+    const hh = householdsNeedingRooms(guests, inv, nights);
+    const occ = occupantsByRoom(stays, hh, guests, nights);
+    const placed = new Map<string, number>();
+    stays.forEach((s) => placed.set(s.guest_id, (placed.get(s.guest_id) ?? 0) + 1));
+    return autoPlace(hh, rooms, sites, occ, placed);
+  };
+
+  it('sends main-stay rooms to the main place and the rest elsewhere, keeping a household at one place', () => {
+    const plan = run([guest('a', 6, 2, 1)], [invite('a', DAY1)], [rp(1), rp(2), rp(3), sk(1), sk(2)]);
+    expect(plan.rows.map((r) => r.room_id)).toEqual(['rp1', 'rp2', 'sk1']);
+    expect(plan.short).toEqual([]);
+  });
+
+  it('never uses a room that is taken or not open on one of the nights, and reports what is short', () => {
+    // b is already in rp1 both nights; rp2 opens only on 15 Feb, so a (both nights) cannot use it.
+    const plan = run([guest('a', 3, 1), guest('b', 3, 1)], [invite('a', DAY1), invite('b', DAY1)], [rp(1), rp(2, DAY2)], [stay('b', null, 'rp1')]);
+    expect(plan.rows).toEqual([]);
+    expect(plan.short).toEqual([{ guest_id: 'a', rooms: 1 }]);
+  });
+
+  it('lets a day-2-only household take a room free on its one night', () => {
+    const plan = run([guest('a', 3, 1), guest('late', 3, 1)], [invite('a', DAY1), invite('late', DAY2)], [rp(1), rp(2, DAY2)]);
+    expect(plan.rows).toEqual([
+      { guest_id: 'a', room_id: 'rp1' },
+      { guest_id: 'late', room_id: 'rp2' },
+    ]);
+  });
+
+  it('puts a household needing a lift only where there is one', () => {
+    const plan = run([guest('elders', 2, 0, 1, { needs_lift: true })], [invite('elders', DAY1)], [sk(1), sai(1)]);
+    expect(plan.rows).toEqual([{ guest_id: 'elders', room_id: 'sai1' }]);
+  });
+
+  it('places only the rooms still missing and leaves placed households alone', () => {
+    const plan = run([guest('a', 6, 2)], [invite('a', DAY1)], [rp(1), rp(2), rp(3)], [stay('a', null, 'rp3')]);
+    expect(plan.rows).toEqual([{ guest_id: 'a', room_id: 'rp1' }]);
   });
 });

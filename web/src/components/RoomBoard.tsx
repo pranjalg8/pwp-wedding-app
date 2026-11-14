@@ -7,6 +7,7 @@ import { allNightsOf, guestNightsOf, type StayNight, type StaySite } from '../li
 import type { Invite } from '../lib/rsvp';
 import {
   ISSUE_TEXT,
+  autoPlace,
   householdsNeedingRooms,
   isProblem,
   occupantsByRoom,
@@ -20,6 +21,7 @@ import {
   type StayRoom,
 } from '../lib/rooms';
 import { AddRoomsModal, RoomModal } from './RoomModals';
+import { UndoMessage } from './UndoMessage';
 
 const nightShort = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
 const first = (name: string) => name.split(/[\s(-]/)[0] || name;
@@ -108,6 +110,44 @@ export function RoomBoard({
     await reload();
   }
 
+  // Put every household still to place into rooms free on all its nights. Nothing already placed moves.
+  async function fill() {
+    const plan = autoPlace(households, rooms, sites, occ, roomsOf);
+    const placedNow = new Set(plan.rows.map((r) => r.guest_id)).size;
+    const shortRooms = plan.short.reduce((a, x) => a + x.rooms, 0);
+    if (plan.rows.length === 0) {
+      notifications.show({ color: 'orange', title: 'No free rooms', message: 'No household still to place fits in a room free on all its nights.' });
+      return;
+    }
+    const msg =
+      `Put ${placedNow} household${placedNow === 1 ? '' : 's'} into ${plan.rows.length} room${plan.rows.length === 1 ? '' : 's'}?` +
+      (shortRooms > 0 ? ` ${shortRooms} more room${shortRooms === 1 ? '' : 's'} would still be needed.` : '') +
+      ' Households already in rooms stay where they are.';
+    if (!window.confirm(msg)) return;
+    const { data, error } = await supabase.from('room_stays').insert(plan.rows).select('id');
+    if (error) {
+      notifications.show({ color: 'red', title: 'Could not fill rooms', message: error.message });
+      return;
+    }
+    const ids = (data ?? []).map((r) => r.id as string);
+    notifications.show({
+      color: shortRooms > 0 ? 'orange' : 'teal',
+      title: 'Rooms filled',
+      autoClose: 10000,
+      message: (
+        <UndoMessage
+          text={`${placedNow} household${placedNow === 1 ? '' : 's'} placed.${shortRooms > 0 ? ` Still ${shortRooms} room${shortRooms === 1 ? '' : 's'} short.` : ''}`}
+          onUndo={async () => {
+            const { error: err } = await supabase.from('room_stays').delete().in('id', ids);
+            if (err) notifications.show({ color: 'red', title: 'Could not undo', message: err.message });
+            await reload();
+          }}
+        />
+      ),
+    });
+    await reload();
+  }
+
   function dropOn(room: StayRoom) {
     const d = drag.current;
     drag.current = null;
@@ -154,6 +194,11 @@ export function RoomBoard({
         <Group gap="xs">
           {allNights.length > 0 && (
             <SegmentedControl size="xs" value={shownNight} onChange={setNight} data={allNights.map((n) => ({ value: n, label: nightShort(n) }))} aria-label="Night" />
+          )}
+          {isUnlocked && tray.length > 0 && rooms.length > 0 && (
+            <Button size="compact-md" onClick={() => void fill()}>
+              Fill rooms
+            </Button>
           )}
           {isUnlocked && (
             <Button size="compact-md" variant="light" onClick={() => setAdding(true)}>

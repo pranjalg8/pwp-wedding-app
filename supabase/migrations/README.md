@@ -6,5 +6,6 @@ not matter, and they were already applied to the live database under their own t
 as they are rather than renamed, so the files still match the live migration history.
 
 New migrations: take the next free number, one file per change, and keep each one additive where you can.
-Two older tables are no longer read or written by the app and are safe to drop later: `guest_invites` (replaced by
-`guest_rsvps` in `0030`), and the unused `status` and `persons_attending` columns it carried.
+Older tables no longer read or written by the app, safe to drop later: `guest_invites` (replaced by `guest_rsvps` in
+`0030`) and the unused `status` and `persons_attending` columns it carried, and `guest_stays` (rooms per place,
+replaced by the room board's `room_stays` in `0040`; empty since).

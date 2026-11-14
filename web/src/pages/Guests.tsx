@@ -8,7 +8,6 @@ import { GuestEditor, type Guest } from '../components/GuestEditor';
 import { useGuestInvites } from '../hooks/useGuestInvites';
 import { BulkAnswerModal, BulkInviteModal, RsvpEditor, daysFromFunctions, restoreInvites, type InviteSnapshot } from '../components/RsvpEditor';
 import { DroppedGuests } from '../components/DroppedGuests';
-import { RoomPlan } from '../components/RoomPlan';
 import { UndoMessage } from '../components/UndoMessage';
 import { RoomCeiling } from '../components/RoomCeiling';
 import { RoomForecast } from '../components/RoomForecast';
@@ -17,10 +16,10 @@ import { RoomingList } from '../components/RoomingList';
 import { useRoomBoard } from '../hooks/useRoomBoard';
 import { GuestsOverview } from '../components/GuestsOverview';
 import { HouseholdList, type GuestContact } from '../components/HouseholdList';
-import { useGuestStays } from '../hooks/useGuestStays';
 import { useStay } from '../hooks/useStay';
 import { splitOf } from '../lib/rsvp';
-import { guestNightsOf, householdNeed } from '../lib/stay';
+import { guestNightsOf } from '../lib/stay';
+import { householdsNeedingRooms } from '../lib/rooms';
 import { countByStatus, type HouseholdStatus } from '../lib/guestStatus';
 
 type FunctionRef = { name: string; event_date: string; family_only: boolean };
@@ -55,7 +54,6 @@ export function Guests() {
   const [contacts, setContacts] = useState<GuestContact[]>([]);
   const { invites, totals, reload: reloadInvites } = useGuestInvites();
   const { sites, nights } = useStay();
-  const { stays, reload: reloadStays } = useGuestStays();
   const { rooms: stayRooms, roomStays, reload: reloadRoomBoard } = useRoomBoard();
   const roomsView = (['plan', 'board', 'list'] as const).find((v) => v === params.get('view')) ?? 'plan';
   const days = useMemo(() => daysFromFunctions(fnRows), [fnRows]);
@@ -125,15 +123,12 @@ export function Guests() {
   );
 
   // Households that need rooms and are not fully placed yet: the number on the Rooms tab and the Overview.
+  // Counted the same way as the room board: whole rooms on the board against whole rooms needed.
   const toPlace = useMemo(() => {
-    const all = guestNightsOf(nights, invites);
-    return guests.filter((g) => {
-      const need = householdNeed(g, invites, all);
-      if (!need || need.main + need.other <= 0) return false;
-      const placed = stays.filter((s) => s.guest_id === g.id).reduce((a, s) => a + Number(s.rooms), 0);
-      return placed < need.main + need.other - 0.01;
-    }).length;
-  }, [guests, invites, nights, stays]);
+    const placed = new Map<string, number>();
+    for (const s of roomStays) placed.set(s.guest_id, (placed.get(s.guest_id) ?? 0) + 1);
+    return householdsNeedingRooms(guests, invites, guestNightsOf(nights, invites)).filter((h) => (placed.get(h.g.id) ?? 0) < h.roomsNeeded).length;
+  }, [guests, invites, nights, roomStays]);
 
   const guestIds = new Set(guests.map((g) => g.id));
   const selectedIds = [...selected].filter((id) => guestIds.has(id));
@@ -375,7 +370,8 @@ export function Guests() {
                 guests={visible}
                 invites={invites}
                 days={days}
-                stays={stays}
+                roomStays={roomStays}
+                stayRooms={stayRooms}
                 sites={sites}
                 nights={nights}
                 isUnlocked={isUnlocked}
@@ -441,7 +437,6 @@ export function Guests() {
                 <>
                   <RoomCeiling guests={guests} invites={invites} sites={sites} nights={nights} days={days} />
                   <RoomForecast guests={guests} invites={invites} sites={sites} nights={nights} days={days} />
-                  <RoomPlan guests={guests} invites={invites} sites={sites} nights={nights} stays={stays} reloadStays={reloadStays} onGuestsChanged={load} />
                 </>
               )}
               {roomsView === 'board' && (
