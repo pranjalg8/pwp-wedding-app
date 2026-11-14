@@ -27,6 +27,7 @@ export type BudgetSettings = {
   paridhi_funds_available: number | null;
   paridhi_monthly_addition: number;
   post_wedding_budget?: number | null; // budget for the honeymoon and the new home, kept apart from the wedding's
+  gold_budget?: number | null; // budget for the jewellery, kept apart from the wedding's
 };
 
 export type AreaBudget = { id: string; topic_id: string; allocation: number };
@@ -36,11 +37,11 @@ export type TopicRef = { id: string; key: string; label: string; budget_group?: 
 
 export type Side = 'both' | 'pranjal' | 'paridhi';
 
-// The wedding's own spending, or what comes after it (the honeymoon and the new home). The funds are one pool, so
+// The three headers of the budget: gold (the jewellery), the wedding itself, and what comes after it (the honeymoon and the new home). The funds are one pool, so
 // the funds figures always count everything; the scope only decides which payments are listed and totalled.
-export type Scope = 'wedding' | 'post_wedding' | 'all';
+export type Scope = 'gold' | 'wedding' | 'post_wedding' | 'all';
 
-export const SCOPE_LABEL: Record<Scope, string> = { wedding: 'Wedding', post_wedding: 'After the wedding', all: 'Everything' };
+export const SCOPE_LABEL: Record<Scope, string> = { gold: 'Gold', wedding: 'Wedding', post_wedding: 'Post-wedding', all: 'Everything' };
 
 export const inScope = (topicId: string | null, topics: TopicRef[], scope: Scope) =>
   scope === 'all' || ((topics.find((t) => t.id === topicId)?.budget_group ?? 'wedding') === scope);
