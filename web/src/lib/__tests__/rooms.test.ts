@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { autoPlace, checkoutOf, householdsNeedingRooms, nightsBetween, occupantsByRoom, roomIssues, roomOpenOn, roomingRows, stateOf, stayNights, type RoomStay, type StayRoom } from '../rooms';
+import { autoPlace, checkoutOf, isFixedStay, suggestLayout, householdsNeedingRooms, nightsBetween, occupantsByRoom, roomIssues, roomOpenOn, roomingRows, stateOf, stayNights, type RoomStay, type StayRoom } from '../rooms';
 import { DAY1, DAY2, HOTEL_SAI, ROYAL_PEPPER, SHRI_KANTH, guest, invite } from './fixtures';
 
 const room = (over: Partial<StayRoom> = {}): StayRoom => ({
@@ -167,5 +167,91 @@ describe('autoPlace (Fill rooms)', () => {
   it('places only the rooms still missing and leaves placed households alone', () => {
     const plan = run([guest('a', 6, 2)], [invite('a', DAY1)], [rp(1), rp(2), rp(3)], [stay('a', null, 'rp3')]);
     expect(plan.rows).toEqual([{ guest_id: 'a', room_id: 'rp1' }]);
+  });
+});
+
+describe('autoPlace: families together, elders low', () => {
+  const nights = [DAY1, DAY2];
+  const sites = [ROYAL_PEPPER, SHRI_KANTH, HOTEL_SAI];
+  const rp = (n: number, floor: number) => room({ id: `rp${n}`, site_id: ROYAL_PEPPER.id, label: `R${n}`, floor, sort_order: n });
+  const run = (guests: ReturnType<typeof guest>[], inv: ReturnType<typeof invite>[], rooms: StayRoom[]) => {
+    const hh = householdsNeedingRooms(guests, inv, nights);
+    return autoPlace(hh, rooms, sites, new Map(), new Map());
+  };
+
+  it('puts a household needing a lift on the lowest floor, ahead of households that come first', () => {
+    const rooms = [rp(1, 1), rp(2, 1), rp(3, 2), rp(4, 0)];
+    const plan = run([guest('a', 2, 1), guest('elders', 2, 1, 0, { needs_lift: true, priority: 2 })], [invite('a', DAY1), invite('elders', DAY1)], rooms);
+    expect(plan.rows).toContainEqual({ guest_id: 'elders', room_id: 'rp4' });
+    expect(plan.rows).toContainEqual({ guest_id: 'a', room_id: 'rp1' });
+  });
+
+  it('keeps one household\'s rooms on one floor and side by side', () => {
+    // Floor 1 has rooms 1 and 3 free but not 2; floor 2 has 4, 5, 6. Three rooms go on floor 2, in a row.
+    const rooms = [rp(1, 1), rp(2, 1), rp(3, 1), rp(4, 2), rp(5, 2), rp(6, 2)];
+    const hh = householdsNeedingRooms([guest('a', 9, 3), guest('b', 3, 1)], [invite('a', DAY1), invite('b', DAY1)], nights);
+    const occ = occupantsByRoom([stay('b', null, 'rp2')], hh, [guest('a', 9, 3), guest('b', 3, 1)], nights);
+    const plan = autoPlace(hh, rooms, sites, occ, new Map([['b', 1]]));
+    expect(plan.rows.filter((r) => r.guest_id === 'a').map((r) => r.room_id)).toEqual(['rp4', 'rp5', 'rp6']);
+  });
+});
+
+describe('suggestLayout (pinned stays)', () => {
+  const nights = [DAY1, DAY2];
+  const sites = [ROYAL_PEPPER, SHRI_KANTH, HOTEL_SAI];
+  const rp = (n: number) => room({ id: `rp${n}`, site_id: ROYAL_PEPPER.id, label: `R${n}`, floor: 1, sort_order: n });
+  const rooms = [rp(1), rp(2), rp(3)];
+  const guests = [guest('a', 3, 1), guest('b', 3, 1), guest('c', 3, 1)];
+  const inv = [invite('a', DAY1), invite('b', DAY1), invite('c', DAY1)];
+  const hh = householdsNeedingRooms(guests, inv, nights);
+  const suggest = (stays: RoomStay[]) => suggestLayout(hh, rooms, sites, stays, guests, nights);
+
+  it('treats pinned stays and stays with their own details as fixed', () => {
+    expect(isFixedStay({ ...stay('a'), locked: true })).toBe(true);
+    expect(isFixedStay(stay('a', 2))).toBe(true);
+    expect(isFixedStay({ ...stay('a'), check_in: DAY1, check_out: '2027-02-16' })).toBe(true);
+    expect(isFixedStay({ ...stay('a'), extra_nights: ['2027-02-13'] })).toBe(true);
+    expect(isFixedStay(stay('a'))).toBe(false);
+  });
+
+  it('never moves a pinned stay and plans the rest around it', () => {
+    // a is pinned in rp1; b and c sit in rp2 and rp3 unpinned.
+    const stays = [{ ...stay('a', null, 'rp1'), locked: true }, stay('b', null, 'rp3'), stay('c', null, 'rp2')];
+    const out = suggest(stays);
+    expect(out.fixed).toBe(1);
+    expect(out.removeIds).toEqual([]); // b and c are well placed, so they stay
+    expect(out.kept).toBe(2);
+    expect(out.rows).toEqual([]);
+  });
+
+  it('moves an unpinned household out of the way of a pinned one and reports who moves', () => {
+    // b is pinned in rp1; a sits unpinned in rp1 too (shared). a should move to the first free room, rp2.
+    const stays = [{ ...stay('b', null, 'rp1'), locked: true }, stay('a', null, 'rp1')];
+    const out = suggest(stays);
+    expect(out.removeIds).toEqual(['a-rp1']);
+    expect(out.rows).toContainEqual({ guest_id: 'a', room_id: 'rp2' });
+    expect(out.changes.find((c) => c.guest_id === 'a')).toEqual({ guest_id: 'a', from: ['rp1'], to: ['rp2'] });
+  });
+
+  it('with fresh, plans every unfixed stay again', () => {
+    const stays = [{ ...stay('a', null, 'rp1'), locked: true }, stay('b', null, 'rp3'), stay('c', null, 'rp2')];
+    const out = suggestLayout(hh, rooms, sites, stays, guests, nights, { fresh: true });
+    expect(out.removeIds.sort()).toEqual(['b-rp3', 'c-rp2']);
+    expect(out.rows).toEqual([{ guest_id: 'b', room_id: 'rp2' }, { guest_id: 'c', room_id: 'rp3' }]);
+  });
+
+  it('moves a household that needs a lift out of a place with none, even when not fresh', () => {
+    const els = [guest('elders', 2, 1, 0, { needs_lift: true })];
+    const eh = householdsNeedingRooms(els, [invite('elders', DAY1)], nights);
+    const sk = room({ id: 'sk1', site_id: SHRI_KANTH.id, label: 'F1', sort_order: 1 });
+    const sai = room({ id: 'sai1', site_id: HOTEL_SAI.id, label: 'S1', sort_order: 1 });
+    const out = suggestLayout(eh, [sk, sai], sites, [stay('elders', null, 'sk1')], els, nights);
+    expect(out.changes).toEqual([{ guest_id: 'elders', from: ['sk1'], to: ['sai1'] }]);
+  });
+
+  it('places households that have no room yet and reports a shortage', () => {
+    const out = suggestLayout(hh, [rp(1)], sites, [], guests, nights);
+    expect(out.rows).toHaveLength(1);
+    expect(out.short.reduce((x, y) => x + y.rooms, 0)).toBe(2);
   });
 });

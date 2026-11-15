@@ -86,6 +86,12 @@ export function RoomModal({
     await reload();
   }
 
+  async function setPinned(id: string, locked: boolean) {
+    const { error } = await supabase.from('room_stays').update({ locked }).eq('id', id);
+    if (error) return fail('Could not save', error.message);
+    await reload();
+  }
+
   async function setPeople(id: string, v: number | string) {
     const people = v === '' ? null : Math.max(1, Number(v));
     const { error } = await supabase.from('room_stays').update({ people }).eq('id', id);
@@ -165,6 +171,9 @@ export function RoomModal({
                     value={o.stay.people ?? ''}
                     onChange={(v) => setPeople(o.stay.id, v)}
                   />
+                  <Button size="compact-xs" variant={o.stay.locked ? 'filled' : 'light'} aria-pressed={!!o.stay.locked} onClick={() => setPinned(o.stay.id, !o.stay.locked)}>
+                    {o.stay.locked ? 'Pinned' : 'Pin'}
+                  </Button>
                   <Button size="compact-xs" variant="subtle" color="red" onClick={() => removeOccupant(o.stay.id)}>
                     Remove
                   </Button>
@@ -225,7 +234,7 @@ export function RoomModal({
           )}
           {editable && occupants.length > 0 && (
             <Text size="xs" c="dimmed">
-              Leave the number blank to split a household evenly across its rooms. The dates start from the household's guest
+              Pin a household to keep it in this room when you use Suggest layout. A stay with its own number or dates is kept too. Leave the number blank to split a household evenly across its rooms. The dates start from the household's guest
               days; change them for a stay that arrives early or leaves late, and Guest days puts them back.
             </Text>
           )}

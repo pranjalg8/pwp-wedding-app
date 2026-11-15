@@ -34,7 +34,11 @@ export type RoomStay = {
   extra_nights?: string[] | null;
   check_in?: string | null;
   check_out?: string | null;
+  locked?: boolean; // pinned: the suggestion never moves it
 };
+
+// A stay the suggestion leaves alone: pinned, or carrying details someone typed in (own head count, own dates, extra nights).
+export const isFixedStay = (s: RoomStay) => !!s.locked || s.people != null || !!s.check_in || (s.extra_nights?.length ?? 0) > 0;
 
 export type RoomGuest = {
   id: string;
@@ -137,21 +141,57 @@ export function occupantsByRoom(stays: RoomStay[], households: Household[], gues
   return out;
 }
 
-// ---- Fill rooms: put the households still to place into rooms that are free on all their nights ----
+// ---- Fill rooms and Suggest layout: put households into rooms that are free on all their nights ----
 
 export type AutoPlace = { rows: { guest_id: string; room_id: string }[]; short: { guest_id: string; rooms: number }[] };
 
-// Households that arrive first go first, then bigger before smaller, then by priority. Main-stay rooms go to the main
-// place first and the rest to the other places first, in the places' order. A room is used only when it is open and
-// empty on every night the household is there, and a household needing a lift only goes where there is one. A
-// household is kept at one place when one place has all the rooms it still needs. Rooms already placed stay as they
-// are; nothing is moved.
+const floorOf = (r: StayRoom) => r.floor ?? 0;
+
+// Which of the free rooms (in the place's room order) a household takes. Rooms go together: on one floor when one floor
+// has enough, and side by side when a run of neighbouring rooms is free. A household that needs a lift (the elders)
+// gets the lowest floor that has room for it; everyone else takes the first free rooms in the place's order.
+function pickRooms(free: StayRoom[], count: number, order: Map<string, number>, low: boolean): StayRoom[] {
+  if (count <= 0 || free.length === 0) return [];
+  const ranked = low ? [...free].sort((a, b) => floorOf(a) - floorOf(b) || (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0)) : free;
+  if (count >= ranked.length) return ranked.slice(0, count);
+  const floors = [...new Set(ranked.map(floorOf))];
+  const enough = floors.filter((f) => ranked.filter((r) => floorOf(r) === f).length >= count);
+  const fallback = [...floors].sort((a, b) => ranked.filter((r) => floorOf(r) === b).length - ranked.filter((r) => floorOf(r) === a).length);
+  const floor = enough[0] ?? fallback[0];
+  const here = ranked.filter((r) => floorOf(r) === floor);
+  if (here.length >= count) {
+    for (let i = 0; i + count <= here.length; i++) {
+      const run = here.slice(i, i + count);
+      if (run.every((r, k) => k === 0 || (order.get(r.id) ?? 0) === (order.get(run[k - 1].id) ?? 0) + 1)) return run;
+    }
+    return here.slice(0, count);
+  }
+  // No floor holds them all: fill this floor, then the next best.
+  const rest = fallback.slice(1).flatMap((f) => ranked.filter((r) => floorOf(r) === f));
+  return [...here, ...rest].slice(0, count);
+}
+
+// Households needing a lift go first (they take the low floors), then those that arrive first, then bigger before
+// smaller, then by priority. Main-stay rooms go to the main place first and the rest to the other places first, in the
+// places' order. A room is used only when it is open and empty on every night the household is there, and a household
+// needing a lift only goes where there is one. A household is kept at one place when one place has all the rooms it
+// still needs, and its rooms sit together. Rooms already placed (occ) stay as they are; nothing is moved.
 export function autoPlace(households: Household[], rooms: StayRoom[], sites: StaySite[], occ: Map<string, Occupant[]>, placed: Map<string, number>): AutoPlace {
   const busy = new Map<string, Set<string>>();
   for (const [roomId, list] of occ) busy.set(roomId, new Set(list.flatMap((o) => o.nights)));
-  const bySite = (siteId: string) =>
-    rooms.filter((r) => r.site_id === siteId).sort((a, b) => a.sort_order - b.sort_order || a.label.localeCompare(b.label, undefined, { numeric: true }));
+  const order = new Map<string, number>();
+  const bySiteCache = new Map<string, StayRoom[]>();
+  const bySite = (siteId: string) => {
+    let list = bySiteCache.get(siteId);
+    if (!list) {
+      list = rooms.filter((r) => r.site_id === siteId).sort((a, b) => a.sort_order - b.sort_order || a.label.localeCompare(b.label, undefined, { numeric: true }));
+      list.forEach((r, i) => order.set(r.id, i));
+      bySiteCache.set(siteId, list);
+    }
+    return list;
+  };
   const ordered = [...sites].sort((a, b) => a.sort_order - b.sort_order);
+  ordered.forEach((s) => bySite(s.id));
   const main = ordered.filter((s) => s.role === 'main');
   const other = ordered.filter((s) => s.role !== 'main');
 
@@ -159,6 +199,7 @@ export function autoPlace(households: Household[], rooms: StayRoom[], sites: Sta
     .filter((h) => h.nights.length > 0 && (placed.get(h.g.id) ?? 0) < h.roomsNeeded)
     .sort(
       (a, b) =>
+        Number(!!b.g.needs_lift) - Number(!!a.g.needs_lift) ||
         (a.firstNight ?? '').localeCompare(b.firstNight ?? '') ||
         b.roomsNeeded - a.roomsNeeded ||
         (a.g.priority ?? 9) - (b.g.priority ?? 9) ||
@@ -172,11 +213,11 @@ export function autoPlace(households: Household[], rooms: StayRoom[], sites: Sta
     const mainLeft = Math.max(0, h.mainRooms - have);
     const otherLeft = h.roomsNeeded - have - mainLeft;
     const free = (siteId: string) => bySite(siteId).filter((r) => h.nights.every((n) => roomOpenOn(r, n) && !busy.get(r.id)?.has(n)));
-    const take = (count: number, order: StaySite[]) => {
+    const take = (count: number, siteOrder: StaySite[]) => {
       if (count <= 0) return 0;
-      const usable = order.filter((s) => !h.g.needs_lift || s.has_lift);
+      const usable = siteOrder.filter((s) => !h.g.needs_lift || s.has_lift);
       const whole = usable.find((s) => free(s.id).length >= count);
-      const picks = whole ? free(whole.id).slice(0, count) : usable.flatMap((s) => free(s.id)).slice(0, count);
+      const picks = whole ? pickRooms(free(whole.id), count, order, !!h.g.needs_lift) : pickRooms(usable.flatMap((s) => free(s.id)), count, order, !!h.g.needs_lift);
       for (const r of picks) {
         rows.push({ guest_id: h.g.id, room_id: r.id });
         const set = busy.get(r.id) ?? new Set<string>();
@@ -189,6 +230,96 @@ export function autoPlace(households: Household[], rooms: StayRoom[], sites: Sta
     if (left > 0) short.push({ guest_id: h.g.id, rooms: left });
   }
   return { rows, short };
+}
+
+export type LayoutChange = { guest_id: string; from: string[]; to: string[] }; // room ids before and after
+export type Suggestion = {
+  rows: { guest_id: string; room_id: string }[]; // stays to add
+  removeIds: string[]; // stays to take out
+  changes: LayoutChange[]; // households that move or get placed
+  kept: number; // households that stay exactly where they are
+  fixed: number; // stays the suggestion leaves alone (pinned, or with their own details)
+  short: AutoPlace['short'];
+};
+
+// Plan the layout around the fixed stays: pinned stays, and stays with their own head count, dates or extra nights,
+// stay as they are. By default a household that is already well placed stays too: its rooms are all at one place
+// with a lift if it needs one, open and empty on every night it is there, big enough, and as many as it needs.
+// Only the households left (not placed, or placed badly) are planned. With fresh, every unfixed stay is planned
+// afresh instead, which is what moves the elders down to the low floors. Nothing is written here; the caller shows
+// the changes and applies them.
+export function suggestLayout(
+  households: Household[],
+  rooms: StayRoom[],
+  sites: StaySite[],
+  stays: RoomStay[],
+  guests: RoomGuest[],
+  guestNights: string[],
+  opts: { fresh?: boolean } = {}
+): Suggestion {
+  const byGuest = new Map(households.map((h) => [h.g.id, h]));
+  const roomById = new Map(rooms.map((r) => [r.id, r]));
+  const siteById = new Map(sites.map((s) => [s.id, s]));
+  const fixedStays = stays.filter((s) => isFixedStay(s) || !byGuest.has(s.guest_id));
+  const loose = stays.filter((s) => !fixedStays.includes(s));
+
+  const keptStays: RoomStay[] = [];
+  if (!opts.fresh) {
+    const busy = new Map<string, Set<string>>();
+    for (const [roomId, list] of occupantsByRoom(fixedStays, households, guests, guestNights)) busy.set(roomId, new Set(list.flatMap((o) => o.nights)));
+    const mine = new Map<string, RoomStay[]>();
+    for (const s of loose) mine.set(s.guest_id, [...(mine.get(s.guest_id) ?? []), s]);
+    const alreadyIn = new Map<string, number>();
+    for (const s of fixedStays) alreadyIn.set(s.guest_id, (alreadyIn.get(s.guest_id) ?? 0) + 1);
+    for (const [id, list] of mine) {
+      const h = byGuest.get(id)!;
+      const rs = list.map((s) => roomById.get(s.room_id));
+      const ok =
+        (alreadyIn.get(id) ?? 0) + list.length === h.roomsNeeded &&
+        rs.every((r) => {
+          if (!r) return false;
+          const site = siteById.get(r.site_id);
+          const free = h.nights.every((n) => roomOpenOn(r, n) && !busy.get(r.id)?.has(n));
+          return free && (!h.g.needs_lift || !!site?.has_lift) && Math.ceil(h.people / h.roomsNeeded) <= r.capacity;
+        }) &&
+        new Set(rs.map((r) => r!.site_id)).size <= 1;
+      if (!ok) continue;
+      keptStays.push(...list);
+      for (const r of rs) {
+        const set = busy.get(r!.id) ?? new Set<string>();
+        h.nights.forEach((n) => set.add(n));
+        busy.set(r!.id, set);
+      }
+    }
+  }
+
+  const standing = [...fixedStays, ...keptStays];
+  const freeStays = loose.filter((s) => !keptStays.includes(s));
+  const placed = new Map<string, number>();
+  for (const s of standing) placed.set(s.guest_id, (placed.get(s.guest_id) ?? 0) + 1);
+  const plan = autoPlace(households, rooms, sites, occupantsByRoom(standing, households, guests, guestNights), placed);
+
+  const oldOf = new Map<string, string[]>();
+  for (const s of freeStays) oldOf.set(s.guest_id, [...(oldOf.get(s.guest_id) ?? []), s.room_id]);
+  const newOf = new Map<string, string[]>();
+  for (const r of plan.rows) newOf.set(r.guest_id, [...(newOf.get(r.guest_id) ?? []), r.room_id]);
+
+  const rows: Suggestion['rows'] = [];
+  const removeIds: string[] = [];
+  const changes: LayoutChange[] = [];
+  let kept = new Set(keptStays.map((s) => s.guest_id)).size;
+  for (const id of new Set([...oldOf.keys(), ...newOf.keys()])) {
+    const from = (oldOf.get(id) ?? []).slice().sort();
+    const to = (newOf.get(id) ?? []).slice().sort();
+    if (from.join('|') === to.join('|')) {
+      kept++;
+      continue;
+    }
+    changes.push({ guest_id: id, from, to });
+    removeIds.push(...freeStays.filter((s) => s.guest_id === id).map((s) => s.id));
+    rows.push(...to.map((room_id) => ({ guest_id: id, room_id })));
+  }
+  return { rows, removeIds, changes, kept, fixed: fixedStays.length, short: plan.short };
 }
 
 export type RoomIssue = 'over' | 'stairs' | 'not_open' | 'shared';
