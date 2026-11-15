@@ -14,6 +14,9 @@ import { RoomForecast } from '../components/RoomForecast';
 import { RoomBoard } from '../components/RoomBoard';
 import { RoomingList } from '../components/RoomingList';
 import { useRoomBoard } from '../hooks/useRoomBoard';
+import { useInviteReplies } from '../hooks/useInviteReplies';
+import { InviteReplies } from '../components/InviteReplies';
+import { latestNew } from '../lib/replies';
 import { GuestsOverview } from '../components/GuestsOverview';
 import { HouseholdList, type GuestContact } from '../components/HouseholdList';
 import { useStay } from '../hooks/useStay';
@@ -23,7 +26,7 @@ import { householdsNeedingRooms } from '../lib/rooms';
 import { countByStatus, type HouseholdStatus } from '../lib/guestStatus';
 
 type FunctionRef = { name: string; event_date: string; family_only: boolean };
-type Tab = 'overview' | 'households' | 'rooms' | 'dropped';
+type Tab = 'overview' | 'households' | 'rooms' | 'replies' | 'dropped';
 type ListView = 'all' | 'not_invited' | 'waiting' | 'answered';
 
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
@@ -34,7 +37,7 @@ const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
 export function Guests() {
   const { isUnlocked } = useEditMode();
   const [params, setParams] = useSearchParams();
-  const tab: Tab = (['overview', 'households', 'rooms', 'dropped'] as const).find((t) => t === params.get('tab')) ?? 'overview';
+  const tab: Tab = (['overview', 'households', 'rooms', 'replies', 'dropped'] as const).find((t) => t === params.get('tab')) ?? 'overview';
   const setTab = (t: Tab) => setParams(t === 'overview' ? {} : { tab: t });
 
   const [guests, setGuests] = useState<Guest[]>([]);
@@ -55,6 +58,8 @@ export function Guests() {
   const { invites, totals, reload: reloadInvites } = useGuestInvites();
   const { sites, nights } = useStay();
   const { rooms: stayRooms, roomStays, reload: reloadRoomBoard } = useRoomBoard();
+  const inviteReplies = useInviteReplies();
+  const repliesToReview = useMemo(() => latestNew(inviteReplies.replies).length, [inviteReplies.replies]);
   const roomsView = (['plan', 'board', 'list'] as const).find((v) => v === params.get('view')) ?? 'plan';
   const days = useMemo(() => daysFromFunctions(fnRows), [fnRows]);
 
@@ -195,6 +200,7 @@ export function Guests() {
     { value: 'overview', label: 'Overview' },
     { value: 'households', label: 'Households', badge: String(guests.length) },
     { value: 'rooms', label: 'Rooms', badge: toPlace > 0 ? `${toPlace} to place` : undefined, hot: toPlace > 0 },
+    { value: 'replies', label: 'Replies', badge: repliesToReview > 0 ? `${repliesToReview} new` : undefined, hot: repliesToReview > 0 },
   ];
 
   const views: { value: ListView; label: string; n: number }[] = [
@@ -419,6 +425,23 @@ export function Guests() {
                 </Box>
               )}
             </Stack>
+          )}
+
+          {tab === 'replies' && (
+            <InviteReplies
+              key={inviteReplies.settings.site_url ?? ''}
+              guests={guests}
+              invites={invites}
+              roomStays={roomStays}
+              codes={inviteReplies.codes}
+              replies={inviteReplies.replies}
+              settings={inviteReplies.settings}
+              reload={inviteReplies.reload}
+              onApplied={() => {
+                void reloadInvites();
+                void reloadRoomBoard();
+              }}
+            />
           )}
 
           {tab === 'rooms' && (
