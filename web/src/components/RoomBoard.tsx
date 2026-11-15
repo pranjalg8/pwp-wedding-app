@@ -21,6 +21,7 @@ import {
   type StayRoom,
 } from '../lib/rooms';
 import { AddRoomsModal, RoomModal } from './RoomModals';
+import { RoomSuggestModal } from './RoomSuggest';
 import { UndoMessage } from './UndoMessage';
 
 const nightShort = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
@@ -56,6 +57,7 @@ export function RoomBoard({
   const [picked, setPicked] = useState<string | null>(null);
   const [openRoom, setOpenRoom] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [suggesting, setSuggesting] = useState(false);
   const [over, setOver] = useState<string | null>(null);
   const drag = useRef<Drag | null>(null);
 
@@ -200,6 +202,11 @@ export function RoomBoard({
               Fill rooms
             </Button>
           )}
+          {isUnlocked && rooms.length > 0 && households.length > 0 && (
+            <Button size="compact-md" variant="light" onClick={() => setSuggesting(true)}>
+              Suggest layout
+            </Button>
+          )}
           {isUnlocked && (
             <Button size="compact-md" variant="light" onClick={() => setAdding(true)}>
               Add rooms
@@ -327,6 +334,9 @@ export function RoomBoard({
           onClose={() => setOpenRoom(null)}
           reload={reload}
         />
+      )}
+      {suggesting && isUnlocked && (
+        <RoomSuggestModal guests={guests} invites={invites} sites={sites} rooms={rooms} roomStays={roomStays} guestNights={guestNights} onClose={() => setSuggesting(false)} reload={reload} />
       )}
       {adding && isUnlocked && <AddRoomsModal sites={sites} rooms={rooms} allNights={allNights} onClose={() => setAdding(false)} reload={reload} />}
     </Stack>
@@ -464,6 +474,7 @@ function RoomTile({
             style={{ cursor: canDrop ? 'grab' : undefined }}
           >
             {first(o.guest.name)} · {o.people}
+            {o.stay.locked ? ' · pinned' : ''}
           </Text>
         ))}
       </Stack>
