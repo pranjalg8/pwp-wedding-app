@@ -10,6 +10,7 @@ import { Section } from '../components/Section';
 import { BudgetSummary } from '../components/BudgetSummary';
 import { MonthPlan } from '../components/MonthPlan';
 import { AreaBudget } from '../components/AreaBudget';
+import { BudgetTree } from '../components/BudgetTree';
 import { AreaBudgetEditor, ScheduleEditor, SettingsEditor } from '../components/BudgetEditors';
 import { useBudgetPlan } from '../hooks/useBudgetPlan';
 import { usePlanFacts } from '../hooks/usePlanFacts';
@@ -136,6 +137,7 @@ export function Budget() {
   const [markPaid, setMarkPaid] = useState<Scheduled | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [areasOpen, setAreasOpen] = useState(false);
+  const [areaView, setAreaView] = useState<'areas' | 'tree'>('areas');
 
   const throughMonth = dates.wedding.start.toLocaleDateString('en-CA').slice(0, 7);
   const [side, setSide] = useState<Side>('both');
@@ -168,6 +170,7 @@ export function Budget() {
     const total = side !== 'pranjal' ? null : scope === 'gold' ? parts[0] : scope === 'wedding' ? parts[1] : scope === 'post_wedding' ? parts[2] : set.length ? sum(set) : null;
     return { ...st, total_budget: total };
   }, [settings, side, scope]);
+  const treeBudgets = useMemo(() => ({ gold: settings?.gold_budget ?? null, wedding: settings?.total_budget ?? null, post_wedding: settings?.post_wedding_budget ?? null }), [settings]);
   const scopedTopics = useMemo(() => (scope === 'all' ? topics : topics.filter((t) => (t.budget_group ?? 'wedding') === scope)), [topics, scope]);
   const areaRows = useMemo(() => buildAreas({ topics: scopedTopics, items, paid, pending: schedule, areas, side }), [scopedTopics, items, paid, schedule, areas, side]);
   const notScheduled = sum(areaRows.map((r) => r.notScheduled));
@@ -251,8 +254,30 @@ export function Budget() {
         />
       </Section>
 
-      <Section step={3} title="By area" hint="Each area's budget against what is paid and still to pay.">
-        <AreaBudget rows={areaRows} isUnlocked={isUnlocked} onEditBudgets={() => setAreasOpen(true)} />
+      <Section step={3} title="By area" hint="Each area's budget against what is paid and still to pay. The tree rolls every payment up into its area and header.">
+        <Stack gap="sm">
+          <SegmentedControl
+            size="xs"
+            value={areaView}
+            onChange={(v) => setAreaView(v as 'areas' | 'tree')}
+            data={[
+              { value: 'areas', label: 'Areas' },
+              { value: 'tree', label: 'Tree' },
+            ]}
+            aria-label="How to show the areas"
+          />
+          {areaView === 'tree' ? (
+            <BudgetTree
+              topics={topics}
+              paid={paid}
+              schedule={schedule}
+              side={side}
+              budgets={treeBudgets}
+            />
+          ) : (
+            <AreaBudget rows={areaRows} isUnlocked={isUnlocked} onEditBudgets={() => setAreasOpen(true)} />
+          )}
+        </Stack>
       </Section>
 
       <Section step={4} title="The records" hint="The payments made and every planner item with an amount, for checking the figures above.">

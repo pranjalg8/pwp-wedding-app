@@ -25,7 +25,7 @@ export function useBudgetPlan() {
       supabase.from('payment_schedule').select('id, payee, amount, due_date, topic_id, note, is_estimate, status, paid_payment_id, paridhi_amount, paridhi_due_date, paridhi_plan').order('due_date'),
       supabase.from('budget_settings').select('total_budget, funds_available, funds_as_of, monthly_addition, paridhi_funds_available, paridhi_monthly_addition, post_wedding_budget, gold_budget').eq('id', 1).maybeSingle(),
       supabase.from('budget_areas').select('id, topic_id, allocation'),
-      supabase.from('payments').select('id, paid_on, amount, topic_id, paridhi_amount'),
+      supabase.from('payments').select('id, paid_on, payee, amount, topic_id, paridhi_amount'),
       supabase.from('planning_items').select('topic_id, status, amount, amount_kind, slug').not('amount', 'is', null),
       supabase.from('topics').select('id, key, label, budget_group').order('sort_order'),
     ]);
