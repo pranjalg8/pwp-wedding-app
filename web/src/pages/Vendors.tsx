@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Anchor, Badge, Button, Card, Group, SimpleGrid, Stack, Text, Title } from '@mantine/core';
 import { supabase, type PlanningItem, type Topic } from '../lib/supabase';
 import { whatsappUrl } from '../lib/whatsapp';
+import { VendorTotals } from '../components/VendorTotals';
 
 const STATUS_COLOR: Record<string, string> = {
   open: 'orange',
@@ -54,6 +55,7 @@ export function Vendors() {
   return (
     <Stack gap="xl">
       <Title order={2}>Vendors</Title>
+      <VendorTotals />
       {Object.entries(groups).map(([key, g]) => (
       <Stack key={key} gap="sm">
       <Text fw={700} c="dimmed" tt="uppercase" size="sm">{g.label}</Text>

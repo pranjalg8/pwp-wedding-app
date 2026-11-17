@@ -31,10 +31,16 @@ function PaymentLine({
             <Text size="sm" fw={500} style={{ overflowWrap: 'anywhere' }}>
               {p.payee}
             </Text>
-            {p.is_estimate && (
-              <Badge size="xs" variant="light" color="orange" tt="none">
-                Estimate
+            {p.amount === 0 ? (
+              <Badge size="xs" variant="light" color="teal" tt="none">
+                Included
               </Badge>
+            ) : (
+              p.is_estimate && (
+                <Badge size="xs" variant="light" color="orange" tt="none">
+                  Estimate
+                </Badge>
+              )
             )}
             {late ? (
               <Badge size="xs" variant="light" color="red" tt="none">
@@ -45,6 +51,11 @@ function PaymentLine({
           {area && (
             <Text size="xs" c="rose.6">
               {area}
+            </Text>
+          )}
+          {p.quantity != null && p.rate != null && (
+            <Text size="xs" c="dimmed">
+              {p.quantity} {p.unit || 'x'} at ₹{p.rate.toLocaleString('en-IN')}
             </Text>
           )}
           {p.note && (
