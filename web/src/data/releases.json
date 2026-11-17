@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.10",
+    "date": "2026-11-17",
+    "title": "Ask panel, tidier",
+    "items": [
+      { "kind": "improved", "text": "Ask: starter questions that match the page you are on, page links under each answer that open that Knowledge page, Copy and Try AI again buttons, a New chat button, and Ctrl/Cmd+K to open it. On a phone it slides up from the bottom, and the chat is remembered until you close the tab." }
+    ]
+  },
+  {
     "version": "1.9",
     "date": "2026-11-17",
     "title": "Ask the knowledge base",

@@ -20,6 +20,12 @@ function matches(word: string, token: string): boolean {
   return min >= 4 && (word.startsWith(token) || token.startsWith(word));
 }
 
+// The pages an AI answer names in square brackets, e.g. "... [Budget]" or "[Budget, Stay and food]".
+export function sourcesIn(pages: KbPage[], answer: string): { slug: string; title: string }[] {
+  const named = [...answer.matchAll(/\[([^\]]+)\]/g)].flatMap((m) => m[1].split(/[,;]/).map((s) => s.trim().toLowerCase()));
+  return pages.filter((p) => named.includes(p.title.toLowerCase())).map((p) => ({ slug: p.slug, title: p.title }));
+}
+
 export function searchKb(pages: KbPage[], question: string, limit = 6): KbHit[] {
   const q = tokens(question);
   if (!q.length) return [];

@@ -1,12 +1,39 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActionIcon, Button, Card, Drawer, Group, Loader, Stack, Text, Textarea } from '@mantine/core';
+import { Link, useLocation } from 'react-router-dom';
+import { ActionIcon, Badge, Box, Button, CopyButton, Drawer, Group, Loader, Stack, Text, Textarea, Tooltip } from '@mantine/core';
+import { useHotkeys, useMediaQuery } from '@mantine/hooks';
 import { supabase } from '../lib/supabase';
-import { searchKb, type KbPage } from '../lib/kbSearch';
+import { searchKb, sourcesIn, type KbPage } from '../lib/kbSearch';
 import { Body } from '../pages/Knowledge';
 
-type Message = { role: 'user' | 'assistant'; text: string; note?: string };
+type Source = { slug: string; title: string };
+type Message = { role: 'user' | 'assistant'; text: string; note?: string; sources?: Source[] };
 
-const EXAMPLES = ['When is the photographer advance due?', 'Who pays for Royal Pepper?', 'How many rooms at Shri Kanth?', 'What is still open for the home move?'];
+const STORE_KEY = 'pwp-ask-kb';
+
+// A few starting questions that fit the page you are on.
+const GENERAL = ['When is the photographer advance due?', 'Who pays for Royal Pepper?', 'How many rooms at Shri Kanth?', 'What is still open for the home move?'];
+const BY_PAGE: Record<string, string[]> = {
+  '/budget': ['Which payments are due next?', 'How is the photographer paid?', 'What is already paid?', 'What is not in our budget and why?'],
+  '/guests': ['How many guests are invited?', 'Which families may skip because of exams?', 'How do the rooms work?'],
+  '/functions': ['What happens on 13 Feb?', 'What is the plan for 15 Feb?', 'Which decor themes are chosen?'],
+  '/vendors': ['Which photographers are shortlisted?', 'What is the status of the jewellery?', 'What do the Shri Kanth meals cost?'],
+  '/honeymoon': ['Where are we going on the honeymoon?', 'What is the honeymoon budget?'],
+  '/tasks': ['What are the top priorities right now?', 'What deadlines are coming up?'],
+};
+function startersFor(path: string): string[] {
+  const key = Object.keys(BY_PAGE).find((k) => path.startsWith(k));
+  return key ? BY_PAGE[key] : GENERAL;
+}
+
+function loadSaved(): Message[] {
+  try {
+    const raw = sessionStorage.getItem(STORE_KEY);
+    return raw ? (JSON.parse(raw) as Message[]) : [];
+  } catch {
+    return [];
+  }
+}
 
 // Why the AI answer was not available, in words the couple can act on.
 async function failureNote(error: unknown): Promise<string> {
@@ -17,22 +44,45 @@ async function failureNote(error: unknown): Promise<string> {
   } catch {
     // not a JSON error body: treat as unreachable
   }
-  if (code === 'not_configured') return 'AI answers are not switched on yet, so this is a keyword search of the knowledge base.';
-  if (code === 'rate_limited') return 'The AI is busy right now (free limit). Here is a keyword search instead.';
-  return 'The AI could not be reached. Here is a keyword search instead.';
+  if (code === 'not_configured') return 'AI answers are not switched on, so this is a keyword search of the Knowledge page.';
+  if (code === 'rate_limited') return 'The AI is busy (free limit). This is a keyword search of the Knowledge page.';
+  return 'The AI could not be reached. This is a keyword search of the Knowledge page.';
+}
+
+function Thinking() {
+  return (
+    <Group gap={8} px="xs" aria-live="polite">
+      <Loader type="dots" size="sm" color="rose" />
+      <Text size="sm" c="dimmed">Reading the knowledge base…</Text>
+    </Group>
+  );
 }
 
 export function AskKb() {
   const [opened, setOpened] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Message[]>(loadSaved);
   const [question, setQuestion] = useState('');
   const [busy, setBusy] = useState(false);
+  const [lastFailed, setLastFailed] = useState<string | null>(null);
   const pages = useRef<KbPage[] | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
+  const input = useRef<HTMLTextAreaElement>(null);
+  const isPhone = useMediaQuery('(max-width: 36em)');
+  const { pathname } = useLocation();
+
+  useHotkeys([['mod+K', () => setOpened((o) => !o)]], []);
 
   useEffect(() => {
-    bottom.current?.scrollIntoView({ block: 'end' });
-  }, [messages, busy]);
+    try {
+      sessionStorage.setItem(STORE_KEY, JSON.stringify(messages.slice(-20)));
+    } catch {
+      // storage unavailable: the chat just is not remembered
+    }
+  }, [messages]);
+
+  useEffect(() => {
+    if (opened) bottom.current?.scrollIntoView({ block: 'end' });
+  }, [messages, busy, opened]);
 
   async function knowledge(): Promise<KbPage[]> {
     if (!pages.current) {
@@ -48,73 +98,157 @@ export function AskKb() {
     const history = messages.filter((m) => !m.note).map((m) => ({ role: m.role, text: m.text }));
     setMessages((m) => [...m, { role: 'user', text: q }]);
     setQuestion('');
+    setLastFailed(null);
     setBusy(true);
     try {
       const { data, error } = await supabase.functions.invoke('kb-chat', { body: { question: q, history } });
       if (error || !data?.answer) throw error ?? new Error('empty');
-      setMessages((m) => [...m, { role: 'assistant', text: data.answer as string }]);
+      const answer = data.answer as string;
+      const sources = sourcesIn(await knowledge(), answer);
+      setMessages((m) => [...m, { role: 'assistant', text: answer, sources }]);
     } catch (e) {
       const note = await failureNote(e);
       const hits = searchKb(await knowledge(), q);
-      const text = hits.length
+      const found = hits.length
         ? hits.map((h) => `- **${h.title}** (${h.heading}): ${h.line}`).join('\n')
         : 'Nothing in the knowledge base matches that. Try fewer or different words, or look in Tasks, Budget or Guests.';
-      setMessages((m) => [...m, { role: 'assistant', text, note }]);
+      const seen = new Set<string>();
+      const sources = hits.filter((h) => !seen.has(h.slug) && seen.add(h.slug)).map((h) => ({ slug: h.slug, title: h.title }));
+      setMessages((m) => [...m, { role: 'assistant', text: found, note, sources }]);
+      setLastFailed(q);
     } finally {
       setBusy(false);
     }
   }
 
+  function clear() {
+    setMessages([]);
+    setLastFailed(null);
+    input.current?.focus();
+  }
+
+  const starters = startersFor(pathname);
+
   return (
     <>
-      <Button
-        onClick={() => setOpened(true)}
-        color="rose"
-        radius="xl"
-        size="md"
-        leftSection={<span aria-hidden>💬</span>}
-        style={{ position: 'fixed', right: 16, bottom: 16, zIndex: 150, boxShadow: 'var(--mantine-shadow-md)' }}
-        aria-label="Ask the knowledge base"
+      {!opened && (
+        <Tooltip label="Ask the knowledge base (Ctrl/⌘ K)" position="left" visibleFrom="sm">
+          <Button
+            onClick={() => setOpened(true)}
+            color="rose"
+            radius="xl"
+            size={isPhone ? 'lg' : 'md'}
+            px={isPhone ? 'md' : 'lg'}
+            leftSection={<span aria-hidden>💬</span>}
+            style={{
+              position: 'fixed',
+              right: 16,
+              bottom: 'calc(16px + env(safe-area-inset-bottom))',
+              zIndex: 150,
+              boxShadow: 'var(--mantine-shadow-md)',
+            }}
+            aria-label="Ask the knowledge base"
+          >
+            Ask
+          </Button>
+        </Tooltip>
+      )}
+      <Drawer
+        opened={opened}
+        onClose={() => setOpened(false)}
+        position={isPhone ? 'bottom' : 'right'}
+        size={isPhone ? '88%' : 440}
+        padding={0}
+        radius={isPhone ? 'lg' : 0}
+        withCloseButton={false}
+        trapFocus
+        returnFocus
+        transitionProps={{ duration: 150 }}
+        styles={{ body: { height: '100%', display: 'flex', flexDirection: 'column' } }}
+        aria-label="Ask the wedding knowledge base"
       >
-        Ask
-      </Button>
-      <Drawer opened={opened} onClose={() => setOpened(false)} position="right" size="md" title="Ask the wedding knowledge base">
-        <Stack gap="sm" style={{ minHeight: 'calc(100dvh - 110px)' }} justify="space-between">
-          <Stack gap="sm">
+        <Group justify="space-between" wrap="nowrap" px="md" py="sm" style={{ borderBottom: '1px solid var(--mantine-color-default-border)' }}>
+          <div>
+            <Text fw={700} lh={1.2}>Ask about the wedding</Text>
+            <Text size="xs" c="dimmed">Answers come from the Knowledge page</Text>
+          </div>
+          <Group gap={4} wrap="nowrap">
+            {messages.length > 0 && (
+              <Tooltip label="Start over">
+                <Button variant="subtle" color="gray" size="compact-sm" onClick={clear}>
+                  New chat
+                </Button>
+              </Tooltip>
+            )}
+            <ActionIcon variant="subtle" color="gray" size="lg" onClick={() => setOpened(false)} aria-label="Close">
+              ✕
+            </ActionIcon>
+          </Group>
+        </Group>
+
+        <Box style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain' }} px="md" py="md">
+          <Stack gap="md">
             {messages.length === 0 && (
-              <Stack gap="xs">
-                <Text size="sm" c="dimmed">
-                  Ask about dates, stay and food, money rules, the home move or vendors. Answers come only from the Knowledge page; the
-                  planner stays the source of truth.
+              <Stack gap="sm" align="stretch" pt="sm">
+                <Text size="xl" ta="center" aria-hidden>💬</Text>
+                <Text size="sm" ta="center" c="dimmed">
+                  Ask about dates, stay and food, money rules, the home move or vendors. The planner stays the source of truth.
                 </Text>
-                {EXAMPLES.map((ex) => (
-                  <Button key={ex} variant="light" color="gray" size="xs" justify="flex-start" onClick={() => ask(ex)}>
-                    {ex}
-                  </Button>
-                ))}
+                <Stack gap={6}>
+                  {starters.map((ex) => (
+                    <Button key={ex} variant="light" color="rose" size="sm" justify="flex-start" onClick={() => ask(ex)} styles={{ label: { whiteSpace: 'normal', textAlign: 'left' } }} h="auto" py={8}>
+                      {ex}
+                    </Button>
+                  ))}
+                </Stack>
               </Stack>
             )}
+
             {messages.map((m, i) =>
               m.role === 'user' ? (
                 <Group key={i} justify="flex-end">
-                  <Card p="xs" bg="rose.1" maw="85%">
-                    <Text size="sm">{m.text}</Text>
-                  </Card>
+                  <Box bg="rose.6" c="white" px="sm" py={8} maw="85%" style={{ borderRadius: 14, borderBottomRightRadius: 4 }}>
+                    <Text size="sm" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{m.text}</Text>
+                  </Box>
                 </Group>
               ) : (
-                <Card key={i} withBorder p="sm">
-                  {m.note && (
-                    <Text size="xs" c="dimmed" mb={6}>
-                      {m.note}
-                    </Text>
-                  )}
-                  <Body text={m.text} />
-                </Card>
+                <Box key={i} maw="95%">
+                  <Box bg="var(--mantine-color-default-hover)" px="sm" py="sm" style={{ borderRadius: 14, borderBottomLeftRadius: 4 }}>
+                    {m.note && (
+                      <Badge variant="light" color="gray" size="sm" mb={6} tt="none" fw={500} styles={{ label: { whiteSpace: 'normal' } }} h="auto" py={3}>
+                        {m.note}
+                      </Badge>
+                    )}
+                    <Body text={m.sources?.length ? m.text.replace(/\s*\[[^\]]+\]\s*$/, '') : m.text} />
+                  </Box>
+                  <Group gap={6} mt={6} px={4} wrap="wrap">
+                    {(m.sources ?? []).map((s) => (
+                      <Badge key={s.slug} component={Link} to={`/knowledge?page=${s.slug}`} onClick={() => setOpened(false)} variant="outline" color="rose" size="md" tt="none" fw={600} style={{ cursor: 'pointer' }}>
+                        {s.title} ↗
+                      </Badge>
+                    ))}
+                    <CopyButton value={m.text}>
+                      {({ copied, copy }) => (
+                        <Button variant="subtle" color="gray" size="compact-xs" onClick={copy}>
+                          {copied ? 'Copied' : 'Copy'}
+                        </Button>
+                      )}
+                    </CopyButton>
+                    {i === messages.length - 1 && lastFailed && !busy && (
+                      <Button variant="subtle" color="rose" size="compact-xs" onClick={() => ask(lastFailed)}>
+                        Try AI again
+                      </Button>
+                    )}
+                  </Group>
+                </Box>
               ),
             )}
-            {busy && <Loader size="sm" color="rose" />}
+            {busy && <Thinking />}
             <div ref={bottom} />
           </Stack>
+        </Box>
+
+        <Box px="md" pt="xs" pb="md" style={{ borderTop: '1px solid var(--mantine-color-default-border)', paddingBottom: 'calc(16px + env(safe-area-inset-bottom))' }}>
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -123,27 +257,34 @@ export function AskKb() {
           >
             <Group gap="xs" align="flex-end" wrap="nowrap">
               <Textarea
+                ref={input}
+                data-autofocus
                 style={{ flex: 1 }}
                 autosize
                 minRows={1}
                 maxRows={4}
                 maxLength={600}
-                placeholder="Ask a question"
+                placeholder="Ask a question…"
+                aria-label="Your question"
+                enterKeyHint="send"
                 value={question}
                 onChange={(e) => setQuestion(e.currentTarget.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
+                  if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
                     e.preventDefault();
                     ask(question);
                   }
                 }}
               />
-              <ActionIcon type="submit" size="lg" color="rose" variant="filled" disabled={busy || !question.trim()} aria-label="Send">
+              <ActionIcon type="submit" size={36} radius="xl" color="rose" variant="filled" disabled={busy || !question.trim()} aria-label="Send">
                 ➤
               </ActionIcon>
             </Group>
+            <Text size="xs" c="dimmed" mt={6} visibleFrom="sm">
+              Enter to send, Shift+Enter for a new line
+            </Text>
           </form>
-        </Stack>
+        </Box>
       </Drawer>
     </>
   );
