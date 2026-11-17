@@ -5,6 +5,7 @@ import { useHotkeys, useMediaQuery } from '@mantine/hooks';
 import { supabase } from '../lib/supabase';
 import { searchKb, sourcesIn, type KbPage } from '../lib/kbSearch';
 import { Body } from '../pages/Knowledge';
+import { QuoteUpload } from './QuoteUpload';
 
 type Source = { slug: string; title: string };
 type Message = { role: 'user' | 'assistant'; text: string; note?: string; sources?: Source[] };
@@ -173,6 +174,7 @@ export function AskKb() {
             <Text size="xs" c="dimmed">Answers come from the Knowledge page</Text>
           </div>
           <Group gap={4} wrap="nowrap">
+            <QuoteUpload label="Quote" variant="subtle" />
             {messages.length > 0 && (
               <Tooltip label="Start over">
                 <Button variant="subtle" color="gray" size="compact-sm" onClick={clear}>

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Accordion, Badge, Button, Group, Paper, SegmentedControl, Stack, Table, Text, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { supabase, type PlanningItem, type Topic } from '../lib/supabase';
+import { QuoteUpload } from '../components/QuoteUpload';
 import { PaymentsLedger } from '../components/PaymentsLedger';
 import { PaymentEditor } from '../components/PaymentEditor';
 import { ItemEditor } from '../components/ItemEditor';
@@ -211,6 +212,7 @@ export function Budget() {
           </Text>
         </div>
         <Stack gap={6} align="flex-end">
+          <QuoteUpload topics={topics} />
           <SegmentedControl
             size="xs"
             value={scope}

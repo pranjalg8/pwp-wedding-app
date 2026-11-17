@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.11",
+    "date": "2026-11-18",
+    "title": "Quote reader",
+    "items": [
+      { "kind": "new", "text": "Add a quote: on Budget (and in the Ask panel) photograph or upload a vendor quote or contract. Claude reads it and proposes payments, tasks and a note of the terms in Suggestions. Nothing is added until you accept; bank details are ignored and never saved, and each upload asks before it goes to Gemini." },
+      { "kind": "improved", "text": "Suggestions now show proposed payments and tasks, with Edit and accept, and a link to the source file." }
+    ]
+  },
+  {
     "version": "1.10",
     "date": "2026-11-17",
     "title": "Ask panel, tidier",

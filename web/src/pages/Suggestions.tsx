@@ -3,6 +3,7 @@ import { Accordion, Alert, Anchor, Badge, Button, Group, Modal, NumberInput, Pap
 import { notifications } from '@mantine/notifications';
 import { useEditMode } from '../hooks/useEditMode';
 import { supabase, type ChatMessage, type PlanningItem, type Suggestion, type SuggestionPayload, type Topic } from '../lib/supabase';
+import { ProposalCard } from '../components/ProposalCard';
 import { KIND_LABEL, STATUS_LABEL, TOPIC_EMOJI, formatInr } from '../lib/topicMeta';
 
 const FIELD_LABEL: Record<string, string> = {
@@ -294,7 +295,7 @@ export function Suggestions() {
       <div>
         <Title order={2}>Suggestions</Title>
         <Text c="dimmed" size="sm">
-          Claude reads new chat messages and bill photos and proposes planner changes here. Nothing changes until one of you accepts it.
+          Claude reads new chat messages, bill photos and uploaded quotes, and proposes planner changes here. Nothing changes until one of you accepts it.
         </Text>
       </div>
 
@@ -312,7 +313,9 @@ export function Suggestions() {
           <Title order={4}>
             {TOPIC_EMOJI[topic.key]} {topic.label}
           </Title>
-          {list.map((s) => (
+          {list.map((s) => s.kind === 'new_payment' || s.kind === 'new_task' ? (
+            <ProposalCard key={s.id} s={s} topic={topicById[s.topic_id]} unlocked={isUnlocked} onChanged={load} />
+          ) : (
             <SuggestionCard key={s.id} s={s} topic={topicById[s.topic_id]} item={s.target_item_id ? items[s.target_item_id] : undefined} sources={sources} unlocked={isUnlocked} onChanged={load} />
           ))}
         </Stack>
@@ -330,7 +333,7 @@ export function Suggestions() {
                       {s.status}
                     </Badge>
                     <Text size="sm" style={{ overflowWrap: 'anywhere' }}>
-                      {(s.payload as SuggestionPayload).title ?? 'Change to an item'}
+                      {(s.payload as SuggestionPayload).title ?? (s.payload as SuggestionPayload).payee ?? 'Change to an item'}
                       {s.decision_note ? ` · ${s.decision_note}` : ''}
                     </Text>
                   </Group>
