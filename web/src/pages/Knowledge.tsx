@@ -12,7 +12,7 @@ function inline(text: string) {
 }
 
 // A small renderer for the markdown the knowledge base uses: headings, bullet lists and paragraphs.
-function Body({ text }: { text: string }) {
+export function Body({ text }: { text: string }) {
   const blocks: ReactElement[] = [];
   let bullets: string[] = [];
   const flush = () => {
