@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { searchKb, tokens } from '../kbSearch';
+import { searchKb, sourcesIn, tokens } from '../kbSearch';
 
 const pages = [
   {
@@ -28,6 +28,12 @@ describe('kbSearch', () => {
 
   it('returns nothing when a line only shares one common word', () => {
     expect(searchKb(pages, 'what is the honeymoon visa plan')).toEqual([]);
+  });
+
+  it('finds the pages an answer cites', () => {
+    expect(sourcesIn(pages, 'Rooms cost Rs 2,800. [Stay and food]').map((s) => s.slug)).toEqual(['stay']);
+    expect(sourcesIn(pages, 'Both. [Budget, Stay and food]').map((s) => s.slug)).toEqual(['budget', 'stay']);
+    expect(sourcesIn(pages, 'No brackets here')).toEqual([]);
   });
 
   it('returns nothing for an empty question', () => {

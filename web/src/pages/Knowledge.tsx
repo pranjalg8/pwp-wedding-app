@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useState, type ReactElement } from 'react';
 import { Card, Stack, Tabs, Text, TextInput, Title } from '@mantine/core';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
 type KbEntry = { slug: string; title: string; body: string; sort_order: number; updated_at: string };
@@ -60,6 +61,7 @@ export function Knowledge() {
   const [entries, setEntries] = useState<KbEntry[]>([]);
   const [query, setQuery] = useState('');
   const [loaded, setLoaded] = useState(false);
+  const openPage = useSearchParams()[0].get('page'); // set by the Ask panel's source links
 
   async function load() {
     const { data } = await supabase.from('kb_entries').select('slug, title, body, sort_order, updated_at').order('sort_order');
@@ -107,7 +109,7 @@ export function Knowledge() {
         </Stack>
       ) : (
         entries.length > 0 && (
-          <Tabs defaultValue={entries[0].slug} keepMounted={false}>
+          <Tabs key={openPage ?? ''} defaultValue={entries.some((e) => e.slug === openPage) ? openPage! : entries[0].slug} keepMounted={false}>
             <Tabs.List style={{ flexWrap: 'wrap' }}>
               {entries.map((e) => (
                 <Tabs.Tab key={e.slug} value={e.slug}>
