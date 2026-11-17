@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { Button, Checkbox, Group, Modal, NumberInput, ScrollArea, Select, Stack, Text, Textarea, TextInput } from '@mantine/core';
 import { supabase } from '../lib/supabase';
 import { useProfile } from '../hooks/useProfile';
-import type { AreaBudget, BudgetSettings, Scheduled, ShareInstalment, TopicRef } from '../lib/budgetPlan';
-import { shortDate } from '../lib/budgetPlan';
+import type { AreaBudget, BudgetSettings, Scheduled, ShareInstalment, TopicRef, Vendor } from '../lib/budgetPlan';
+import { lineAmount, shortDate } from '../lib/budgetPlan';
 
+const NEW = '__new__';
 const todayIso = () => new Date().toLocaleDateString('en-CA');
 const n = (v: number | string) => (v === '' ? null : Number(v));
 
@@ -22,12 +23,14 @@ function addMonthsIso(iso: string, k: number) {
 export function ScheduleEditor({
   payment,
   topics,
+  vendors,
   opened,
   onClose,
   onSaved,
 }: {
   payment: Scheduled | null;
   topics: TopicRef[];
+  vendors: Vendor[];
   opened: boolean;
   onClose: () => void;
   onSaved: () => void;
@@ -41,6 +44,12 @@ export function ScheduleEditor({
   const [estimate, setEstimate] = useState(payment?.is_estimate ?? false);
   const [paridhi, setParidhi] = useState<number | string>(payment?.paridhi_amount ?? 0);
   const [plan, setPlan] = useState<{ on: string; amount: number | string }[]>(payment?.paridhi_plan?.map((i) => ({ ...i })) ?? []);
+  const [vendorId, setVendorId] = useState<string | null>(payment?.vendor_id ?? null);
+  const [newVendor, setNewVendor] = useState('');
+  const [quantity, setQuantity] = useState<number | string>(payment?.quantity ?? '');
+  const [unit, setUnit] = useState(payment?.unit ?? '');
+  const [rate, setRate] = useState<number | string>(payment?.rate ?? '');
+  const [inBudget, setInBudget] = useState(payment?.in_budget !== false);
   const [spreadMonths, setSpreadMonths] = useState<number | string>(3);
   const [spreadStart, setSpreadStart] = useState('');
   const [saving, setSaving] = useState(false);
@@ -50,12 +59,22 @@ export function ScheduleEditor({
   const paridhiNum = Number(paridhi) || 0;
   const planSum = plan.reduce((a, i) => a + (Number(i.amount) || 0), 0);
   const planOk = plan.every((i) => /^\d{4}-\d{2}-\d{2}$/.test(i.on) && Number(i.amount) > 0) && planSum <= paridhiNum + 0.005;
-  const valid = payee.trim() !== '' && Number.isFinite(amountNum) && amountNum > 0 && /^\d{4}-\d{2}-\d{2}$/.test(due) && paridhiNum >= 0 && paridhiNum <= amountNum && planOk;
+  const worked = lineAmount(n(quantity), n(rate));
+  const valid = payee.trim() !== '' && amount !== '' && Number.isFinite(amountNum) && amountNum >= 0 && /^\d{4}-\d{2}-\d{2}$/.test(due) && paridhiNum >= 0 && paridhiNum <= amountNum && planOk;
 
   async function save() {
     setSaving(true);
     setError(null);
-    const fields = { payee: payee.trim(), amount: amountNum, due_date: due, topic_id: topicId, note: note.trim() || null, is_estimate: estimate, paridhi_amount: paridhiNum, paridhi_due_date: null, paridhi_plan: paridhiNum > 0 ? plan.map((i): ShareInstalment => ({ on: i.on, amount: Number(i.amount) })) : [] };
+    let vendor_id = vendorId;
+    if (vendorId === NEW && newVendor.trim()) {
+      const { data, error: err } = await supabase.from('vendors').insert({ name: newVendor.trim() }).select('id').single();
+      if (err) {
+        setSaving(false);
+        return setError(err.code === '23505' ? 'A vendor with that name already exists; pick it from the list.' : err.message);
+      }
+      vendor_id = data.id as string;
+    } else if (vendorId === NEW) vendor_id = null;
+    const fields = { vendor_id, quantity: n(quantity), unit: unit.trim() || null, rate: n(rate), in_budget: inBudget, payee: payee.trim(), amount: amountNum, due_date: due, topic_id: topicId, note: note.trim() || null, is_estimate: estimate, paridhi_amount: paridhiNum, paridhi_due_date: null, paridhi_plan: paridhiNum > 0 ? plan.map((i): ShareInstalment => ({ on: i.on, amount: Number(i.amount) })) : [] };
     const res = payment
       ? await supabase.from('payment_schedule').update(fields).eq('id', payment.id)
       : await supabase.from('payment_schedule').insert({ ...fields, created_by: profile?.id ?? null });
@@ -79,6 +98,34 @@ export function ScheduleEditor({
     <Modal opened={opened} onClose={onClose} title={payment ? 'Edit payment due' : 'Add a payment due'} centered>
       <Stack>
         <TextInput label="Pay to" placeholder="e.g. Photographer, second instalment" value={payee} onChange={(e) => setPayee(e.currentTarget.value)} required />
+        <Group grow align="flex-start">
+          <Select
+            label="Vendor"
+            placeholder="Not set"
+            clearable
+            searchable
+            data={[...vendors.map((v) => ({ value: v.id, label: v.name })), { value: NEW, label: '+ New vendor' }]}
+            value={vendorId}
+            onChange={setVendorId}
+          />
+          {vendorId === NEW && <TextInput label="New vendor's name" value={newVendor} onChange={(e) => setNewVendor(e.currentTarget.value)} maxLength={120} />}
+        </Group>
+        <Group grow align="flex-start">
+          <NumberInput label="Quantity" placeholder="e.g. 10" min={0} decimalScale={2} value={quantity} onChange={setQuantity} />
+          <TextInput label="Unit" placeholder="rooms, plates" value={unit} onChange={(e) => setUnit(e.currentTarget.value)} maxLength={30} />
+          <NumberInput label="Rate" prefix="₹" thousandSeparator="," thousandsGroupStyle="lakh" decimalScale={2} min={0} value={rate} onChange={setRate} />
+        </Group>
+        {worked !== null && worked !== amountNum && (
+          <Group gap="xs">
+            <Text size="xs" c="dimmed">
+              {quantity} {unit || 'x'} at ₹{Number(rate).toLocaleString('en-IN')} is ₹{worked.toLocaleString('en-IN')}
+              {amount !== '' ? `, the amount below is ₹${amountNum.toLocaleString('en-IN')}` : ''}.
+            </Text>
+            <Button size="compact-xs" variant="light" onClick={() => setAmount(worked)}>
+              Use ₹{worked.toLocaleString('en-IN')}
+            </Button>
+          </Group>
+        )}
         <Group grow align="flex-start">
           <NumberInput label="Amount" prefix="₹" thousandSeparator="," thousandsGroupStyle="lakh" decimalScale={2} min={0} value={amount} onChange={setAmount} required />
           <TextInput label="Due on" type="date" value={due} onChange={(e) => setDue(e.currentTarget.value)} required />
@@ -167,6 +214,17 @@ export function ScheduleEditor({
           value={topicId}
           onChange={setTopicId}
         />
+        <Checkbox
+          label="Counts in the budget"
+          description="Untick for something tracked here but paid by someone else (the parents, say). It then stays out of the budget and the month-by-month plan."
+          checked={inBudget}
+          onChange={(e) => setInBudget(e.currentTarget.checked)}
+        />
+        {amount !== '' && amountNum === 0 && (
+          <Text size="xs" c="dimmed">
+            ₹0 marks it as included at no charge, so it stays on the plan without costing anything.
+          </Text>
+        )}
         <Checkbox
           label="This amount is an estimate"
           description="Tick it until you know the real figure. Estimates are shown with a marker and totalled separately."

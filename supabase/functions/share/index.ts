@@ -323,7 +323,8 @@ Deno.serve(async (req) => {
         const settings = (await all(sb.from('budget_settings').select('total_budget, funds_available, funds_as_of, monthly_addition')))[0] ?? null;
         const payments = await all(sb.from('payments').select('paid_on, payee, amount, purpose, topic_id').order('paid_on', { ascending: false }));
         // Notes are left out: they can describe who pays what and why, which a shared view does not need.
-        const schedule = await all(sb.from('payment_schedule').select('payee, amount, due_date, status, is_estimate, topic_id').order('due_date'));
+        // Lines paid by someone else (in_budget false) are not part of the couple's budget, so a link leaves them out.
+        const schedule = await all(sb.from('payment_schedule').select('payee, amount, due_date, status, is_estimate, topic_id').eq('in_budget', true).order('due_date'));
         const areas = await all(sb.from('budget_areas').select('topic_id, allocation'));
         data.budget = {
           settings,

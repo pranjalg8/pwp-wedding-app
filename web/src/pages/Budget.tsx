@@ -131,7 +131,7 @@ function AmountsTable() {
 export function Budget() {
   const { isUnlocked } = useEditMode();
   const { dates } = usePlanFacts();
-  const { schedule, settings, areas, paid, items, topics, reload } = useBudgetPlan();
+  const { schedule, outside, vendors, settings, areas, paid, items, topics, reload } = useBudgetPlan();
   const [today] = useState(() => new Date().toLocaleDateString('en-CA'));
   const [scheduleEditing, setScheduleEditing] = useState<Scheduled | 'new' | null>(null);
   const [markPaid, setMarkPaid] = useState<Scheduled | null>(null);
@@ -292,6 +292,43 @@ export function Budget() {
               <PaymentsLedger topics={topics} />
             </Accordion.Panel>
           </Accordion.Item>
+          {outside.filter((p) => p.status !== 'cancelled').length > 0 && (
+            <Accordion.Item value="outside">
+              <Accordion.Control>
+                <Text fw={600} size="sm">
+                  Outside the budget ({outside.filter((p) => p.status !== 'cancelled').length}), {formatInr(outside.filter((p) => p.status !== 'cancelled').reduce((a, p) => a + p.amount, 0))}
+                </Text>
+              </Accordion.Control>
+              <Accordion.Panel>
+                <Stack gap={6}>
+                  <Text size="xs" c="dimmed">
+                    Tracked here but paid by someone else, so not counted in the budget or the month-by-month plan.
+                  </Text>
+                  {outside
+                    .filter((p) => p.status !== 'cancelled')
+                    .map((p) => (
+                      <Group key={p.id} justify="space-between" wrap="nowrap" gap="xs">
+                        <Text size="sm" style={{ minWidth: 0 }} truncate>
+                          {p.payee}
+                          <Text span size="xs" c="dimmed">
+                            {' '}
+                            · {p.status === 'paid' ? 'paid' : `due ${p.due_date}`}
+                          </Text>
+                        </Text>
+                        <Group gap={6} wrap="nowrap">
+                          <Text size="sm">{formatInr(p.amount)}</Text>
+                          {isUnlocked && (
+                            <Button size="compact-xs" variant="subtle" onClick={() => setScheduleEditing(p)}>
+                              Edit
+                            </Button>
+                          )}
+                        </Group>
+                      </Group>
+                    ))}
+                </Stack>
+              </Accordion.Panel>
+            </Accordion.Item>
+          )}
           <Accordion.Item value="items">
             <Accordion.Control>
               <Text fw={600} size="sm">
@@ -312,6 +349,7 @@ export function Budget() {
           key={scheduleEditing === 'new' ? 'new' : scheduleEditing.id}
           payment={scheduleEditing === 'new' ? null : scheduleEditing}
           topics={topics}
+          vendors={vendors}
           opened
           onClose={() => setScheduleEditing(null)}
           onSaved={reload}

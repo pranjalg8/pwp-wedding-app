@@ -15,6 +15,11 @@ export type Scheduled = {
   paridhi_amount: number; // Paridhi's share of amount; Pranjal pays the rest
   paridhi_due_date: string | null; // when Paridhi pays her share, if not on the vendor's due date
   paridhi_plan: ShareInstalment[]; // dated instalments of her share; the rest falls on the due date
+  vendor_id?: string | null; // who it is paid to
+  quantity?: number | null; // how the amount is worked out: quantity x rate (per unit)
+  unit?: string | null;
+  rate?: number | null;
+  in_budget?: boolean; // false: tracked, but paid by someone else; left out of the budget and the cash plan
   sourceId?: string; // the stored payment a derived line comes from
   inflow?: boolean; // money coming back to Pranjal (Paridhi repaying a payment he covered); amount is negative
 };
@@ -60,6 +65,34 @@ export function withFullFunds(scoped: Plan, full: Plan): Plan {
     leftAfterAll: full.leftAfterAll,
     firstShort: full.firstShort,
   };
+}
+
+export type Vendor = { id: string; name: string; kind: string; planning_item_id: string | null; notes: string | null };
+
+// quantity x rate, rounded to the rupee; null unless both are set.
+export function lineAmount(quantity: number | null | undefined, rate: number | null | undefined) {
+  if (quantity == null || rate == null || !Number.isFinite(quantity) || !Number.isFinite(rate)) return null;
+  return Math.round(quantity * rate);
+}
+
+// Lines that count in the budget and the cash plan, and the ones tracked outside it (paid by someone else).
+export function splitByBudget<T extends { in_budget?: boolean }>(rows: T[]) {
+  return { inBudget: rows.filter((r) => r.in_budget !== false), outside: rows.filter((r) => r.in_budget === false) };
+}
+
+// What each vendor is owed: paid, still to pay and lines, from the schedule (cancelled lines left out).
+export function vendorTotals(vendors: Vendor[], rows: Pick<Scheduled, 'vendor_id' | 'amount' | 'status'>[]) {
+  return vendors
+    .map((v) => {
+      const mine = rows.filter((r) => r.vendor_id === v.id && r.status !== 'cancelled');
+      return {
+        vendor: v,
+        lines: mine.length,
+        paid: sum(mine.filter((r) => r.status === 'paid').map((r) => r.amount)),
+        pending: sum(mine.filter((r) => r.status === 'pending').map((r) => r.amount)),
+      };
+    })
+    .sort((a, b) => b.paid + b.pending - (a.paid + a.pending) || a.vendor.name.localeCompare(b.vendor.name));
 }
 
 export const SIDE_LABEL: Record<Side, string> = { both: 'Together', pranjal: 'Pranjal', paridhi: 'Paridhi' };
