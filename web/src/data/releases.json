@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.9",
+    "date": "2026-11-17",
+    "title": "Ask the knowledge base",
+    "items": [
+      { "kind": "new", "text": "Ask button on every page: type a question about the wedding and get a short answer from the Knowledge page, with the page named. Until AI answers are switched on it shows the matching lines instead." }
+    ]
+  },
+  {
     "version": "1.8",
     "date": "2026-11-14",
     "title": "Guest contacts",

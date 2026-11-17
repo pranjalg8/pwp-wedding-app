@@ -19,6 +19,7 @@ import { Activity } from './pages/Activity';
 import { Budget } from './pages/Budget';
 import { Vendors } from './pages/Vendors';
 import { Knowledge } from './pages/Knowledge';
+import { AskKb } from './components/AskKb';
 import { Functions } from './pages/Functions';
 import { FunctionResults } from './pages/FunctionResults';
 import { Swipe } from './pages/Swipe';
@@ -173,6 +174,7 @@ function Shell({ children }: { children: React.ReactNode }) {
       <DeviceNicknameModal opened={nameOpened} onClose={nameHandlers.close} onSaved={setNickname} />
 
       <AppShell.Main>{children}</AppShell.Main>
+      <AskKb />
     </AppShell>
   );
 }

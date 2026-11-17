@@ -6,3 +6,6 @@ dist/
 sync/.env
 sync/cursors.local.json
 *.local.json
+
+# Supabase CLI scratch files
+supabase/.temp/

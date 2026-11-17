@@ -2,6 +2,12 @@
 
 Every version of the planner, newest first. This file is generated from `web/src/data/releases.json`; edit that file and run `npm run changelog`. The same list shows in the app under Activity, What's new.
 
+## 1.9 - 2026-11-17: Ask the knowledge base
+
+**New**
+
+- Ask button on every page: type a question about the wedding and get a short answer from the Knowledge page, with the page named. Until AI answers are switched on it shows the matching lines instead.
+
 ## 1.8 - 2026-11-14: Guest contacts
 
 **New**
