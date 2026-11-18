@@ -6,6 +6,7 @@ import type { RsvpDay } from './RsvpEditor';
 import { splitOf, type Invite } from '../lib/rsvp';
 import { guestNightsOf, householdNeed, type StayNight, type StaySite } from '../lib/stay';
 import type { RoomStay, StayRoom } from '../lib/rooms';
+import { EmptyState } from './EmptyState';
 
 const PAGE = 40;
 
@@ -163,9 +164,7 @@ export function HouseholdList({
 
   if (guests.length === 0) {
     return (
-      <Paper withBorder p="xl" ta="center">
-        <Text c="dimmed">No households match.</Text>
-      </Paper>
+      <EmptyState emoji="🔍" title="No households match" hint="Try another search or filter." />
     );
   }
 

@@ -75,3 +75,18 @@ export function stayRange(persons: number, invites: Pick<Invite, 'coming' | 'dec
 // Rooms scale with the share of the household that might come, rounded up to a half room.
 export const scaleRooms = (rooms: number, persons: number, people: number) =>
   persons > 0 ? Math.ceil((rooms * people * 2) / persons) / 2 : 0;
+
+// RSVP is by day: someone coming on a day is at every function that day.
+export type RsvpDay = { date: string; label: string; functions: string[] };
+
+// Days with their functions, e.g. [{ date: '2027-02-14', label: 'Sun 14 Feb', functions: ['Tilak', ...] }].
+// Family-only functions (no guest invited) do not make a day.
+export function daysFromFunctions(allFns: { name: string; event_date: string; family_only?: boolean }[]): RsvpDay[] {
+  const fns = allFns.filter((f) => !f.family_only);
+  const dates = [...new Set(fns.map((f) => f.event_date))].sort();
+  return dates.map((date) => ({
+    date,
+    label: new Date(date + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' }),
+    functions: fns.filter((f) => f.event_date === date).map((f) => f.name),
+  }));
+}

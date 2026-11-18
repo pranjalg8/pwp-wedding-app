@@ -1,6 +1,7 @@
 import { Badge, Button, Divider, Group, Paper, Stack, Text } from '@mantine/core';
 import { daysBetween, shortDate, type MonthRow, type Plan, type Scheduled, type Side, type TopicRef } from '../lib/budgetPlan';
 import { formatInr } from '../lib/topicMeta';
+import { EditButton } from './EditButton';
 
 function PaymentLine({
   p,
@@ -142,13 +143,11 @@ export function MonthPlan({
   return (
     <Paper withBorder p="lg">
       <Stack gap="md">
-        {isUnlocked && (
-          <Group justify="flex-end">
-            <Button size="compact-md" onClick={onAdd}>
-              Add a payment due
-            </Button>
-          </Group>
-        )}
+        <Group justify="flex-end">
+          <EditButton size="compact-md" onClick={onAdd}>
+            Add a payment due
+          </EditButton>
+        </Group>
 
         {plan.overdue.length > 0 && (
           <>

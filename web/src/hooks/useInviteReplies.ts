@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
+import { useRealtime } from './useRealtime';
 import { supabase } from '../lib/supabase';
+import { firstError } from '../lib/loadState';
 import type { InviteCode, InviteReply } from '../lib/replies';
 
 export type InviteSettings = { open: boolean; site_url: string | null };
@@ -10,7 +12,7 @@ export function useInviteReplies() {
   const [replies, setReplies] = useState<InviteReply[]>([]);
   const [settings, setSettings] = useState<InviteSettings>({ open: false, site_url: null });
   const [loaded, setLoaded] = useState(false);
-  const channelName = useRef(`invite_replies_${Math.random().toString(36).slice(2)}`);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     const [c, r, s] = await Promise.all([
@@ -18,24 +20,16 @@ export function useInviteReplies() {
       supabase.from('invite_responses').select('*').order('submitted_at', { ascending: false }),
       supabase.from('invite_settings').select('open, site_url').maybeSingle(),
     ]);
+    const failed = firstError(c, r, s);
+    setLoadError(failed);
+    setLoaded(true);
+    if (failed) return; // keep what is on screen
     setCodes((c.data ?? []) as InviteCode[]);
     setReplies((r.data ?? []) as InviteReply[]);
     if (s.data) setSettings(s.data as InviteSettings);
-    setLoaded(true);
   }, []);
 
-  useEffect(() => {
-    reload();
-    const channel = supabase
-      .channel(channelName.current)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'invite_codes' }, reload)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'invite_responses' }, reload)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'invite_settings' }, reload)
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [reload]);
+  useRealtime(['invite_codes', 'invite_responses', 'invite_settings'], reload, { immediate: true });
 
-  return { codes, replies, settings, loaded, reload };
+  return { codes, replies, settings, loaded, loadError, reload };
 }

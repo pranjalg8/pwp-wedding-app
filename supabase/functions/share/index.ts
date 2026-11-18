@@ -27,11 +27,20 @@ async function sha256Hex(s: string) {
 
 // deno-lint-ignore no-explicit-any
 type Row = Record<string, any>;
+// PostgREST returns at most 1000 rows per request (the project's max-rows) and says nothing when it cuts a list
+// short. So every list is read in pages until a short page comes back. `q` builds a fresh query for each page; id is
+// added as the last sort key so pages neither overlap nor skip rows (every table read here has an id primary key).
+const PAGE = 1000;
 // deno-lint-ignore no-explicit-any
-async function all(p: PromiseLike<{ data: any; error: { message: string } | null }>): Promise<Row[]> {
-  const { data, error } = await p;
-  if (error) throw new Error(error.message);
-  return (data ?? []) as Row[];
+async function all(q: () => any): Promise<Row[]> {
+  const out: Row[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await q().order('id').range(from, from + PAGE - 1);
+    if (error) throw new Error(error.message);
+    const rows = (data ?? []) as Row[];
+    out.push(...rows);
+    if (rows.length < PAGE) return out;
+  }
 }
 
 type Flags = { money: boolean; guests: boolean; honeymoon: boolean; contacts: boolean };
@@ -128,14 +137,18 @@ Deno.serve(async (req) => {
 
   const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
 
+  let touch: Promise<void> = Promise.resolve();
   try {
     const { data: link } = await sb.from('share_links').select('*').eq('token_hash', await sha256Hex(token)).maybeSingle();
     if (!link || link.revoked_at || new Date(link.expires_at).getTime() <= Date.now()) return notAvailable();
 
-    // Count the visit, but not more than every few minutes so the log stays readable.
+    // Count the visit, but not more than every few minutes so the log stays readable. It runs alongside the reads
+    // below and is only waited for (in finally) before the response goes out. Its result is ignored, as before.
     const last = link.last_used_at ? new Date(link.last_used_at).getTime() : 0;
     if (Date.now() - last > 5 * 60 * 1000) {
-      await sb.from('share_links').update({ last_used_at: new Date().toISOString(), use_count: link.use_count + 1 }).eq('id', link.id);
+      touch = Promise.resolve(
+        sb.from('share_links').update({ last_used_at: new Date().toISOString(), use_count: link.use_count + 1 }).eq('id', link.id),
+      ).then(() => {}, () => {});
     }
 
     const f: Flags = { money: !!link.show_money, guests: !!link.show_guests, honeymoon: !!link.show_honeymoon, contacts: !!link.show_contacts };
@@ -148,18 +161,21 @@ Deno.serve(async (req) => {
       if (typeof body.action !== 'string') return json({ error: 'bad_request' }, 400);
       return await applyEdit(link, body, canEditTasks, canEditRsvp);
     }
-    const topics = await all(sb.from('topics').select('id, key, label'));
-    const topicLabel = Object.fromEntries(topics.map((t) => [t.id, t.label]));
-
+    // The reads are independent of each other, so each block runs them at the same time.
     const needTasks = want.has('home') || want.has('tasks') || want.has('vendors');
-    const tasks = needTasks ? await all(sb.from('tasks').select('id, title, topic_id, owner, priority, due_date, status, summary, sort_order').order('sort_order')) : [];
-    const options = needTasks ? await all(sb.from('task_options').select('id, task_id, name, status, summary, why_note, metadata, sort_order').order('sort_order')) : [];
-    const items = want.has('tasks') && f.money ? await all(sb.from('planning_items').select('task_id, status, amount, amount_kind').not('task_id', 'is', null)) : [];
+    const none = Promise.resolve([] as Row[]);
+    const [topics, tasks, options, items, facts] = await Promise.all([
+      all(() => sb.from('topics').select('id, key, label')),
+      needTasks ? all(() => sb.from('tasks').select('id, title, topic_id, owner, priority, due_date, status, summary, sort_order').order('sort_order')) : none,
+      needTasks ? all(() => sb.from('task_options').select('id, task_id, name, status, summary, why_note, metadata, sort_order').order('sort_order')) : none,
+      want.has('tasks') && f.money ? all(() => sb.from('planning_items').select('task_id, status, amount, amount_kind').not('task_id', 'is', null)) : none,
+      want.has('home') ? all(() => sb.from('planning_items').select('slug, metadata').eq('slug', 'dates.wedding')) : none,
+    ]);
+    const topicLabel = Object.fromEntries(topics.map((t) => [t.id, t.label]));
 
     const data: Record<string, unknown> = {};
 
     if (want.has('home')) {
-      const facts = await all(sb.from('planning_items').select('slug, metadata').eq('slug', 'dates.wedding'));
       const start: string = facts[0]?.metadata?.start ?? '2027-02-14';
       const end: string = facts[0]?.metadata?.end ?? start;
       const open = tasks.filter((t) => !isDone(t.status));
@@ -227,15 +243,17 @@ Deno.serve(async (req) => {
     }
 
     if (want.has('functions')) {
-      const fns = await all(sb.from('wedding_functions').select('name, event_date, slot, theme, colours, avoid_colours, notes, status, family_only').order('sort_order'));
+      const fns = await all(() => sb.from('wedding_functions').select('name, event_date, slot, theme, colours, avoid_colours, notes, status, family_only').order('sort_order'));
       data.functions = fns.map((x) => ({ ...x, notes: scrub(x.notes, f), theme: scrub(x.theme, f) }));
     }
 
     let guests: Row[] = [];
     let rsvps: Row[] = [];
     if (want.has('guests') || want.has('rooms')) {
-      guests = await all(sb.from('guests').select('id, name, family_members, persons, list_group, relation, location, sort_order').order('sort_order'));
-      rsvps = await all(sb.from('guest_rsvps').select('guest_id, event_date, coming, maybe, declined'));
+      [guests, rsvps] = await Promise.all([
+        all(() => sb.from('guests').select('id, name, family_members, persons, list_group, relation, location, sort_order').order('sort_order')),
+        all(() => sb.from('guest_rsvps').select('guest_id, event_date, coming, maybe, declined')),
+      ]);
     }
 
     if (want.has('guests')) {
@@ -278,13 +296,15 @@ Deno.serve(async (req) => {
     }
 
     if (want.has('rooms')) {
-      const sites = await all(sb.from('stay_sites').select('id, name, role, has_lift, floors, people_per_room, distance_note, booking_note, notes, sort_order').order('sort_order'));
-      const nights = await all(sb.from('stay_nights').select('site_id, night, rooms').order('night'));
       // Placements come from the room board (one row per household per room). guest_stays is the old per-place
       // table and is no longer written.
-      const rooms = await all(sb.from('stay_rooms').select('id, site_id'));
+      const [sites, nights, rooms, roomStays] = await Promise.all([
+        all(() => sb.from('stay_sites').select('id, name, role, has_lift, floors, people_per_room, distance_note, booking_note, notes, sort_order').order('sort_order')),
+        all(() => sb.from('stay_nights').select('site_id, night, rooms').order('night')),
+        all(() => sb.from('stay_rooms').select('id, site_id')),
+        all(() => sb.from('room_stays').select('room_id, guest_id')),
+      ]);
       const siteOfRoom = new Map(rooms.map((r) => [r.id, r.site_id]));
-      const roomStays = await all(sb.from('room_stays').select('room_id, guest_id'));
       const byHouseholdSite = new Map<string, { guest_id: string; site_id: string; rooms: Set<string> }>();
       for (const rs of roomStays) {
         const site_id = siteOfRoom.get(rs.room_id);
@@ -320,12 +340,15 @@ Deno.serve(async (req) => {
       if (!f.money) {
         data.budget = { hidden: 'money' };
       } else {
-        const settings = (await all(sb.from('budget_settings').select('total_budget, funds_available, funds_as_of, monthly_addition')))[0] ?? null;
-        const payments = await all(sb.from('payments').select('paid_on, payee, amount, purpose, topic_id').order('paid_on', { ascending: false }));
         // Notes are left out: they can describe who pays what and why, which a shared view does not need.
         // Lines paid by someone else (in_budget false) are not part of the couple's budget, so a link leaves them out.
-        const schedule = await all(sb.from('payment_schedule').select('payee, amount, due_date, status, is_estimate, topic_id').eq('in_budget', true).order('due_date'));
-        const areas = await all(sb.from('budget_areas').select('topic_id, allocation'));
+        const [settingsRows, payments, schedule, areas] = await Promise.all([
+          all(() => sb.from('budget_settings').select('total_budget, funds_available, funds_as_of, monthly_addition')),
+          all(() => sb.from('payments').select('paid_on, payee, amount, purpose, topic_id').order('paid_on', { ascending: false })),
+          all(() => sb.from('payment_schedule').select('payee, amount, due_date, status, is_estimate, topic_id').eq('in_budget', true).order('due_date')),
+          all(() => sb.from('budget_areas').select('topic_id, allocation')),
+        ]);
+        const settings = settingsRows[0] ?? null;
         data.budget = {
           settings,
           payments: payments.map((p) => ({ paid_on: p.paid_on, payee: p.payee, amount: Number(p.amount), purpose: p.purpose, area: p.topic_id ? topicLabel[p.topic_id] ?? null : null })),
@@ -351,7 +374,7 @@ Deno.serve(async (req) => {
         data.honeymoon = { hidden: 'honeymoon' };
       } else {
         const topic = topics.find((t) => t.key === 'honeymoon');
-        const rows = topic ? await all(sb.from('planning_items').select('title, detail, status, amount, amount_kind').eq('topic_id', topic.id).order('created_at')) : [];
+        const rows = topic ? await all(() => sb.from('planning_items').select('title, detail, status, amount, amount_kind').eq('topic_id', topic.id).order('created_at')) : [];
         data.honeymoon = {
           items: rows.map((r) => ({ title: r.title, detail: scrub(r.detail, f), status: r.status, amount: f.money && r.amount != null ? Number(r.amount) : null, kind: f.money ? r.amount_kind : null })),
         };
@@ -373,5 +396,7 @@ Deno.serve(async (req) => {
   } catch (_e) {
     // Never leak internals to an anonymous caller.
     return json({ error: 'server_error' }, 500);
+  } finally {
+    await touch;
   }
 });

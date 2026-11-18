@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { ActionIcon, Box, Button, Checkbox, Drawer, Group, Modal, Paper, SegmentedControl, SimpleGrid, Stack, Text } from '@mantine/core';
 import { supabase } from '../lib/supabase';
-import type { Invite } from '../lib/rsvp';
+import type { Invite, RsvpDay } from '../lib/rsvp';
+import type { InviteSnapshot } from '../lib/rsvpRestore';
 
-// RSVP is by day: someone coming on a day is at every function that day.
-export type RsvpDay = { date: string; label: string; functions: string[] };
+export type { RsvpDay } from '../lib/rsvp';
+export type { InviteSnapshot } from '../lib/rsvpRestore';
+
 
 type GuestRef = { id: string; name: string; persons: number };
 type Mode = 'all' | 'some' | 'none' | 'noreply';
@@ -14,17 +16,6 @@ const n = (v: number | string) => Number(v) || 0;
 const used = (r: Row) => n(r.coming) + n(r.maybe) + n(r.declined);
 const zero = { coming: 0, maybe: 0, declined: 0 };
 
-// Days with their functions, e.g. [{ date: '2027-02-14', label: 'Sun 14 Feb', functions: ['Tilak', ...] }].
-// Family-only functions (no guest invited) do not make a day.
-export function daysFromFunctions(allFns: { name: string; event_date: string; family_only?: boolean }[]): RsvpDay[] {
-  const fns = allFns.filter((f) => !f.family_only);
-  const dates = [...new Set(fns.map((f) => f.event_date))].sort();
-  return dates.map((date) => ({
-    date,
-    label: new Date(date + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' }),
-    functions: fns.filter((f) => f.event_date === date).map((f) => f.name),
-  }));
-}
 
 type CountKey = 'coming' | 'maybe' | 'declined';
 const COUNT_FIELDS: { key: CountKey; name: string; hint: string; color: string }[] = [
@@ -361,21 +352,9 @@ export function RsvpEditor({
   );
 }
 
-// What the households' invites looked like before a bulk change, so the change can be undone.
-export type InviteSnapshot = { guestIds: string[]; rows: { guest_id: string; event_date: string; coming: number; maybe: number; declined: number }[] };
 
 export type BulkMode = 'add' | 'only' | 'remove';
 
-// Put the selected households' invites back exactly as they were: clear what is there now, then restore the snapshot.
-export async function restoreInvites(snapshot: InviteSnapshot): Promise<string | null> {
-  const del = await supabase.from('guest_rsvps').delete().in('guest_id', snapshot.guestIds);
-  if (del.error) return del.error.message;
-  if (snapshot.rows.length > 0) {
-    const ins = await supabase.from('guest_rsvps').insert(snapshot.rows);
-    if (ins.error) return ins.error.message;
-  }
-  return null;
-}
 
 // Change the days a set of selected households is invited to. Add keeps what they have and adds the chosen days,
 // Only makes the chosen days their only days, Remove takes the chosen days away. Answers on days that stay are kept.

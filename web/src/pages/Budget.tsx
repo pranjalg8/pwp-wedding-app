@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useRealtime } from '../hooks/useRealtime';
 import { Link } from 'react-router-dom';
-import { Accordion, Alert, Badge, Button, Group, Paper, SegmentedControl, Stack, Table, Text, Title } from '@mantine/core';
+import { Accordion, Alert, Badge, Button, Group, Paper, SegmentedControl, Stack, Table, Text } from '@mantine/core';
+import { PageHeader } from '../components/PageHeader';
 import { notifications } from '@mantine/notifications';
 import { supabase, type PlanningItem, type Topic } from '../lib/supabase';
 import { PaymentsLedger } from '../components/PaymentsLedger';
@@ -21,6 +23,7 @@ import { useEditMode } from '../hooks/useEditMode';
 import { SideBySide } from '../components/SideBySide';
 import { afterPartPayment, SCOPE_LABEL, SIDE_LABEL, buildAreas, buildPlan, filterScope, forSide, scheduleForSide, settingsForSide, sum, withFullFunds, type Plan, type Scheduled, type Scope, type Side } from '../lib/budgetPlan';
 import { KIND_LABEL, STATUS_COLOR, STATUS_LABEL, formatAsOf, formatInr } from '../lib/topicMeta';
+import { EmptyState } from '../components/EmptyState';
 
 type BudgetRow = Pick<PlanningItem, 'id' | 'title' | 'type' | 'status' | 'amount' | 'amount_kind' | 'amount_note' | 'as_of'> & {
   topic: Pick<Topic, 'key' | 'label'>;
@@ -49,16 +52,7 @@ function AmountsTable() {
     setRows((data ?? []) as unknown as BudgetRow[]);
   }
 
-  useEffect(() => {
-    load();
-    const channel = supabase
-      .channel('planning_items_budget')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'planning_items' }, load)
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
+  useRealtime(['planning_items'], load, { immediate: true });
 
   return (
     <>
@@ -116,7 +110,7 @@ function AmountsTable() {
             {rows.length === 0 && (
               <Table.Tr>
                 <Table.Td colSpan={isUnlocked ? 6 : 5}>
-                  <Text c="dimmed">No budgeted items yet. Add an amount to an item to see it here.</Text>
+                  <EmptyState compact emoji="💰" title="No budgeted items yet" hint="Add an amount to an item and it will show up here." />
                 </Table.Td>
               </Table.Tr>
             )}
@@ -223,13 +217,10 @@ export function Budget() {
           </Group>
         </Alert>
       )}
-      <Group justify="space-between" align="flex-end" gap="sm">
-        <div>
-          <Title order={2}>Budget</Title>
-          <Text size="sm" c="dimmed">
-            What is paid, what is still to pay, and whether each month is covered.
-          </Text>
-        </div>
+      <PageHeader
+        title="Budget"
+        subtitle="What is paid, what is still to pay, and whether each month is covered."
+        action={
         <Stack gap={6} align="flex-end">
           <SegmentedControl
             size="xs"
@@ -245,7 +236,8 @@ export function Budget() {
             aria-label="Whose share to show"
           />
         </Stack>
-      </Group>
+        }
+      />
 
       <Section step={1} title="Where the money stands" hint="Paid, still to pay, and the funds you have to cover it.">
         <Stack gap="md">
@@ -256,7 +248,7 @@ export function Budget() {
           </Text>
         )}
         <SideBySide plans={plans} side={side} onPick={setSide} />
-        <BudgetSummary side={side} plan={plan} settings={viewSettings} notScheduled={notScheduled} outsideBudget={outsideBudget} today={today} isUnlocked={isUnlocked} onEditSettings={() => setSettingsOpen(true)} />
+        <BudgetSummary side={side} plan={plan} settings={viewSettings} notScheduled={notScheduled} outsideBudget={outsideBudget} today={today} onEditSettings={() => setSettingsOpen(true)} />
         </Stack>
       </Section>
 
@@ -297,7 +289,7 @@ export function Budget() {
               budgets={treeBudgets}
             />
           ) : (
-            <AreaBudget rows={areaRows} isUnlocked={isUnlocked} onEditBudgets={() => setAreasOpen(true)} />
+            <AreaBudget rows={areaRows} onEditBudgets={() => setAreasOpen(true)} />
           )}
         </Stack>
       </Section>
@@ -340,12 +332,12 @@ export function Budget() {
                         <Group gap={6} wrap="nowrap">
                           <Text size="sm">{formatInr(p.amount)}</Text>
                           {isUnlocked && p.status === 'pending' && (
-                            <Button size="compact-xs" variant="light" onClick={() => void settle(p)}>
+                            <Button size="sm" variant="light" onClick={() => void settle(p)}>
                               Mark done
                             </Button>
                           )}
                           {isUnlocked && (
-                            <Button size="compact-xs" variant="subtle" onClick={() => setScheduleEditing(p)}>
+                            <Button size="sm" variant="subtle" onClick={() => setScheduleEditing(p)}>
                               Edit
                             </Button>
                           )}

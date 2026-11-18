@@ -4,6 +4,7 @@ import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
 import type { StaySite } from '../lib/stay';
 import { ISSUE_TEXT, PAID_BY_LABEL, addDays, checkoutOf, isProblem, roomIssues, type Household, type Occupant, type PaidBy, type StayRoom } from '../lib/rooms';
+import { confirmDanger } from '../lib/confirm';
 
 const nightLabel = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
 const PAID_DATA = (Object.keys(PAID_BY_LABEL) as PaidBy[]).map((v) => ({ value: v, label: PAID_BY_LABEL[v] }));
@@ -117,7 +118,12 @@ export function RoomModal({
   }
 
   async function deleteRoom() {
-    if (!window.confirm(`Delete room ${room.label}${occupants.length > 0 ? ` and take ${occupants.length} household${occupants.length === 1 ? '' : 's'} out of it` : ''}? This is recorded in the activity log.`)) return;
+    const ok = await confirmDanger({
+      title: `Delete room ${room.label}?`,
+      message: `${occupants.length > 0 ? `${occupants.length} household${occupants.length === 1 ? '' : 's'} in it will be taken out and need a new room. ` : ''}This is recorded in the activity log.`,
+      confirmLabel: 'Delete room',
+    });
+    if (!ok) return;
     const { error } = await supabase.from('stay_rooms').delete().eq('id', room.id);
     if (error) return fail('Could not delete', error.message);
     await reload();

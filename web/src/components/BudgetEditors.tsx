@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useProfile } from '../hooks/useProfile';
 import type { AreaBudget, BudgetSettings, Scheduled, ShareInstalment, TopicRef, Vendor } from '../lib/budgetPlan';
 import { lineAmount, shortDate } from '../lib/budgetPlan';
+import { confirmDanger } from '../lib/confirm';
 
 const NEW = '__new__';
 const todayIso = () => new Date().toLocaleDateString('en-CA');
@@ -87,7 +88,13 @@ export function ScheduleEditor({
   }
 
   async function remove() {
-    if (!payment || !window.confirm(`Remove the payment to ${payment.payee}? It was never paid, so nothing in the ledger changes. This is recorded in the activity log.`)) return;
+    if (!payment) return;
+    const ok = await confirmDanger({
+      title: 'Remove this scheduled payment?',
+      message: `The payment to ${payment.payee} will come off the schedule. It was never paid, so nothing in the ledger changes. This is recorded in the activity log.`,
+      confirmLabel: 'Remove payment',
+    });
+    if (!ok) return;
     setSaving(true);
     const { error: err } = await supabase.from('payment_schedule').delete().eq('id', payment.id);
     setSaving(false);

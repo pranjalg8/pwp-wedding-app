@@ -85,37 +85,63 @@ Deno.serve(async (req) => {
   }
   const live = Boolean(pubsubUrl && token);
 
-  const results: Record<string, unknown>[] = [];
-  for (const row of (rows ?? []) as (OutboxRow & { attempts: number })[]) {
-    const topic = topicMap[row.recipient_profile_id] ?? `notify-${(nameOf.get(row.recipient_profile_id) ?? 'unknown').toLowerCase()}`;
-    const { subject, message } = buildMessage(row, appUrl);
+  const batch = (rows ?? []) as (OutboxRow & { attempts: number })[];
+  const prepared = batch.map((row) => ({
+    row,
+    topic: topicMap[row.recipient_profile_id] ?? `notify-${(nameOf.get(row.recipient_profile_id) ?? 'unknown').toLowerCase()}`,
+    ...buildMessage(row, appUrl),
+  }));
 
-    if (!live) {
-      results.push({ id: row.id, kind: row.kind, status: 'dry-run', topic, subject, message });
-      continue;
-    }
-
-    const res = await fetch(`${pubsubUrl}/topics/${encodeURIComponent(topic)}/publish`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ subject, message }),
-    });
-    if (res.ok) {
-      await supabase
-        .from('notification_outbox')
-        .update({ status: 'sent', sent_at: new Date().toISOString(), attempts: row.attempts + 1, last_error: null })
-        .eq('id', row.id);
-      results.push({ id: row.id, kind: row.kind, status: 'sent', topic });
-    } else {
-      const text = (await res.text().catch(() => '')).slice(0, 300);
-      const attempts = row.attempts + 1;
-      await supabase
-        .from('notification_outbox')
-        .update({ attempts, last_error: `HTTP ${res.status}: ${text}`, status: attempts >= MAX_ATTEMPTS ? 'failed' : 'pending' })
-        .eq('id', row.id);
-      results.push({ id: row.id, kind: row.kind, status: 'error', http: res.status, topic });
-    }
+  if (!live) {
+    const results = prepared.map(({ row, topic, subject, message }) => ({ id: row.id, kind: row.kind, status: 'dry-run', topic, subject, message }));
+    return json({ live, authError, pending: rows?.length ?? 0, results });
   }
+
+  // Publish the whole batch (at most 25) at once instead of one after another.
+  const settled = await Promise.allSettled(
+    prepared.map(async ({ topic, subject, message }) => {
+      const res = await fetch(`${pubsubUrl}/topics/${encodeURIComponent(topic)}/publish`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ subject, message }),
+      });
+      return { ok: res.ok, status: res.status, text: res.ok ? '' : (await res.text().catch(() => '')).slice(0, 300) };
+    }),
+  );
+
+  const results: Record<string, unknown>[] = [];
+  // Sent rows are marked in one update per distinct attempt count (usually just one), so each row still records
+  // attempts + 1. Failed rows keep their own error text, so they are updated one by one, in parallel.
+  const sentByAttempts = new Map<number, string[]>();
+  const writes: PromiseLike<unknown>[] = [];
+  const sentAt = new Date().toISOString();
+  settled.forEach((s, i) => {
+    const { row, topic } = prepared[i];
+    const attempts = row.attempts + 1;
+    if (s.status === 'fulfilled' && s.value.ok) {
+      sentByAttempts.set(attempts, [...(sentByAttempts.get(attempts) ?? []), row.id]);
+      results.push({ id: row.id, kind: row.kind, status: 'sent', topic });
+      return;
+    }
+    // A publish that could not even be sent (network error) counts as a failed attempt, like an HTTP error.
+    const lastError = s.status === 'fulfilled' ? `HTTP ${s.value.status}: ${s.value.text}` : `fetch failed: ${String((s.reason as Error)?.message ?? s.reason).slice(0, 280)}`;
+    writes.push(
+      supabase
+        .from('notification_outbox')
+        .update({ attempts, last_error: lastError, status: attempts >= MAX_ATTEMPTS ? 'failed' : 'pending' })
+        .eq('id', row.id),
+    );
+    results.push({ id: row.id, kind: row.kind, status: 'error', ...(s.status === 'fulfilled' ? { http: s.value.status } : {}), topic });
+  });
+  for (const [attempts, ids] of sentByAttempts) {
+    writes.push(
+      supabase
+        .from('notification_outbox')
+        .update({ status: 'sent', sent_at: sentAt, attempts, last_error: null })
+        .in('id', ids),
+    );
+  }
+  await Promise.all(writes);
 
   return json({ live, authError, pending: rows?.length ?? 0, results });
 });

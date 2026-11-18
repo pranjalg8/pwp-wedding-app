@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { Badge, Card, Stack, Text, Title } from '@mantine/core';
+import { Badge, Card, Stack, Text } from '@mantine/core';
+import { PageHeader } from '../components/PageHeader';
 import { RELEASES, markUpdatesSeen, useUnseenUpdates, type ReleaseKind } from '../hooks/useUpdates';
 
 const KIND: Record<ReleaseKind, { label: string; color: string }> = {
@@ -18,10 +19,7 @@ export function Updates() {
 
   return (
     <Stack gap="md" maw={760} mx="auto">
-      <Title order={2}>What's new</Title>
-      <Text size="sm" c="dimmed">
-        Every version of the planner, newest first. The same list is in the CHANGELOG on GitHub.
-      </Text>
+      <PageHeader title="What's new" subtitle="Every version of the planner, newest first. The same list is in the CHANGELOG on GitHub." />
       {RELEASES.map((r, i) => (
         <Card key={r.version} withBorder p="lg">
           <Stack gap="xs">

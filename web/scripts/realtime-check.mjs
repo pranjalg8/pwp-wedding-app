@@ -32,12 +32,16 @@ function walk(dir) {
     if (statSync(p).isDirectory()) walk(p);
     else if (/\.(ts|tsx)$/.test(name)) {
       const src = readFileSync(p, 'utf8');
-      for (const m of src.matchAll(/postgres_changes'[^}]*table:\s*'([a-z_]+)'/g)) {
-        const list = subscribed.get(m[1]) ?? [];
+      const add = (t) => {
+        const list = subscribed.get(t) ?? [];
         list.push(path.relative(root, p));
-        subscribed.set(m[1], list);
-      }
-    }
+        subscribed.set(t, list);
+      };
+      for (const m of src.matchAll(/postgres_changes'[^}]*table:\s*'([a-z_]+)'/g)) add(m[1]);
+      // useRealtime(['a', { table: 'b', filter: ... }], ...): both forms name tables in the first argument.
+      for (const call of src.matchAll(/useRealtime\(\s*([\s\S]*?\])\s*,/g)) {
+        for (const m of call[1].matchAll(/(?:table:\s*)?'([a-z_]+)'/g)) add(m[1]);
+      }    }
   }
 }
 walk(path.join(root, 'src'));

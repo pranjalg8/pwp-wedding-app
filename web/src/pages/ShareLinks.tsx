@@ -15,8 +15,8 @@ import {
   Switch,
   Text,
   TextInput,
-  Title,
 } from '@mantine/core';
+import { PageHeader } from '../components/PageHeader';
 import { useProfile } from '../hooks/useProfile';
 import {
   ALL_SENSITIVE,
@@ -34,6 +34,7 @@ import {
   type Sensitivity,
   type ShareLink,
 } from '../lib/shareLinks';
+import { confirmDanger } from '../lib/confirm';
 
 const sectionLabel = (k: SectionKey) => SECTIONS.find((s) => s.key === k)?.label ?? k;
 const sensitiveLabel = (k: string) => SENSITIVE.find((s) => s.key === k)?.label ?? k;
@@ -328,7 +329,12 @@ export function ShareLinks() {
   }, [load]);
 
   async function revoke(l: ShareLink) {
-    if (!window.confirm(`Revoke "${l.label}"? Anyone using this link will lose access straight away.`)) return;
+    const ok = await confirmDanger({
+      title: `Revoke "${l.label}"?`,
+      message: 'Anyone using this link will lose access straight away. This cannot be undone; make a new link if you need one.',
+      confirmLabel: 'Revoke link',
+    });
+    if (!ok) return;
     try {
       await revokeShareLink(l.id);
       await load();
@@ -342,16 +348,11 @@ export function ShareLinks() {
 
   return (
     <Stack gap="lg">
-      <Group justify="space-between" align="flex-end" gap="sm">
-        <div>
-          <Title order={2}>Share</Title>
-          <Text size="sm" c="dimmed" maw={640}>
-            Give family, friends or vendors a link to part of the planner. They open it without signing in. Every link expires within 3 days, shows only the sections
-            you choose, and can be revoked at any time.
-          </Text>
-        </div>
-        <Button onClick={() => setCreating(true)}>New link</Button>
-      </Group>
+      <PageHeader
+        title="Share"
+        subtitle="Give family, friends or vendors a link to part of the planner. They open it without signing in. Every link expires within 3 days, shows only the sections you choose, and can be revoked at any time."
+        action={<Button onClick={() => setCreating(true)}>New link</Button>}
+      />
 
       {error && (
         <Alert color="red" withCloseButton onClose={() => setError(null)}>
