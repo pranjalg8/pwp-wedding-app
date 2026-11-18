@@ -43,7 +43,6 @@ export default defineConfig({
         codeSplitting: {
           groups: [
             { name: 'vendor-react', test: inNodeModules('react|react-dom|scheduler|react-router|react-router-dom|cookie|set-cookie-parser'), priority: 30 },
-            { name: 'vendor-mantine', test: inNodeModules('@mantine|@floating-ui|react-remove-scroll[^/\\\\]*|react-style-singleton|use-callback-ref|use-sidecar|react-number-format|react-textarea-autosize|clsx|tslib|get-nonce|detect-node-es|type-fest'), priority: 20 },
             { name: 'vendor-supabase', test: inNodeModules('@supabase'), priority: 10 },
           ],
         },
