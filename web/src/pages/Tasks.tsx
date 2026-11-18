@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Accordion,
@@ -28,6 +28,10 @@ import {
   summarizeMoney,
 } from '../lib/topicMeta';
 import { useEditMode } from '../hooks/useEditMode';
+import { useRealtime } from '../hooks/useRealtime';
+import { getTopics } from '../lib/topics';
+import { firstError } from '../lib/loadState';
+import { LoadError, PageSkeleton } from '../components/PageSkeleton';
 import { TaskEditor } from '../components/TaskEditor';
 
 type OptionRow = Pick<TaskOption, 'id' | 'task_id' | 'name' | 'status'>;
@@ -122,32 +126,29 @@ export function Tasks() {
   const [owner, setOwner] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [creating, setCreating] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  async function load() {
+  async function load(isActive: () => boolean = () => true) {
     const [t, tp, o, i] = await Promise.all([
       supabase.from('tasks').select('*').order('sort_order'),
-      supabase.from('topics').select('*').order('sort_order'),
+      getTopics(),
       supabase.from('task_options').select('id, task_id, name, status'),
       supabase.from('planning_items').select('id, task_id, status, amount, amount_kind').not('task_id', 'is', null),
     ]);
+    if (!isActive()) return;
+    setLoaded(true);
+    // Keep what is on screen when a reload fails, and say so.
+    const failed = firstError(t, tp, o, i);
+    setLoadError(failed);
+    if (failed) return;
     setTasks((t.data ?? []) as Task[]);
     setTopics((tp.data ?? []) as Topic[]);
     setOptions((o.data ?? []) as OptionRow[]);
     setItems((i.data ?? []) as ItemRow[]);
   }
 
-  useEffect(() => {
-    load();
-    const channel = supabase
-      .channel('tasks_board')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, load)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'task_options' }, load)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'planning_items' }, load)
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
+  useRealtime(['tasks', 'task_options', 'planning_items'], load, { immediate: true });
 
   const topicById = useMemo(() => Object.fromEntries(topics.map((t) => [t.id, t])), [topics]);
   const areasWithTasks = topics.filter((t) => tasks.some((k) => k.topic_id === t.id));
@@ -195,7 +196,7 @@ export function Tasks() {
         <div>
           <Title order={2}>Tasks</Title>
           <Text size="sm" c="dimmed">
-            {openCount} to finish, {tasks.length - openCount} done or decided
+            {loaded ? `${openCount} to finish, ${tasks.length - openCount} done or decided` : '\u00a0'}
           </Text>
         </div>
         {isUnlocked && <Button onClick={() => setCreating(true)}>New task</Button>}
@@ -231,6 +232,9 @@ export function Tasks() {
         </Group>
       </Stack>
 
+      {loadError && <LoadError message={loadError} onRetry={() => load()} />}
+      {!loaded && <PageSkeleton />}
+
       {section('High priority', high)}
       {section('In progress', inProgress)}
       {section('Open', open)}
@@ -258,7 +262,7 @@ export function Tasks() {
         </Accordion>
       )}
 
-      {visible.length === 0 && (
+      {loaded && !loadError && visible.length === 0 && (
         <Paper withBorder p="xl" ta="center">
           <Text c="dimmed">No tasks match.</Text>
         </Paper>

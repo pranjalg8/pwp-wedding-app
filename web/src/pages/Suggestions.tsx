@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { getTopics } from '../lib/topics';
+import { useRealtime } from '../hooks/useRealtime';
 import { Accordion, Alert, Anchor, Badge, Button, Group, Modal, NumberInput, Paper, Select, Stack, Text, Textarea, TextInput, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useEditMode } from '../hooks/useEditMode';
@@ -254,7 +256,7 @@ export function Suggestions() {
     const [{ data: p }, { data: d }, { data: t }] = await Promise.all([
       supabase.from('suggestions').select('*').eq('status', 'pending').order('created_at'),
       supabase.from('suggestions').select('*').neq('status', 'pending').order('decided_at', { ascending: false }).limit(15),
-      supabase.from('topics').select('*').order('sort_order'),
+      getTopics(),
     ]);
     const pend = (p ?? []) as Suggestion[];
     setPending(pend);
@@ -275,16 +277,7 @@ export function Suggestions() {
     setLoaded(true);
   }
 
-  useEffect(() => {
-    load();
-    const channel = supabase
-      .channel('suggestions_page')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'suggestions' }, load)
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
+  useRealtime(['suggestions'], load, { immediate: true });
 
   const byTopic = topics.map((t) => ({ topic: t, list: pending.filter((s) => s.topic_id === t.id) })).filter((g) => g.list.length);
   const topicById = Object.fromEntries(topics.map((t) => [t.id, t]));

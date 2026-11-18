@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useRealtime } from '../hooks/useRealtime';
 import { Link } from 'react-router-dom';
 import { Button, Group, Modal, Select, SimpleGrid, Stack, Text, TagsInput, Textarea, TextInput, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
@@ -68,16 +69,7 @@ export function Functions() {
     setOutfits(((opts.data ?? []) as OutfitOption[]).map((o) => ({ name: o.name, status: o.status })));
   }
 
-  useEffect(() => {
-    load();
-    const channel = supabase
-      .channel('wedding_functions')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'wedding_functions' }, load)
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
+  useRealtime(['wedding_functions'], load, { immediate: true });
 
   const days = [...new Set(rows.map((r) => r.event_date))];
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Anchor, Badge, Box, Group, Paper, SimpleGrid, Stack, Text, Title } from '@mantine/core';
 import { supabase, type PlanningItem, type Task } from '../lib/supabase';
@@ -9,6 +9,10 @@ import { useGuestInvites } from '../hooks/useGuestInvites';
 import { splitOf } from '../lib/rsvp';
 import { useProfile } from '../hooks/useProfile';
 import { daysUntil, formatRange } from '../lib/planFacts';
+import { useRealtime } from '../hooks/useRealtime';
+import { getTopics } from '../lib/topics';
+import { firstError } from '../lib/loadState';
+import { LoadError, PageSkeleton } from '../components/PageSkeleton';
 import { FunctionCard, tintFor, type OutfitOption, type WeddingFunction } from '../components/FunctionCard';
 
 type TaskRow = Pick<Task, 'id' | 'title' | 'topic_id' | 'owner' | 'priority' | 'due_date' | 'status' | 'sort_order'>;
@@ -73,18 +77,27 @@ export function Home() {
   const [unsorted, setUnsorted] = useState(0);
   const [lastSynced, setLastSynced] = useState<string | null>(null);
   const [now] = useState(() => Date.now());
+  const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  async function load() {
+  async function load(isActive: () => boolean = () => true) {
     const [t, tp, o, i, p, f, u, s] = await Promise.all([
       supabase.from('tasks').select('id, title, topic_id, owner, priority, due_date, status, sort_order'),
-      supabase.from('topics').select('id, key'),
+      getTopics(),
       supabase.from('task_options').select('task_id, name, status'),
-      supabase.from('planning_items').select('status, amount, amount_kind'),
+      // Only rows with an amount count towards money; skipping the rest keeps this well under the 1000-row cap.
+      supabase.from('planning_items').select('status, amount, amount_kind').not('amount', 'is', null),
       supabase.from('payments').select('amount, verification'),
       supabase.from('wedding_functions').select('*').order('sort_order'),
       supabase.from('unmapped_messages').select('msg_id', { count: 'exact', head: true }),
       supabase.from('sync_status').select('last_run_at').limit(1),
     ]);
+    if (!isActive()) return;
+    setLoaded(true);
+    // A failed reload keeps what is on screen rather than showing an empty home page.
+    const failed = firstError(t, tp, o, i, p, f);
+    setLoadError(failed);
+    if (failed) return;
     setTasks((t.data ?? []) as TaskRow[]);
     setTopicKeyById(Object.fromEntries(((tp.data ?? []) as { id: string; key: string }[]).map((x) => [x.id, x.key])));
     setOptions((o.data ?? []) as OptionRow[]);
@@ -95,19 +108,7 @@ export function Home() {
     setLastSynced(s.data?.[0]?.last_run_at ?? null);
   }
 
-  useEffect(() => {
-    load();
-    const channel = supabase
-      .channel('home_dashboard')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, load)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'task_options' }, load)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'planning_items' }, load)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'wedding_functions' }, load)
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
+  useRealtime(['tasks', 'task_options', 'planning_items', 'wedding_functions', 'payments'], load, { immediate: true });
 
   const emoji = (t: TaskRow) => (t.topic_id && TOPIC_EMOJI[topicKeyById[t.topic_id]]) || '✨';
   const byDue = (a: TaskRow, b: TaskRow) => (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999') || a.sort_order - b.sort_order;
@@ -194,12 +195,19 @@ export function Home() {
           </Text>
         </Group>
         <Text mt="sm" style={{ opacity: 0.95 }}>
-          {open.length === 0
+          {!loaded
+            ? '\u00a0'
+            : open.length === 0
             ? 'Everything is decided. Time to celebrate.'
             : `${open.length} task${open.length === 1 ? '' : 's'} to finish, ${needsDecision.length} waiting on a decision.`}
         </Text>
       </Box>
 
+      {loadError && <LoadError message={loadError} onRetry={() => load()} />}
+
+      {!loaded ? (
+        <PageSkeleton cards={4} />
+      ) : (
       <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
         <Panel title="Next up" to="/tasks">
           {nextUp.length === 0 ? (
@@ -293,6 +301,7 @@ export function Home() {
           </Text>
         </Panel>
       </SimpleGrid>
+      )}
 
       <Stack gap="sm">
         <Group justify="space-between">

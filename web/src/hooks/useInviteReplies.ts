@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
+import { useRealtime } from './useRealtime';
 import { supabase } from '../lib/supabase';
 import type { InviteCode, InviteReply } from '../lib/replies';
 
@@ -10,7 +11,6 @@ export function useInviteReplies() {
   const [replies, setReplies] = useState<InviteReply[]>([]);
   const [settings, setSettings] = useState<InviteSettings>({ open: false, site_url: null });
   const [loaded, setLoaded] = useState(false);
-  const channelName = useRef(`invite_replies_${Math.random().toString(36).slice(2)}`);
 
   const reload = useCallback(async () => {
     const [c, r, s] = await Promise.all([
@@ -24,18 +24,7 @@ export function useInviteReplies() {
     setLoaded(true);
   }, []);
 
-  useEffect(() => {
-    reload();
-    const channel = supabase
-      .channel(channelName.current)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'invite_codes' }, reload)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'invite_responses' }, reload)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'invite_settings' }, reload)
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [reload]);
+  useRealtime(['invite_codes', 'invite_responses', 'invite_settings'], reload, { immediate: true });
 
   return { codes, replies, settings, loaded, reload };
 }

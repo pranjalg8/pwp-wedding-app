@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useRealtime } from '../hooks/useRealtime';
 import { Link } from 'react-router-dom';
 import { Anchor, Badge, Button, Card, Group, SimpleGrid, Stack, Text, Title } from '@mantine/core';
 import { supabase, type PlanningItem, type Topic } from '../lib/supabase';
@@ -36,16 +37,7 @@ export function Vendors() {
     setRows((data ?? []) as unknown as VendorRow[]);
   }
 
-  useEffect(() => {
-    load();
-    const channel = supabase
-      .channel('planning_items_vendors')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'planning_items', filter: 'type=eq.vendor' }, load)
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
+  useRealtime(['planning_items'], load, { immediate: true });
 
   const groups = rows.reduce<Record<string, { label: string; rows: VendorRow[] }>>((acc, r) => {
     (acc[r.topic.key] ??= { label: r.topic.label, rows: [] }).rows.push(r);

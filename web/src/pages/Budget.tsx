@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useRealtime } from '../hooks/useRealtime';
 import { Link } from 'react-router-dom';
 import { Accordion, Alert, Badge, Button, Group, Paper, SegmentedControl, Stack, Table, Text, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
@@ -46,16 +47,7 @@ function AmountsTable() {
     setRows((data ?? []) as unknown as BudgetRow[]);
   }
 
-  useEffect(() => {
-    load();
-    const channel = supabase
-      .channel('planning_items_budget')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'planning_items' }, load)
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
+  useRealtime(['planning_items'], load, { immediate: true });
 
   return (
     <>
