@@ -17,7 +17,7 @@ describe('doc-extract helpers', () => {
     expect(validDate('2031-01-01')).toBeNull();
   });
 
-  it('keeps good payments and tasks, drops malformed and repeated ones', () => {
+  it('keeps dated payments and tasks, skips malformed, undated and repeated ones', () => {
     const raw = {
       vendor: 'Lensflix',
       topic_key: 'photography',
@@ -33,14 +33,13 @@ describe('doc-extract helpers', () => {
     };
     const p = toProposals(raw, [], TODAY, null);
     expect(p.topicKey).toBe('photography');
-    expect(p.payments.map((x) => x.amount)).toEqual([50000, 100000]);
+    expect(p.payments.map((x) => x.amount)).toEqual([50000]);
     expect(p.payments[0].payee).toBe('Lensflix - Advance');
-    expect(p.payments[1].is_estimate).toBe(true);
-    expect(p.payments[1].due_date).toBe('2026-12-02');
+    expect(p.dropped.some((d) => d.includes('Final') && d.includes('no due date'))).toBe(true);
     expect(p.tasks).toHaveLength(1);
     expect(p.tasks[0].priority).toBe('high');
     expect(p.termsNote?.detail).toContain('Advance not refundable');
-    expect(p.dropped.length).toBe(2);
+    expect(p.dropped.length).toBe(3);
   });
 
   it('skips payments the planner already has and anything for Royal Pepper', () => {

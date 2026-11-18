@@ -64,7 +64,7 @@ export function systemPrompt(today: string, existing: ExistingPayment[]) {
     'You read a vendor quote, contract, invoice or receipt for an Indian wedding (12-16 Feb 2027) and list what the couple should add to their planner. A person reviews everything you return.',
     `Today is ${today}. Amounts are in Indian rupees: return plain numbers (no symbols, no commas).`,
     'Rules:',
-    '- payments: only money still to be paid, as the document schedules it (advance, instalments, balance). If the document gives a total AND a schedule, return the schedule only, never also the total. If it gives only a total, return one payment with due_date null and is_estimate true. Do not invent due dates; use YYYY-MM-DD only when the document states or clearly implies one.',
+    '- payments: only money still to be paid, as the document schedules it (advance, instalments, balance). If the document gives a total AND a schedule, return the schedule only, never also the total. If a payment has no stated or clearly implied due date, still return it with due_date null (the app skips it). Never invent a due date; use YYYY-MM-DD only when the document states or clearly implies one.',
     '- Do not return payments already marked paid, taxes listed separately from a stated all-in total, or refundable deposits explained as refundable.',
     '- tasks: concrete actions with a deadline or condition in the document (confirm by a date, send a list, collect an advance). Short imperative titles. No filler.',
     '- terms: cancellation, validity of the quote, what is included and excluded, anything unusual. Quote or closely paraphrase; keep each item short.',
@@ -111,13 +111,12 @@ const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 
 // Turns the model's raw JSON into proposals: known topic, sane numbers and dates, no repeats of what the planner
 // already has, no Royal Pepper, no bank details.
-export function toProposals(raw: unknown, existing: ExistingPayment[], today: string, fallbackTopic: string | null): Proposals {
+export function toProposals(raw: unknown, existing: ExistingPayment[], _today: string, fallbackTopic: string | null): Proposals {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   const dropped: string[] = [];
   const vendor = typeof r.vendor === 'string' && r.vendor.trim() ? scrub(r.vendor, 80) : null;
   const topicKey = (TOPIC_KEYS as readonly string[]).includes(String(r.topic_key)) ? String(r.topic_key) : fallbackTopic ?? 'dates_logistics';
   const royal = /royal\s*pepper/i.test(vendor ?? '');
-  const fallbackDue = new Date(new Date(today + 'T00:00:00Z').getTime() + 14 * 86400000).toISOString().slice(0, 10);
 
   const payments: ProposedPayment[] = [];
   const seen = new Set<string>();
@@ -133,8 +132,11 @@ export function toProposals(raw: unknown, existing: ExistingPayment[], today: st
       dropped.push(`${label}: Royal Pepper is paid by the fathers, not in the planner`);
       continue;
     }
-    const stated = validDate(q.due_date);
-    const dueDate = stated ?? fallbackDue;
+    const dueDate = validDate(q.due_date);
+    if (!dueDate) {
+      dropped.push(`${label} (${amount.toLocaleString('en-IN')}): no due date in the document, add it by hand once known`);
+      continue;
+    }
     const payee = [vendor, label].filter(Boolean).join(' - ').slice(0, 120);
     const key = `${amount}|${dueDate}`;
     const repeat = existing.some((e) => Number(e.amount) === amount && (e.due_date === dueDate || norm(e.payee).includes(norm(vendor ?? '~'))));
@@ -143,13 +145,12 @@ export function toProposals(raw: unknown, existing: ExistingPayment[], today: st
       continue;
     }
     seen.add(key);
-    const estimate = q.is_estimate === true || !stated;
     payments.push({
       payee,
       amount,
       due_date: dueDate,
-      is_estimate: estimate,
-      note: stated ? '' : 'The document gives no due date; set the real one before relying on this.',
+      is_estimate: q.is_estimate === true,
+      note: '',
       rationale: scrub(q.source_line) ? `From the document: "${scrub(q.source_line)}"` : 'Read from the document',
     });
   }
