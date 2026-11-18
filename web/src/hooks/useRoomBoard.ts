@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
+import { useRealtime } from './useRealtime';
 import { supabase } from '../lib/supabase';
 import type { RoomStay, StayRoom } from '../lib/rooms';
 
@@ -8,7 +9,6 @@ export function useRoomBoard() {
   const [roomStays, setRoomStays] = useState<RoomStay[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const channelName = useRef(`room_board_${Math.random().toString(36).slice(2)}`);
 
   const reload = useCallback(async () => {
     const [r, s] = await Promise.all([
@@ -26,17 +26,7 @@ export function useRoomBoard() {
     setRoomStays((s.data ?? []) as RoomStay[]);
   }, []);
 
-  useEffect(() => {
-    reload();
-    const channel = supabase
-      .channel(channelName.current)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'stay_rooms' }, reload)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'room_stays' }, reload)
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [reload]);
+  useRealtime(['stay_rooms', 'room_stays'], reload, { immediate: true });
 
   return { rooms, roomStays, loaded, loadError, reload };
 }

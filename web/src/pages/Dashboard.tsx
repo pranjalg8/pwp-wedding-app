@@ -1,4 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { getTopics } from '../lib/topics';
+import { fetchAll } from '../lib/fetchAll';
+import { useRealtime } from '../hooks/useRealtime';
 import { Link } from 'react-router-dom';
 import { usePendingSuggestions } from '../hooks/usePendingSuggestions';
 import { Badge, Card, Group, Paper, RingProgress, SimpleGrid, Stack, Text } from '@mantine/core';
@@ -48,8 +51,9 @@ export function Dashboard() {
 
   async function load() {
     const [{ data: topicsData }, { data: itemsData }, { data: synced }, { data: latest }] = await Promise.all([
-      supabase.from('topics').select('*').order('sort_order'),
-      supabase.from('planning_items').select('id, title, topic_id, status, amount, amount_kind, owner, due_date'),
+      getTopics(),
+      // Every planner item is counted here, and sync keeps adding them: page past the 1000-row cap.
+      fetchAll((from, to) => supabase.from('planning_items').select('id, title, topic_id, status, amount, amount_kind, owner, due_date').order('id').range(from, to)),
       supabase.from('sync_status').select('last_run_at').limit(1),
       supabase.from('messages').select('timestamp').order('timestamp', { ascending: false }).limit(1),
     ]);
@@ -59,16 +63,7 @@ export function Dashboard() {
     setLastMessage(latest?.[0]?.timestamp ?? null);
   }
 
-  useEffect(() => {
-    load();
-    const channel = supabase
-      .channel('planning_items_dashboard')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'planning_items' }, load)
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
+  useRealtime(['planning_items'], load, { immediate: true });
 
   const total = items.length;
   const settled = items.filter((i) => i.status === 'decided' || i.status === 'done').length;

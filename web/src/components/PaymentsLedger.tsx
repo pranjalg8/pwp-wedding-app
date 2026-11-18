@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useRealtime } from '../hooks/useRealtime';
 import { ActionIcon, Alert, Badge, Button, Group, Menu, Paper, Stack, Table, Text } from '@mantine/core';
 import { supabase } from '../lib/supabase';
 import { formatInr } from '../lib/topicMeta';
@@ -23,16 +24,7 @@ export function PaymentsLedger({ topics = [], vendors = [] }: { topics?: { id: s
     setRows((data ?? []) as Payment[]);
   }
 
-  useEffect(() => {
-    load();
-    const channel = supabase
-      .channel('payments_ledger')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, load)
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
+  useRealtime(['payments'], load, { immediate: true });
 
   async function remove(p: Payment) {
     const ok = await confirmDanger({

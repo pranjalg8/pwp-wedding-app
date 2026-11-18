@@ -1,4 +1,5 @@
-import { Fragment, useEffect, useMemo, useState, type ReactElement } from 'react';
+import { Fragment, useMemo, useState, type ReactElement } from 'react';
+import { useRealtime } from '../hooks/useRealtime';
 import { Card, Stack, Tabs, Text, TextInput, Title } from '@mantine/core';
 import { PageHeader } from '../components/PageHeader';
 import { useSearchParams } from 'react-router-dom';
@@ -70,16 +71,7 @@ export function Knowledge() {
     setLoaded(true);
   }
 
-  useEffect(() => {
-    load();
-    const channel = supabase
-      .channel('kb_entries_page')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'kb_entries' }, load)
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
+  useRealtime(['kb_entries'], load, { immediate: true });
 
   const q = query.trim().toLowerCase();
   const hits = useMemo(() => (q ? entries.filter((e) => (e.title + '\n' + e.body).toLowerCase().includes(q)) : []), [entries, q]);

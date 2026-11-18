@@ -1,40 +1,11 @@
-import { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
-import { useAuth } from './useAuth';
+import { useContext } from 'react';
+import { AuthContext } from './authContext';
 
-export type Profile = { id: string; email: string; display_name: string };
+export type { Profile } from './authContext';
 
+// The signed-in person's profile, loaded once by AuthProvider and shared by every caller.
 export function useProfile() {
-  const { user } = useAuth();
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
-  // Depend on the id, not the user object: the sign-in library hands out a fresh object every time it quietly
-  // renews the session (when the window regains focus, about hourly), and reloading the profile for that
-  // showed the loading screen and remounted the whole app, which put edit mode back to locked.
-  const userId = user?.id ?? null;
-
-  useEffect(() => {
-    if (!userId) {
-      setProfile(null);
-      setLoading(false);
-      return;
-    }
-    let active = true;
-    setLoading(true);
-    supabase
-      .from('profiles')
-      .select('id, email, display_name')
-      .eq('id', userId)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (!active) return;
-        setProfile(data);
-        setLoading(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [userId]);
-
-  return { profile, loading };
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useProfile must be used inside <AuthProvider>');
+  return { profile: ctx.profile, loading: ctx.profileLoading };
 }

@@ -7,6 +7,10 @@ import { supabase, type ChatMessage, type PlanningItem, type Topic } from '../li
 import { useEditMode } from '../hooks/useEditMode';
 import { ItemEditor } from '../components/ItemEditor';
 import { confirmDanger } from '../lib/confirm';
+import { useRealtime } from '../hooks/useRealtime';
+import { getTopics } from '../lib/topics';
+import { firstError } from '../lib/loadState';
+import { LoadError, PageSkeleton } from '../components/PageSkeleton';
 import { KIND_LABEL, STATUS_COLOR, STATUS_LABEL, TOPIC_EMOJI, formatAsOf, formatInr } from '../lib/topicMeta';
 
 const STATUS_ORDER: Record<string, number> = { open: 0, in_progress: 1, decided: 2, done: 3 };
@@ -20,6 +24,8 @@ export function TopicDetail() {
   const [editingItem, setEditingItem] = useState<PlanningItem | null | 'new'>(null);
   const [sources, setSources] = useState<Record<string, ChatMessage>>({});
   const [openSources, setOpenSources] = useState<Set<string>>(new Set());
+  const [status, setStatus] = useState<'loading' | 'ready' | 'missing' | 'error'>('loading');
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   function toggleSources(id: string) {
     setOpenSources((prev) => {
@@ -30,59 +36,57 @@ export function TopicDetail() {
     });
   }
 
-  async function load() {
-    const { data: topicData } = await supabase.from('topics').select('*').eq('key', topicKey).single();
-    if (!topicData) return;
-    setTopic(topicData);
-
-    const { data: itemsData } = await supabase
-      .from('planning_items')
-      .select('*')
-      .eq('topic_id', topicData.id)
-      .order('created_at', { ascending: false });
-    setItems(itemsData ?? []);
-
-    const ids = Array.from(new Set((itemsData ?? []).flatMap((i) => i.source_msg_ids ?? [])));
-    if (ids.length) {
-      const { data: srcData } = await supabase.from('messages').select('*').in('msg_id', ids);
-      setSources(Object.fromEntries((srcData ?? []).map((m) => [m.msg_id, m as ChatMessage])));
-    } else {
-      setSources({});
+  // The topic comes from the shared cache; its items and its chat then load side by side, and only the
+  // messages the items cite wait for the items.
+  async function load(isActive: () => boolean = () => true) {
+    const tp = await getTopics();
+    if (!isActive()) return;
+    const topicData = tp.data?.find((t) => t.key === topicKey) ?? null;
+    if (tp.error || !topicData) {
+      setLoadError(tp.error?.message ?? null);
+      setStatus(tp.error ? 'error' : 'missing');
+      return;
     }
 
-    if (topicData.chat_match) {
-      const { data: msgData } = await supabase
-        .from('messages')
-        .select('*')
-        .ilike('chat_name', `%${topicData.chat_match}%`)
-        .order('timestamp', { ascending: true })
-        .limit(200);
-      setMessages(msgData ?? []);
+    const [itemsRes, msgRes] = await Promise.all([
+      supabase.from('planning_items').select('*').eq('topic_id', topicData.id).order('created_at', { ascending: false }),
+      topicData.chat_match
+        ? supabase.from('messages').select('*').ilike('chat_name', `%${topicData.chat_match}%`).order('timestamp', { ascending: true }).limit(200)
+        : Promise.resolve({ data: [] as ChatMessage[], error: null }),
+    ]);
+    if (!isActive()) return;
+    const failed = firstError(itemsRes, msgRes);
+    if (failed) {
+      setLoadError(failed);
+      setStatus('error');
+      return;
+    }
+    const itemsData = (itemsRes.data ?? []) as PlanningItem[];
+    setTopic(topicData);
+    setItems(itemsData);
+    setMessages((msgRes.data ?? []) as ChatMessage[]);
+    setLoadError(null);
+    setStatus('ready');
+
+    const ids = Array.from(new Set(itemsData.flatMap((i) => i.source_msg_ids ?? [])));
+    if (ids.length) {
+      const { data: srcData } = await supabase.from('messages').select('*').in('msg_id', ids);
+      if (isActive()) setSources(Object.fromEntries((srcData ?? []).map((m) => [m.msg_id, m as ChatMessage])));
     } else {
-      setMessages([]);
+      setSources({});
     }
   }
 
   useEffect(() => {
-    load();
+    let active = true;
+    load(() => active);
+    return () => {
+      active = false;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topicKey]);
 
-  useEffect(() => {
-    if (!topic) return;
-    const channel = supabase
-      .channel(`planning_items_topic_${topic.id}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'planning_items', filter: `topic_id=eq.${topic.id}` },
-        load
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [topic?.id]);
+  useRealtime(topic ? [{ table: 'planning_items', filter: `topic_id=eq.${topic.id}` }] : [], () => load(), { enabled: !!topic });
 
   async function handleDelete(item: PlanningItem) {
     const ok = await confirmDanger({
@@ -99,7 +103,17 @@ export function TopicDetail() {
     load();
   }
 
-  if (!topic) return null;
+  if (status === 'error' && !topic) return <LoadError message={loadError ?? 'Something went wrong.'} onRetry={() => load()} />;
+  if (status === 'missing')
+    return (
+      <Text c="dimmed">
+        No area called "{topicKey}".{' '}
+        <Anchor component={Link} to="/areas">
+          Back to all areas
+        </Anchor>
+      </Text>
+    );
+  if (!topic) return <PageSkeleton cards={3} title />;
 
   const sorted = [...items].sort((a, b) => (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9));
 
