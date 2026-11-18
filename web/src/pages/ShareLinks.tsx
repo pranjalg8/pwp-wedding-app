@@ -34,6 +34,7 @@ import {
   type Sensitivity,
   type ShareLink,
 } from '../lib/shareLinks';
+import { confirmDanger } from '../lib/confirm';
 
 const sectionLabel = (k: SectionKey) => SECTIONS.find((s) => s.key === k)?.label ?? k;
 const sensitiveLabel = (k: string) => SENSITIVE.find((s) => s.key === k)?.label ?? k;
@@ -328,7 +329,12 @@ export function ShareLinks() {
   }, [load]);
 
   async function revoke(l: ShareLink) {
-    if (!window.confirm(`Revoke "${l.label}"? Anyone using this link will lose access straight away.`)) return;
+    const ok = await confirmDanger({
+      title: `Revoke "${l.label}"?`,
+      message: 'Anyone using this link will lose access straight away. This cannot be undone; make a new link if you need one.',
+      confirmLabel: 'Revoke link',
+    });
+    if (!ok) return;
     try {
       await revokeShareLink(l.id);
       await load();

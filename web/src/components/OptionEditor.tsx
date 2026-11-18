@@ -1,6 +1,8 @@
 import { useState } from 'react';
-import { Button, Modal, Select, Stack, Textarea, TextInput } from '@mantine/core';
+import { Select, Textarea, TextInput } from '@mantine/core';
 import { supabase, type TaskOption } from '../lib/supabase';
+import { useDirty } from '../hooks/useDirty';
+import { FormModal } from './FormModal';
 import { OPTION_STATUS_LABEL, OPTION_STATUS_ORDER } from '../lib/topicMeta';
 
 function metaStr(o: TaskOption | null, key: string) {
@@ -30,8 +32,9 @@ export function OptionEditor({
   const [email, setEmail] = useState(metaStr(option, 'email'));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const dirty = useDirty([name, status, summary, whyNote, person, phone, email]);
 
-  async function save() {
+  async function save(): Promise<boolean> {
     setSaving(true);
     setError(null);
     const payload = {
@@ -49,37 +52,42 @@ export function OptionEditor({
     setSaving(false);
     if (res.error) {
       setError(res.error.message);
-      return;
+      return false;
     }
     onSaved();
     onClose();
+    return true;
   }
 
   return (
-    <Modal opened={opened} onClose={onClose} title={option ? 'Edit option' : 'New option'} centered>
-      <Stack>
-        <TextInput label="Name (vendor or candidate)" value={name} onChange={(e) => setName(e.currentTarget.value)} required />
-        <Select
-          label="Status"
-          allowDeselect={false}
-          data={OPTION_STATUS_ORDER.map((s) => ({ value: s, label: OPTION_STATUS_LABEL[s] }))}
-          value={status}
-          onChange={(v) => v && setStatus(v)}
-        />
-        <Textarea label="Summary" value={summary} onChange={(e) => setSummary(e.currentTarget.value)} minRows={2} autosize />
-        <TextInput
-          label="Why parked or rejected (optional)"
-          value={whyNote}
-          onChange={(e) => setWhyNote(e.currentTarget.value)}
-        />
-        <TextInput label="Contact person" value={person} onChange={(e) => setPerson(e.currentTarget.value)} />
-        <TextInput label="Phone" value={phone} onChange={(e) => setPhone(e.currentTarget.value)} />
-        <TextInput label="Email" value={email} onChange={(e) => setEmail(e.currentTarget.value)} />
-        {error && <span style={{ color: 'var(--mantine-color-red-6)', fontSize: 13 }}>{error}</span>}
-        <Button onClick={save} loading={saving} disabled={!name.trim()}>
-          Save
-        </Button>
-      </Stack>
-    </Modal>
+    <FormModal
+      opened={opened}
+      onClose={onClose}
+      title={option ? 'Edit option' : 'New option'}
+      onSubmit={save}
+      canSubmit={!!name.trim()}
+      submitting={saving}
+      dirty={dirty}
+      error={error}
+      successMessage={() => `${name.trim()} saved`}
+    >
+      <TextInput label="Name (vendor or candidate)" value={name} onChange={(e) => setName(e.currentTarget.value)} required />
+      <Select
+        label="Status"
+        allowDeselect={false}
+        data={OPTION_STATUS_ORDER.map((s) => ({ value: s, label: OPTION_STATUS_LABEL[s] }))}
+        value={status}
+        onChange={(v) => v && setStatus(v)}
+      />
+      <Textarea label="Summary" value={summary} onChange={(e) => setSummary(e.currentTarget.value)} minRows={2} autosize />
+      <TextInput
+        label="Why parked or rejected (optional)"
+        value={whyNote}
+        onChange={(e) => setWhyNote(e.currentTarget.value)}
+      />
+      <TextInput label="Contact person" value={person} onChange={(e) => setPerson(e.currentTarget.value)} />
+      <TextInput label="Phone" type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.currentTarget.value)} />
+      <TextInput label="Email" type="email" inputMode="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.currentTarget.value)} />
+    </FormModal>
   );
 }

@@ -5,6 +5,7 @@ import { notifications } from '@mantine/notifications';
 import { supabase, type ChatMessage, type PlanningItem, type Topic } from '../lib/supabase';
 import { useEditMode } from '../hooks/useEditMode';
 import { ItemEditor } from '../components/ItemEditor';
+import { confirmDanger } from '../lib/confirm';
 import { KIND_LABEL, STATUS_COLOR, STATUS_LABEL, TOPIC_EMOJI, formatAsOf, formatInr } from '../lib/topicMeta';
 
 const STATUS_ORDER: Record<string, number> = { open: 0, in_progress: 1, decided: 2, done: 3 };
@@ -83,6 +84,12 @@ export function TopicDetail() {
   }, [topic?.id]);
 
   async function handleDelete(item: PlanningItem) {
+    const ok = await confirmDanger({
+      title: 'Delete this item?',
+      message: `"${item.title}" will be removed from this area. This is recorded in the activity log.`,
+      confirmLabel: 'Delete item',
+    });
+    if (!ok) return;
     const { error } = await supabase.from('planning_items').delete().eq('id', item.id);
     if (error) {
       notifications.show({ color: 'red', title: 'Could not delete', message: error.message });
@@ -219,7 +226,9 @@ export function TopicDetail() {
                   <ActionIcon
                     color="red"
                     variant="subtle"
-                    aria-label="Delete item"
+                    size={40}
+                    aria-label={`Delete ${item.title}`}
+                    title="Delete item"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleDelete(item);
