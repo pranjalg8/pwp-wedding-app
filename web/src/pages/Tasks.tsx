@@ -14,8 +14,8 @@ import {
   Stack,
   Text,
   TextInput,
-  Title,
 } from '@mantine/core';
+import { PageHeader } from '../components/PageHeader';
 import { supabase, type PlanningItem, type Task, type TaskOption, type Topic } from '../lib/supabase';
 import {
   OPTION_STATUS_LABEL,
@@ -191,15 +191,11 @@ export function Tasks() {
 
   return (
     <Stack gap="lg">
-      <Group justify="space-between" align="flex-end">
-        <div>
-          <Title order={2}>Tasks</Title>
-          <Text size="sm" c="dimmed">
-            {openCount} to finish, {tasks.length - openCount} done or decided
-          </Text>
-        </div>
-        {isUnlocked && <Button onClick={() => setCreating(true)}>New task</Button>}
-      </Group>
+      <PageHeader
+        title="Tasks"
+        subtitle={`${openCount} to finish, ${tasks.length - openCount} done or decided`}
+        action={isUnlocked && <Button onClick={() => setCreating(true)}>New task</Button>}
+      />
 
       <Stack gap="xs">
         <ScrollArea type="never">

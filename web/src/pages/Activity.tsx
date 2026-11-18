@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Badge, Table, Tabs, Text, Title } from '@mantine/core';
+import { Badge, Table, Tabs, Text } from '@mantine/core';
+import { PageHeader } from '../components/PageHeader';
 import { supabase, type AuditEntry } from '../lib/supabase';
 import { describeDevice } from '../lib/device';
 
@@ -67,9 +68,7 @@ export function Activity() {
 
   return (
     <>
-      <Title order={2} mb="lg">
-        Activity
-      </Title>
+      <PageHeader title="Activity" mb="lg" />
       <Tabs defaultValue="manual">
         <Tabs.List>
           <Tabs.Tab value="manual">Manual changes ({manual.length})</Tabs.Tab>

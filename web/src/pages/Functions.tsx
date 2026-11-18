@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Button, Group, Modal, Select, SimpleGrid, Stack, Text, TagsInput, Textarea, TextInput, Title } from '@mantine/core';
+import { Button, Group, Modal, Select, SimpleGrid, Stack, Text, TagsInput, Textarea, TextInput } from '@mantine/core';
+import { PageHeader } from '../components/PageHeader';
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
 import { useEditMode } from '../hooks/useEditMode';
@@ -83,13 +84,15 @@ export function Functions() {
 
   return (
     <Stack gap="xl">
-      <Group justify="space-between" align="center">
-        <Title order={2}>Functions</Title>
+      <PageHeader
+        title="Functions"
+        action={
         <Group gap="xs">
           <Button component={Link} to="/functions/results" variant="light" color="rose" size="sm">Results</Button>
           <Button component={Link} to="/functions/swipe" color="rose" size="sm">Pick looks together</Button>
         </Group>
-      </Group>
+        }
+      />
       {days.map((d) => (
         <Stack key={d} gap="sm">
           <Text fw={700} c="dimmed" tt="uppercase" size="sm">

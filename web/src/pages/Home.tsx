@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Anchor, Badge, Box, Group, Paper, SimpleGrid, Stack, Text, Title } from '@mantine/core';
+import { CountdownHero } from '../components/CountdownHero';
 import { supabase, type PlanningItem, type Task } from '../lib/supabase';
 import { OWNER_LABEL, TOPIC_EMOJI, daysToDue, dueBadge, formatInr, formatInrCompact, summarizeMoney } from '../lib/topicMeta';
 import { usePlanFacts } from '../hooks/usePlanFacts';
@@ -180,25 +181,15 @@ export function Home() {
 
   return (
     <Stack gap="lg">
-      <Box className="hero" c="white" p={{ base: 'lg', sm: 'xl' }} style={{ borderRadius: 'var(--mantine-radius-xl)' }}>
-        <Text size="sm" fw={600} tt="uppercase" style={{ letterSpacing: 1, opacity: 0.9 }}>
-          {profile?.display_name ? `Hi ${profile.display_name} · ` : ''}
-          {formatRange(dates.wedding, { full: true })}
-        </Text>
-        <Group align="baseline" gap="sm" mt={4}>
-          <Title order={1} c="white" fz={{ base: 48, sm: 64 }} lh={1}>
-            {days}
-          </Title>
-          <Text fz={{ base: 'lg', sm: 'xl' }} fw={500}>
-            days to go
-          </Text>
-        </Group>
-        <Text mt="sm" style={{ opacity: 0.95 }}>
-          {open.length === 0
+      <CountdownHero
+        eyebrow={`${profile?.display_name ? `Hi ${profile.display_name} · ` : ''}${formatRange(dates.wedding, { full: true })}`}
+        days={days}
+        note={
+          open.length === 0
             ? 'Everything is decided. Time to celebrate.'
-            : `${open.length} task${open.length === 1 ? '' : 's'} to finish, ${needsDecision.length} waiting on a decision.`}
-        </Text>
-      </Box>
+            : `${open.length} task${open.length === 1 ? '' : 's'} to finish, ${needsDecision.length} waiting on a decision.`
+        }
+      />
 
       <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
         <Panel title="Next up" to="/tasks">

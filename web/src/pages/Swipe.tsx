@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Avatar, Badge, Card, Group, Loader, Progress, SegmentedControl, Select, Stack, Tabs, Text, Title } from '@mantine/core';
+import { PageHeader } from '../components/PageHeader';
 import { notifications } from '@mantine/notifications';
 import { CardDetails } from '../components/CardDetails';
 import { SwipeDeck } from '../components/SwipeDeck';
@@ -205,7 +206,7 @@ export function Swipe({ scope = 'honeymoon' }: { scope?: 'honeymoon' | 'wedding'
 
   return (
     <Stack gap="md" maw={720} mx="auto">
-      <Title order={2}>{scope === 'wedding' ? 'Pick looks' : 'Swipe'}</Title>
+      <PageHeader title={scope === 'wedding' ? 'Pick looks' : 'Swipe'} />
       {visibleDecks.length > 1 &&
         (visibleDecks.length > 4 ? (
           <Select

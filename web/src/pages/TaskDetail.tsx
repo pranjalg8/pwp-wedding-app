@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Accordion, Anchor, Badge, Button, Group, Paper, Stack, Text, Title } from '@mantine/core';
+import { Accordion, Anchor, Badge, Button, Group, Paper, Stack, Text } from '@mantine/core';
+import { PageHeader } from '../components/PageHeader';
 import { supabase, type ChatMessage, type PlanningItem, type Task, type TaskOption, type Topic } from '../lib/supabase';
 import {
   KIND_LABEL,
@@ -120,21 +121,17 @@ export function TaskDetail() {
         ← All tasks
       </Anchor>
 
-      <Group justify="space-between" align="flex-start" wrap="nowrap">
-        <Group gap="sm" wrap="nowrap" align="flex-start" style={{ minWidth: 0 }}>
-          <Text fz={32} lh={1}>
-            {(topic && TOPIC_EMOJI[topic.key]) ?? '✨'}
-          </Text>
-          <Title order={2} style={{ overflowWrap: 'anywhere' }}>
-            {task.title}
-          </Title>
-        </Group>
-        {isUnlocked && (
+      <PageHeader
+        icon={(topic && TOPIC_EMOJI[topic.key]) ?? '✨'}
+        title={task.title}
+        action={
+        isUnlocked && (
           <Button variant="light" size="xs" onClick={() => setEditingTask(true)} style={{ flexShrink: 0 }}>
             Edit task
           </Button>
-        )}
-      </Group>
+        )
+        }
+      />
 
       <Group gap={6}>
         <Badge color={STATUS_COLOR[task.status]} variant="light">

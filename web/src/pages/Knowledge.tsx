@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useState, type ReactElement } from 'react';
 import { Card, Stack, Tabs, Text, TextInput, Title } from '@mantine/core';
+import { PageHeader } from '../components/PageHeader';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
@@ -85,11 +86,10 @@ export function Knowledge() {
 
   return (
     <Stack gap="md" maw={820} mx="auto">
-      <Title order={2}>Knowledge</Title>
-      <Text size="sm" c="dimmed">
-        A short reference for the wedding: dates, stay and food, money rules and the home move. The planner is the source of
-        truth; if a page here disagrees with it, trust the planner.
-      </Text>
+      <PageHeader
+        title="Knowledge"
+        subtitle="A short reference for the wedding: dates, stay and food, money rules and the home move. The planner is the source of truth; if a page here disagrees with it, trust the planner."
+      />
       <TextInput placeholder="Search the knowledge base" value={query} onChange={(e) => setQuery(e.currentTarget.value)} />
       {loaded && entries.length === 0 && <Text c="dimmed">Nothing here yet.</Text>}
       {q ? (

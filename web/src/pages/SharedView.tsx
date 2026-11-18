@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Accordion, Alert, Anchor, Badge, Box, Button, Container, Group, Loader, Paper, Select, SimpleGrid, Stack, Table, Tabs, Text, Title } from '@mantine/core';
+import { Accordion, Alert, Anchor, Badge, Button, Container, Group, Loader, Paper, Select, SimpleGrid, Stack, Table, Tabs, Text, Title } from '@mantine/core';
+import { CountdownHero } from '../components/CountdownHero';
 import { SECTIONS, SENSITIVE, timeLeft, type SectionKey } from '../lib/shareLinks';
 import { STATUS_COLOR as HOUSEHOLD_COLOR, STATUS_LABEL as HOUSEHOLD_LABEL, STATUS_ORDER } from '../lib/guestStatus';
 import { CountStepper } from '../components/CountStepper';
@@ -60,20 +61,11 @@ function Home({ d }: { d: Row }) {
   const c = d.taskCounts as Row;
   return (
     <Stack gap="md">
-      <Box className="hero" c="white" p="lg" style={{ borderRadius: 'var(--mantine-radius-xl)' }}>
-        <Text size="sm" fw={600} tt="uppercase" style={{ letterSpacing: 1, opacity: 0.9 }}>
-          {shortDay(d.weddingStart)}
-          {d.weddingEnd !== d.weddingStart ? ` to ${shortDay(d.weddingEnd)}` : ''}
-        </Text>
-        <Group align="baseline" gap="sm">
-          <Title order={1} c="white" fz={56} lh={1}>
-            {Math.max(0, d.daysToGo)}
-          </Title>
-          <Text fz="xl" fw={500}>
-            days to go
-          </Text>
-        </Group>
-      </Box>
+      <CountdownHero
+        compact
+        eyebrow={`${shortDay(d.weddingStart)}${d.weddingEnd !== d.weddingStart ? ` to ${shortDay(d.weddingEnd)}` : ''}`}
+        days={d.daysToGo as number}
+      />
       <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="sm">
         {[
           ['Open', c.open],

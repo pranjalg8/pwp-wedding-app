@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Accordion, Alert, Badge, Button, Group, Paper, SegmentedControl, Stack, Table, Text, Title } from '@mantine/core';
+import { Accordion, Alert, Badge, Button, Group, Paper, SegmentedControl, Stack, Table, Text } from '@mantine/core';
+import { PageHeader } from '../components/PageHeader';
 import { notifications } from '@mantine/notifications';
 import { supabase, type PlanningItem, type Topic } from '../lib/supabase';
 import { PaymentsLedger } from '../components/PaymentsLedger';
@@ -218,13 +219,10 @@ export function Budget() {
           </Group>
         </Alert>
       )}
-      <Group justify="space-between" align="flex-end" gap="sm">
-        <div>
-          <Title order={2}>Budget</Title>
-          <Text size="sm" c="dimmed">
-            What is paid, what is still to pay, and whether each month is covered.
-          </Text>
-        </div>
+      <PageHeader
+        title="Budget"
+        subtitle="What is paid, what is still to pay, and whether each month is covered."
+        action={
         <Stack gap={6} align="flex-end">
           <SegmentedControl
             size="xs"
@@ -240,7 +238,8 @@ export function Budget() {
             aria-label="Whose share to show"
           />
         </Stack>
-      </Group>
+        }
+      />
 
       <Section step={1} title="Where the money stands" hint="Paid, still to pay, and the funds you have to cover it.">
         <Stack gap="md">

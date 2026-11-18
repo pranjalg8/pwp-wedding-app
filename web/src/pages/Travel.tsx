@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Alert, Badge, Card, Group, List, Loader, SimpleGrid, Stack, Text, ThemeIcon, Timeline, Title, UnstyledButton } from '@mantine/core';
+import { PageHeader } from '../components/PageHeader';
 import { KIND_ICON, OPTIONS, type TravelEvent } from '../data/travelOptions';
 import { altTotal, getAltOptionId, setAltOptionId, type AltPlan } from '../data/alternativePlan';
 import { useDestination } from '../hooks/useDestination';
@@ -51,12 +52,7 @@ function TravelView({
 
   return (
     <Stack gap="lg" maw={900} mx="auto" pb="xl">
-      <div>
-        <Title order={2}>{title}</Title>
-        <Text c="dimmed" size="sm" mt={4}>
-          {intro}
-        </Text>
-      </div>
+      <PageHeader title={title} subtitle={intro} />
 
       <SimpleGrid cols={{ base: 1, xs: 2, md: 4 }} spacing="sm">
         {options.map((o) => {
