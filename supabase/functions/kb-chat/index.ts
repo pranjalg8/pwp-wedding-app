@@ -52,8 +52,11 @@ Deno.serve(async (req) => {
     global: { headers: { Authorization: auth } },
     auth: { persistSession: false },
   });
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError || !userData.user) return json({ error: 'unauthorized' }, 401);
+  // getClaims checks the token's signature and expiry locally when the project signs with asymmetric keys (it
+  // fetches and caches the JWKS), and falls back to the same Auth server call as getUser otherwise. A token without
+  // a user (the anon key) has no sub and is turned away, as before.
+  const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(auth.replace(/^Bearer\s+/i, ''));
+  if (claimsError || !claimsData?.claims?.sub) return json({ error: 'unauthorized' }, 401);
 
   const apiKey = Deno.env.get('GEMINI_API_KEY');
   if (!apiKey) return json({ error: 'not_configured' }, 503);

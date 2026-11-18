@@ -35,14 +35,29 @@ const must = (res, what) => {
   return res.data;
 };
 
-const items = must(await supabase.from('planning_items').select('id, title, amount, amount_kind, status, source_msg_ids').not('amount', 'is', null).is('slug', null), 'items'); // slugged items are shared settings chosen by you (e.g. the honeymoon budget cap), not figures quoted in chat
-const sugg = must(await supabase.from('suggestions').select('id, payload, source_msg_ids, status').eq('status', 'pending'), 'suggestions')
+// Supabase returns at most 1000 rows per request and says nothing when it cuts a list short, so lists are read in
+// pages. `build` makes a fresh query for each page; id keeps the order stable between pages.
+async function selectAll(build, what) {
+  const out = [];
+  for (let from = 0; ; from += 1000) {
+    const rows = must(await build().order('id').range(from, from + 999), what);
+    out.push(...rows);
+    if (rows.length < 1000) return out;
+  }
+}
+
+const items = await selectAll(() => supabase.from('planning_items').select('id, title, amount, amount_kind, status, source_msg_ids').not('amount', 'is', null).is('slug', null), 'items'); // slugged items are shared settings chosen by you (e.g. the honeymoon budget cap), not figures quoted in chat
+const sugg = (await selectAll(() => supabase.from('suggestions').select('id, payload, source_msg_ids, status').eq('status', 'pending'), 'suggestions'))
   .filter((s) => s.payload?.amount != null)
   .map((s) => ({ id: s.id, title: `[suggestion] ${s.payload.title ?? '(change)'}`, amount: s.payload.amount, amount_kind: s.payload.amount_kind, status: 'pending', source_msg_ids: s.source_msg_ids }));
 
 const rows = [...items, ...sugg];
 const ids = [...new Set(rows.flatMap((r) => r.source_msg_ids ?? []))];
-const msgs = ids.length ? must(await supabase.from('messages').select('msg_id, text, media_type, media_caption').in('msg_id', ids), 'messages') : [];
+// The ids go in the URL, so ask in chunks: that keeps each request short and well under the 1000-row cap.
+const msgs = [];
+for (let i = 0; i < ids.length; i += 200) {
+  msgs.push(...must(await supabase.from('messages').select('msg_id, text, media_type, media_caption').in('msg_id', ids.slice(i, i + 200)), 'messages'));
+}
 const byId = new Map(msgs.map((m) => [m.msg_id, m]));
 
 const tally = { 'TEXT-OK': 0, 'IMAGE-ONLY': 0, UNSUPPORTED: 0, 'NO-SOURCE': 0 };
