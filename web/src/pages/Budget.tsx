@@ -4,6 +4,9 @@ import { Accordion, Alert, Badge, Button, Group, Paper, SegmentedControl, Stack,
 import { notifications } from '@mantine/notifications';
 import { supabase, type PlanningItem, type Topic } from '../lib/supabase';
 import { PaymentsLedger } from '../components/PaymentsLedger';
+import { PlanCheck } from '../components/PlanCheck';
+import { usePlanCounts } from '../hooks/usePlanCounts';
+import { planChanges } from '../lib/lineBasis';
 import { PaymentEditor } from '../components/PaymentEditor';
 import { ItemEditor } from '../components/ItemEditor';
 import { Section } from '../components/Section';
@@ -132,6 +135,8 @@ export function Budget() {
   const { isUnlocked } = useEditMode();
   const { dates } = usePlanFacts();
   const { schedule, outside, vendors, settings, areas, paid, items, topics, loadError, reload } = useBudgetPlan();
+  const planCounts = usePlanCounts();
+  const lineChanges = useMemo(() => planChanges(schedule, planCounts), [schedule, planCounts]);
   const [today] = useState(() => new Date().toLocaleDateString('en-CA'));
   const [scheduleEditing, setScheduleEditing] = useState<Scheduled | 'new' | null>(null);
   const [markPaid, setMarkPaid] = useState<Scheduled | null>(null);
@@ -256,6 +261,7 @@ export function Budget() {
       </Section>
 
       <Section step={2} title="Month by month" hint="What falls due each month and the funds left after paying it. Overdue payments are counted from today.">
+        <PlanCheck changes={lineChanges} isUnlocked={isUnlocked} onSaved={reload} />
         <MonthPlan
           plan={plan}
           side={side}

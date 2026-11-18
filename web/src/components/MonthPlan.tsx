@@ -58,6 +58,8 @@ function PaymentLine({
           {p.quantity != null && p.rate != null && (
             <Text size="xs" c="dimmed">
               {p.quantity} {p.unit || 'x'} at ₹{p.rate.toLocaleString('en-IN')}
+              {p.adjustment ? `, ${p.adjustment < 0 ? 'less' : 'plus'} ₹${Math.abs(p.adjustment).toLocaleString('en-IN')}` : ''}
+              {p.basis ? ' · follows the plan' : ''}
             </Text>
           )}
           {p.note && (

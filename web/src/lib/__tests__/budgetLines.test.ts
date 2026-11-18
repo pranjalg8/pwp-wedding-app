@@ -69,7 +69,7 @@ describe('vendor payments from the ledger', () => {
 });
 
 describe('afterPartPayment', () => {
-  it('leaves the balance, keeps the share in proportion, and clears quantity x rate', () => {
-    expect(afterPartPayment({ amount: 35000, paridhi_amount: 7000 }, 10000)).toEqual({ amount: 25000, paridhi_amount: 5000, quantity: null, unit: null, rate: null });
+  it('leaves the balance, keeps the share in proportion, and moves the payment into the adjustment', () => {
+    expect(afterPartPayment({ amount: 35000, paridhi_amount: 7000, adjustment: -5000 }, 10000)).toEqual({ amount: 25000, paridhi_amount: 5000, adjustment: -15000 });
   });
 });
