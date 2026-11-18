@@ -36,7 +36,8 @@ function Contact({ c, size = 'xs' }: { c: Row | null | undefined; size?: 'xs' | 
   const parts = [
     c.person ? <span key="p">{c.person}</span> : null,
     c.phone ? (
-      <Anchor key="t" href={`tel:${String(c.phone).replace(/[^\d+]/g, '')}`} size={size}>
+      // Dial the first number when several are written ("98765 43210 / 91234 56789"), not all of them run together.
+      <Anchor key="t" href={`tel:${String(c.phone).split(/[/,;]|\bor\b/)[0].replace(/[^\d+]/g, '')}`} size={size}>
         {c.phone}
       </Anchor>
     ) : null,
@@ -275,12 +276,18 @@ const ANSWER_FIELDS: { key: keyof Counts; label: string; hint: string; color: st
 ];
 
 function AnswerEditor({ name, persons, answer, onSave }: { name: string; persons: number; answer: Row; onSave: (c: Counts) => Promise<void> }) {
-  const current: Counts = { coming: answer.coming, maybe: answer.maybe, declined: answer.declined };
+  const server: Counts = { coming: answer.coming, maybe: answer.maybe, declined: answer.declined };
   // Only hold our own copy while the guest is changing something, so a refresh from the server shows through.
   const [draft, setDraft] = useState<Counts | null>(null);
+  // What was last saved from here, and what the server showed before it. The page refreshes after a save, but if
+  // that refresh fails the answer must not jump back to the old numbers under "Saved". Once the server shows
+  // anything else, its numbers win again.
+  const [saved, setSaved] = useState<{ counts: Counts; before: Counts } | null>(null);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [justSaved, setJustSaved] = useState(false);
+  const sameAs = (a: Counts, b: Counts) => a.coming === b.coming && a.maybe === b.maybe && a.declined === b.declined;
+  const current = saved && sameAs(server, saved.before) ? saved.counts : server;
   const v = draft ?? current;
   const dirty = v.coming !== current.coming || v.maybe !== current.maybe || v.declined !== current.declined;
   const total = v.coming + v.maybe + v.declined;
@@ -293,10 +300,12 @@ function AnswerEditor({ name, persons, answer, onSave }: { name: string; persons
   }, [justSaved]);
 
   async function save() {
+    const before = server;
     setSaving(true);
     setErr(null);
     try {
       await onSave(v);
+      setSaved({ counts: v, before });
       setDraft(null);
       setJustSaved(true);
     } catch {

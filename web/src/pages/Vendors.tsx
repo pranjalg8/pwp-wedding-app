@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { Anchor, Badge, Button, Card, Group, SimpleGrid, Stack, Text } from '@mantine/core';
 import { PageHeader } from '../components/PageHeader';
 import { EmptyState } from '../components/EmptyState';
-import { PageSkeleton } from '../components/PageSkeleton';
+import { LoadError, PageSkeleton } from '../components/PageSkeleton';
 import { supabase, type PlanningItem, type Topic } from '../lib/supabase';
 import { whatsappUrl } from '../lib/whatsapp';
 import { VendorTotals } from '../components/VendorTotals';
@@ -31,13 +31,17 @@ const KIND_LABEL: Record<string, string> = { quote: 'Quote', planned: 'Planned',
 export function Vendors() {
   const [rows, setRows] = useState<VendorRow[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   async function load() {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('planning_items')
       .select('id, title, detail, status, amount, amount_kind, metadata, topic:topics(key, label)')
       .eq('type', 'vendor')
       .order('title');
+    // A failed load must not look like "no vendors": keep what is on screen and say so.
+    setLoadError(error?.message ?? null);
+    if (error) return;
     setRows((data ?? []) as unknown as VendorRow[]);
     setLoaded(true);
   }
@@ -121,8 +125,9 @@ export function Vendors() {
       </SimpleGrid>
       </Stack>
       ))}
-      {!loaded && <PageSkeleton cards={3} />}
-      {loaded && rows.length === 0 && (
+      {loadError && <LoadError message={loadError} onRetry={() => void load()} />}
+      {!loaded && !loadError && <PageSkeleton cards={3} />}
+      {loaded && !loadError && rows.length === 0 && (
         <EmptyState
           emoji="🤝"
           title="No vendors added yet"

@@ -253,7 +253,7 @@ export function Guests() {
               ← Back to guests
             </Button>
           </Group>
-          <DroppedGuests onChanged={load} />
+          <DroppedGuests onChanged={() => void load()} />
         </Stack>
       ) : (
         <>
@@ -487,7 +487,7 @@ export function Guests() {
           functionNames={fnRows.map((f) => f.name)}
           opened
           onClose={() => setEditing(null)}
-          onSaved={load}
+          onSaved={() => void load()}
         />
       )}
 

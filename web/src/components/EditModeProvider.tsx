@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
 import { EditModeContext } from '../hooks/useEditMode';
 import { PinModal } from './PinGate';
@@ -127,8 +127,12 @@ export function EditModeProvider({ children }: { children: ReactNode }) {
     return () => data.subscription.unsubscribe();
   }, [lock]);
 
+  // Stable while nothing a consumer reads has changed, so opening the PIN dialog or pushing the idle timer back
+  // does not re-render every edit button in the app.
+  const value = useMemo(() => ({ isUnlocked, unlock, lock, requestUnlock }), [isUnlocked, unlock, lock, requestUnlock]);
+
   return (
-    <EditModeContext.Provider value={{ isUnlocked, unlock, lock, requestUnlock }}>
+    <EditModeContext.Provider value={value}>
       {children}
       <PinModal
         opened={pinOpen}

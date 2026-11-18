@@ -95,11 +95,12 @@ export function Home() {
       supabase.from('sync_status').select('last_run_at').limit(1),
     ]);
     if (!isActive()) return;
-    setLoaded(true);
-    // A failed reload keeps what is on screen rather than showing an empty home page.
+    // A failed reload keeps what is on screen rather than showing an empty home page. A failed first load stays
+    // "not loaded", so it does not claim everything is decided.
     const failed = firstError(t, tp, o, i, p, f);
     setLoadError(failed);
     if (failed) return;
+    setLoaded(true);
     setTasks((t.data ?? []) as TaskRow[]);
     setTopicKeyById(Object.fromEntries(((tp.data ?? []) as { id: string; key: string }[]).map((x) => [x.id, x.key])));
     setOptions((o.data ?? []) as OptionRow[]);

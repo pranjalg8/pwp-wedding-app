@@ -136,11 +136,11 @@ export function Tasks() {
       supabase.from('planning_items').select('id, task_id, status, amount, amount_kind').not('task_id', 'is', null),
     ]);
     if (!isActive()) return;
-    setLoaded(true);
-    // Keep what is on screen when a reload fails, and say so.
+    // Keep what is on screen when a reload fails, and say so. A failed first load stays "not loaded".
     const failed = firstError(t, tp, o, i);
     setLoadError(failed);
     if (failed) return;
+    setLoaded(true);
     setTasks((t.data ?? []) as Task[]);
     setTopics((tp.data ?? []) as Topic[]);
     setOptions((o.data ?? []) as OptionRow[]);

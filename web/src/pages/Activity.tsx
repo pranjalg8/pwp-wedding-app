@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Badge, Box, Table, Tabs, Text } from '@mantine/core';
 import { EmptyState } from '../components/EmptyState';
-import { PageSkeleton } from '../components/PageSkeleton';
+import { LoadError, PageSkeleton } from '../components/PageSkeleton';
 import { PageHeader } from '../components/PageHeader';
 import { supabase, type AuditEntry } from '../lib/supabase';
 import { describeDevice } from '../lib/device';
@@ -60,18 +60,25 @@ function AuditTable({ entries, kind }: { entries: AuditEntry[]; kind: 'manual' |
 export function Activity() {
   const [entries, setEntries] = useState<AuditEntry[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const load = useCallback(async (isActive: () => boolean = () => true) => {
+    const { data, error } = await supabase.from('audit_log').select('*').order('created_at', { ascending: false }).limit(500);
+    if (!isActive()) return;
+    // A failed load must not look like "nothing logged yet".
+    setLoadError(error?.message ?? null);
+    if (error) return;
+    setEntries(data ?? []);
+    setLoaded(true);
+  }, []);
 
   useEffect(() => {
-    supabase
-      .from('audit_log')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(500)
-      .then(({ data }) => {
-        setEntries(data ?? []);
-        setLoaded(true);
-      });
-  }, []);
+    let active = true;
+    void load(() => active);
+    return () => {
+      active = false;
+    };
+  }, [load]);
 
   const manual = entries.filter((e) => e.actor_type === 'manual');
   const sync = entries.filter((e) => e.actor_type === 'sync');
@@ -80,7 +87,9 @@ export function Activity() {
   return (
     <>
       <PageHeader title="Activity" mb="lg" />
-      {!loaded ? (
+      {loadError ? (
+        <LoadError message={loadError} onRetry={() => void load()} />
+      ) : !loaded ? (
         <PageSkeleton cards={3} />
       ) : (
       <Tabs defaultValue="manual">

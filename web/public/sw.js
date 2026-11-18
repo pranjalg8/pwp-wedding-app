@@ -10,7 +10,9 @@ const assetsPath = `${scopePath}assets/`;
 const shellPaths = new Set(SHELL.map((p) => new URL(p, self.location.href).pathname));
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)));
+  // cache: 'reload' skips the browser's HTTP cache, so the new version never stores a stale index.html
+  // (which would point at the previous build's files) as its offline shell.
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL.map((p) => new Request(p, { cache: 'reload' })))));
   self.skipWaiting();
 });
 

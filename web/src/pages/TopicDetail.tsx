@@ -133,7 +133,10 @@ export function TopicDetail() {
         action={<EditButton onClick={() => setEditingItem('new')}>Add item</EditButton>}
       />
 
-      {sorted.length === 0 && (
+      {/* A reload that failed after the area was shown: keep the old view, but say it may be out of date. */}
+      {loadError && <LoadError message={loadError} onRetry={() => load()} />}
+
+      {sorted.length === 0 && !loadError && (
         <EmptyState
           emoji={TOPIC_EMOJI[topic.key] ?? '🌸'}
           title="Nothing here yet"
@@ -292,7 +295,7 @@ export function TopicDetail() {
           item={editingItem === 'new' ? null : editingItem}
           opened
           onClose={() => setEditingItem(null)}
-          onSaved={load}
+          onSaved={() => load()}
         />
       )}
     </Stack>

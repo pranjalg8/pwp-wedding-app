@@ -18,7 +18,11 @@ const cache = createAsyncCache(
 // Same shape as a supabase response so callers keep their error handling.
 export async function getTopics(): Promise<{ data: TopicRow[] | null; error: { message: string } | null }> {
   try {
-    return { data: await cache.get(), error: null };
+    const data = await cache.get();
+    // An empty list means the read was not allowed (e.g. the session was mid-refresh, so row-level security hid
+    // everything), not that there are no areas. Do not keep it for five minutes; ask again next time.
+    if (data.length === 0) cache.invalidate();
+    return { data, error: null };
   } catch (e) {
     return { data: null, error: { message: e instanceof Error ? e.message : String(e) } };
   }
