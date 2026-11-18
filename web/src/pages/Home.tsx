@@ -15,6 +15,7 @@ import { getTopics } from '../lib/topics';
 import { firstError } from '../lib/loadState';
 import { LoadError, PageSkeleton } from '../components/PageSkeleton';
 import { FunctionCard, tintFor, type OutfitOption, type WeddingFunction } from '../components/FunctionCard';
+import { EmptyState } from '../components/EmptyState';
 
 type TaskRow = Pick<Task, 'id' | 'title' | 'topic_id' | 'owner' | 'priority' | 'due_date' | 'status' | 'sort_order'>;
 type OptionRow = { task_id: string; name: string; status: string };
@@ -202,9 +203,7 @@ export function Home() {
       <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
         <Panel title="Next up" to="/tasks">
           {nextUp.length === 0 ? (
-            <Text size="sm" c="dimmed">
-              Nothing has a due date.
-            </Text>
+            <EmptyState compact emoji="🗓️" title="Nothing due right now" hint="Give a task a due date and it will show up here." />
           ) : (
             <Stack gap="sm">
               {nextUp.map((t) => (
@@ -221,9 +220,7 @@ export function Home() {
 
         <Panel title="Needs a decision" to="/tasks">
           {needsDecision.length === 0 ? (
-            <Text size="sm" c="dimmed">
-              Every task with options has a pick.
-            </Text>
+            <EmptyState compact emoji="🎉" title="All decided" hint="Every task with options has a pick." />
           ) : (
             <Stack gap="sm">
               {needsDecision.slice(0, 5).map((t) => {

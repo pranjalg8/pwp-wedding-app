@@ -4,7 +4,6 @@ import {
   Accordion,
   Badge,
   Box,
-  Button,
   Chip,
   Group,
   Paper,
@@ -27,7 +26,8 @@ import {
   formatInr,
   summarizeMoney,
 } from '../lib/topicMeta';
-import { useEditMode } from '../hooks/useEditMode';
+import { EditButton } from '../components/EditButton';
+import { EmptyState } from '../components/EmptyState';
 import { useRealtime } from '../hooks/useRealtime';
 import { getTopics } from '../lib/topics';
 import { firstError } from '../lib/loadState';
@@ -117,7 +117,6 @@ function TaskCard({ task, topic, options, items }: { task: Task; topic?: Topic; 
 
 export function Tasks() {
   const navigate = useNavigate();
-  const { isUnlocked } = useEditMode();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [topics, setTopics] = useState<Topic[]>([]);
   const [options, setOptions] = useState<OptionRow[]>([]);
@@ -195,7 +194,7 @@ export function Tasks() {
       <PageHeader
         title="Tasks"
         subtitle={loaded ? `${openCount} to finish, ${tasks.length - openCount} done or decided` : '\u00a0'}
-        action={isUnlocked && <Button onClick={() => setCreating(true)}>New task</Button>}
+        action={<EditButton onClick={() => setCreating(true)}>New task</EditButton>}
       />
 
       <Stack gap="xs">
@@ -259,9 +258,20 @@ export function Tasks() {
       )}
 
       {loaded && !loadError && visible.length === 0 && (
-        <Paper withBorder p="xl" ta="center">
-          <Text c="dimmed">No tasks match.</Text>
-        </Paper>
+        tasks.length === 0 ? (
+          <EmptyState
+            emoji="📝"
+            title="No tasks yet"
+            hint="Add the first thing you need to sort out for the wedding."
+            action={
+              <EditButton variant="light" onClick={() => setCreating(true)}>
+                New task
+              </EditButton>
+            }
+          />
+        ) : (
+          <EmptyState emoji="🔍" title="No tasks match" hint="Try another area, person or search word." />
+        )
       )}
 
       {creating && (

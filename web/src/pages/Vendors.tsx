@@ -3,6 +3,8 @@ import { useRealtime } from '../hooks/useRealtime';
 import { Link } from 'react-router-dom';
 import { Anchor, Badge, Button, Card, Group, SimpleGrid, Stack, Text } from '@mantine/core';
 import { PageHeader } from '../components/PageHeader';
+import { EmptyState } from '../components/EmptyState';
+import { PageSkeleton } from '../components/PageSkeleton';
 import { supabase, type PlanningItem, type Topic } from '../lib/supabase';
 import { whatsappUrl } from '../lib/whatsapp';
 import { VendorTotals } from '../components/VendorTotals';
@@ -28,6 +30,7 @@ const KIND_LABEL: Record<string, string> = { quote: 'Quote', planned: 'Planned',
 
 export function Vendors() {
   const [rows, setRows] = useState<VendorRow[]>([]);
+  const [loaded, setLoaded] = useState(false);
 
   async function load() {
     const { data } = await supabase
@@ -36,6 +39,7 @@ export function Vendors() {
       .eq('type', 'vendor')
       .order('title');
     setRows((data ?? []) as unknown as VendorRow[]);
+    setLoaded(true);
   }
 
   useRealtime(['planning_items'], load, { immediate: true });
@@ -117,7 +121,19 @@ export function Vendors() {
       </SimpleGrid>
       </Stack>
       ))}
-      {rows.length === 0 && <Text c="dimmed">No vendors added yet.</Text>}
+      {!loaded && <PageSkeleton cards={3} />}
+      {loaded && rows.length === 0 && (
+        <EmptyState
+          emoji="🤝"
+          title="No vendors added yet"
+          hint="Add a vendor as an item on an area's page and it will show up here with its contact details."
+          action={
+            <Button component={Link} to="/areas" variant="light">
+              Go to areas
+            </Button>
+          }
+        />
+      )}
     </Stack>
   );
 }

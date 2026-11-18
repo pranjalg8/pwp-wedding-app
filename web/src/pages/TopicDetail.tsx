@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Accordion, ActionIcon, Anchor, Badge, Button, Group, Paper, Stack, Text } from '@mantine/core';
+import { Accordion, ActionIcon, Anchor, Badge, Group, Paper, Stack, Text } from '@mantine/core';
 import { PageHeader } from '../components/PageHeader';
 import { notifications } from '@mantine/notifications';
 import { supabase, type ChatMessage, type PlanningItem, type Topic } from '../lib/supabase';
 import { useEditMode } from '../hooks/useEditMode';
+import { EditButton } from '../components/EditButton';
+import { EmptyState } from '../components/EmptyState';
 import { ItemEditor } from '../components/ItemEditor';
 import { confirmDanger } from '../lib/confirm';
 import { useRealtime } from '../hooks/useRealtime';
@@ -106,12 +108,15 @@ export function TopicDetail() {
   if (status === 'error' && !topic) return <LoadError message={loadError ?? 'Something went wrong.'} onRetry={() => load()} />;
   if (status === 'missing')
     return (
-      <Text c="dimmed">
-        No area called "{topicKey}".{' '}
-        <Anchor component={Link} to="/areas">
-          Back to all areas
-        </Anchor>
-      </Text>
+      <EmptyState
+        emoji="🔍"
+        title={`No area called "${topicKey}"`}
+        action={
+          <Anchor component={Link} to="/areas">
+            Back to all areas
+          </Anchor>
+        }
+      />
     );
   if (!topic) return <PageSkeleton cards={3} title />;
 
@@ -125,13 +130,20 @@ export function TopicDetail() {
       <PageHeader
         icon={TOPIC_EMOJI[topic.key] ?? '✨'}
         title={topic.label}
-        action={isUnlocked && <Button onClick={() => setEditingItem('new')}>Add item</Button>}
+        action={<EditButton onClick={() => setEditingItem('new')}>Add item</EditButton>}
       />
 
       {sorted.length === 0 && (
-        <Paper withBorder p="xl" ta="center">
-          <Text c="dimmed">Nothing here yet.</Text>
-        </Paper>
+        <EmptyState
+          emoji={TOPIC_EMOJI[topic.key] ?? '🌸'}
+          title="Nothing here yet"
+          hint="Add the first item for this area, like a quote, a booking or a note."
+          action={
+            <EditButton variant="light" onClick={() => setEditingItem('new')}>
+              Add item
+            </EditButton>
+          }
+        />
       )}
 
       <Stack gap="sm">

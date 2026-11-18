@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Accordion, Anchor, Badge, Button, Group, Paper, Stack, Text } from '@mantine/core';
+import { Accordion, Anchor, Badge, Group, Paper, Stack, Text } from '@mantine/core';
 import { PageHeader } from '../components/PageHeader';
 import { supabase, type ChatMessage, type PlanningItem, type Task, type TaskOption, type Topic } from '../lib/supabase';
 import {
@@ -14,6 +14,8 @@ import {
   formatInr,
 } from '../lib/topicMeta';
 import { useEditMode } from '../hooks/useEditMode';
+import { EditButton } from '../components/EditButton';
+import { EmptyState } from '../components/EmptyState';
 import { OptionCard } from '../components/OptionCard';
 import { OptionEditor } from '../components/OptionEditor';
 import { TaskEditor } from '../components/TaskEditor';
@@ -97,7 +99,7 @@ export function TaskDetail() {
         <Anchor component={Link} to="/tasks" size="sm" c="dimmed">
           ← All tasks
         </Anchor>
-        <Text c="dimmed">That task doesn't exist.</Text>
+        <EmptyState emoji="🔍" title="That task doesn't exist" hint="It may have been removed. Head back to all tasks." />
       </Stack>
     );
   }
@@ -137,11 +139,9 @@ export function TaskDetail() {
         icon={(topic && TOPIC_EMOJI[topic.key]) ?? '✨'}
         title={task.title}
         action={
-        isUnlocked && (
-          <Button variant="light" size="xs" onClick={() => setEditingTask(true)} style={{ flexShrink: 0 }}>
+          <EditButton variant="light" size="xs" onClick={() => setEditingTask(true)} style={{ flexShrink: 0 }}>
             Edit task
-          </Button>
-        )
+          </EditButton>
         }
       />
 
@@ -209,17 +209,18 @@ export function TaskDetail() {
         <Text fw={700} c="dimmed" tt="uppercase" size="sm">
           Options ({options.length})
         </Text>
-        {isUnlocked && (
-          <Button size="xs" variant="light" onClick={() => setEditingOption('new')}>
-            Add option
-          </Button>
-        )}
+        <EditButton size="xs" variant="light" onClick={() => setEditingOption('new')}>
+          Add option
+        </EditButton>
       </Group>
 
       {options.length === 0 && (
-        <Paper withBorder p="lg" ta="center">
-          <Text c="dimmed">No options yet. Add the vendors or candidates being compared.</Text>
-        </Paper>
+        <EmptyState
+          compact
+          emoji="🧾"
+          title="No options yet"
+          hint="Add the vendors or candidates you're comparing for this task."
+        />
       )}
 
       <Stack gap="sm">{live.map(card)}</Stack>

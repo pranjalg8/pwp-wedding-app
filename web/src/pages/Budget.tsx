@@ -20,6 +20,7 @@ import { useEditMode } from '../hooks/useEditMode';
 import { SideBySide } from '../components/SideBySide';
 import { afterPartPayment, SCOPE_LABEL, SIDE_LABEL, buildAreas, buildPlan, filterScope, forSide, scheduleForSide, settingsForSide, sum, withFullFunds, type Plan, type Scheduled, type Scope, type Side } from '../lib/budgetPlan';
 import { KIND_LABEL, STATUS_COLOR, STATUS_LABEL, formatAsOf, formatInr } from '../lib/topicMeta';
+import { EmptyState } from '../components/EmptyState';
 
 type BudgetRow = Pick<PlanningItem, 'id' | 'title' | 'type' | 'status' | 'amount' | 'amount_kind' | 'amount_note' | 'as_of'> & {
   topic: Pick<Topic, 'key' | 'label'>;
@@ -106,7 +107,7 @@ function AmountsTable() {
             {rows.length === 0 && (
               <Table.Tr>
                 <Table.Td colSpan={isUnlocked ? 6 : 5}>
-                  <Text c="dimmed">No budgeted items yet. Add an amount to an item to see it here.</Text>
+                  <EmptyState compact emoji="💰" title="No budgeted items yet" hint="Add an amount to an item and it will show up here." />
                 </Table.Td>
               </Table.Tr>
             )}
@@ -242,7 +243,7 @@ export function Budget() {
           </Text>
         )}
         <SideBySide plans={plans} side={side} onPick={setSide} />
-        <BudgetSummary side={side} plan={plan} settings={viewSettings} notScheduled={notScheduled} outsideBudget={outsideBudget} today={today} isUnlocked={isUnlocked} onEditSettings={() => setSettingsOpen(true)} />
+        <BudgetSummary side={side} plan={plan} settings={viewSettings} notScheduled={notScheduled} outsideBudget={outsideBudget} today={today} onEditSettings={() => setSettingsOpen(true)} />
         </Stack>
       </Section>
 
@@ -282,7 +283,7 @@ export function Budget() {
               budgets={treeBudgets}
             />
           ) : (
-            <AreaBudget rows={areaRows} isUnlocked={isUnlocked} onEditBudgets={() => setAreasOpen(true)} />
+            <AreaBudget rows={areaRows} onEditBudgets={() => setAreasOpen(true)} />
           )}
         </Stack>
       </Section>

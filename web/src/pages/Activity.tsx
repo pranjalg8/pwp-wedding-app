@@ -1,10 +1,24 @@
 import { useEffect, useState } from 'react';
-import { Badge, Table, Tabs, Text } from '@mantine/core';
+import { Badge, Box, Table, Tabs, Text } from '@mantine/core';
+import { EmptyState } from '../components/EmptyState';
+import { PageSkeleton } from '../components/PageSkeleton';
 import { PageHeader } from '../components/PageHeader';
 import { supabase, type AuditEntry } from '../lib/supabase';
 import { describeDevice } from '../lib/device';
 
 function AuditTable({ entries, kind }: { entries: AuditEntry[]; kind: 'manual' | 'sync' | 'link' }) {
+  if (entries.length === 0) {
+    return (
+      <Box mt="md">
+        <EmptyState
+          compact
+          emoji="📜"
+          title="Nothing logged yet"
+          hint={kind === 'link' ? 'Changes made through a shared link will show up here.' : 'Changes will show up here as they happen.'}
+        />
+      </Box>
+    );
+  }
   return (
     <Table.ScrollContainer minWidth={520} mt="md">
     <Table striped highlightOnHover>
@@ -37,13 +51,6 @@ function AuditTable({ entries, kind }: { entries: AuditEntry[]; kind: 'manual' |
             )}
           </Table.Tr>
         ))}
-        {entries.length === 0 && (
-          <Table.Tr>
-            <Table.Td colSpan={kind === 'manual' ? 5 : 4}>
-              <Text c="dimmed">No entries yet.</Text>
-            </Table.Td>
-          </Table.Tr>
-        )}
       </Table.Tbody>
     </Table>
     </Table.ScrollContainer>
@@ -52,6 +59,7 @@ function AuditTable({ entries, kind }: { entries: AuditEntry[]; kind: 'manual' |
 
 export function Activity() {
   const [entries, setEntries] = useState<AuditEntry[]>([]);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     supabase
@@ -59,7 +67,10 @@ export function Activity() {
       .select('*')
       .order('created_at', { ascending: false })
       .limit(500)
-      .then(({ data }) => setEntries(data ?? []));
+      .then(({ data }) => {
+        setEntries(data ?? []);
+        setLoaded(true);
+      });
   }, []);
 
   const manual = entries.filter((e) => e.actor_type === 'manual');
@@ -69,6 +80,9 @@ export function Activity() {
   return (
     <>
       <PageHeader title="Activity" mb="lg" />
+      {!loaded ? (
+        <PageSkeleton cards={3} />
+      ) : (
       <Tabs defaultValue="manual">
         <Tabs.List>
           <Tabs.Tab value="manual">Manual changes ({manual.length})</Tabs.Tab>
@@ -85,6 +99,7 @@ export function Activity() {
           <AuditTable entries={viaLink} kind="link" />
         </Tabs.Panel>
       </Tabs>
+      )}
     </>
   );
 }

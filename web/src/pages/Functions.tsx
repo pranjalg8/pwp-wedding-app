@@ -3,6 +3,8 @@ import { useRealtime } from '../hooks/useRealtime';
 import { Link } from 'react-router-dom';
 import { Button, Group, Modal, Select, SimpleGrid, Stack, Text, TagsInput, Textarea, TextInput } from '@mantine/core';
 import { PageHeader } from '../components/PageHeader';
+import { EmptyState } from '../components/EmptyState';
+import { PageSkeleton } from '../components/PageSkeleton';
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
 import { useEditMode } from '../hooks/useEditMode';
@@ -60,6 +62,7 @@ export function Functions() {
   const [rows, setRows] = useState<WeddingFunction[]>([]);
   const [outfits, setOutfits] = useState<OutfitOption[]>([]);
   const [editing, setEditing] = useState<WeddingFunction | null>(null);
+  const [loaded, setLoaded] = useState(false);
 
   async function load() {
     const [fns, opts] = await Promise.all([
@@ -68,6 +71,7 @@ export function Functions() {
     ]);
     setRows((fns.data ?? []) as WeddingFunction[]);
     setOutfits(((opts.data ?? []) as OutfitOption[]).map((o) => ({ name: o.name, status: o.status })));
+    setLoaded(true);
   }
 
   useRealtime(['wedding_functions'], load, { immediate: true });
@@ -106,7 +110,10 @@ export function Functions() {
           </SimpleGrid>
         </Stack>
       ))}
-      {rows.length === 0 && <Text c="dimmed">No functions yet.</Text>}
+      {!loaded && <PageSkeleton cards={3} />}
+      {loaded && rows.length === 0 && (
+        <EmptyState emoji="🪔" title="No functions yet" hint="Once the wedding events are set up, each one shows here with its date, venue and RSVPs." />
+      )}
       {isUnlocked && editing && <Editor key={editing.id} fn={editing} onClose={() => setEditing(null)} onSaved={load} />}
     </Stack>
   );

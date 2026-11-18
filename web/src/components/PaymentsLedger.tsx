@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { useRealtime } from '../hooks/useRealtime';
-import { ActionIcon, Alert, Badge, Button, Group, Menu, Paper, Stack, Table, Text } from '@mantine/core';
+import { ActionIcon, Alert, Badge, Group, Menu, Paper, Stack, Table, Text } from '@mantine/core';
 import { supabase } from '../lib/supabase';
 import { formatInr } from '../lib/topicMeta';
 import { useEditMode } from '../hooks/useEditMode';
 import { PaymentEditor, type Payment } from './PaymentEditor';
 import { confirmDanger } from '../lib/confirm';
+import { EditButton } from './EditButton';
+import { EmptyState } from './EmptyState';
 
 // Amounts come back from Postgres numeric as strings; add in paise so the total is exact.
 const paise = (n: number | string) => Math.round(Number(n) * 100);
@@ -50,11 +52,9 @@ export function PaymentsLedger({ topics = [], vendors = [] }: { topics?: { id: s
         <Text fw={700} fz="lg">Payments made</Text>
         <Group gap="sm">
           <Text fw={700}>{formatInr(total)}</Text>
-          {isUnlocked && (
-            <Button size="xs" variant="light" onClick={() => setEditing('new')}>
-              Add payment
-            </Button>
-          )}
+          <EditButton size="xs" variant="light" onClick={() => setEditing('new')}>
+            Add payment
+          </EditButton>
         </Group>
       </Group>
       <Text size="sm" c="dimmed">
@@ -114,7 +114,7 @@ export function PaymentsLedger({ topics = [], vendors = [] }: { topics?: { id: s
                 </Table.Tr>
               ))}
               {rows.length === 0 && (
-                <Table.Tr><Table.Td colSpan={columns}><Text c="dimmed">No payments recorded yet.</Text></Table.Td></Table.Tr>
+                <Table.Tr><Table.Td colSpan={columns}><EmptyState compact emoji="🧾" title="No payments recorded yet" hint="Add a payment once money has gone out." /></Table.Td></Table.Tr>
               )}
             </Table.Tbody>
           </Table>

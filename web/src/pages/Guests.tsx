@@ -4,6 +4,7 @@ import { Alert, Box, Button, Collapse, Group, Indicator, Menu, Paper, SegmentedC
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
 import { useEditMode } from '../hooks/useEditMode';
+import { EditButton } from '../components/EditButton';
 import { GuestEditor, type Guest } from '../components/GuestEditor';
 import { useGuestInvites } from '../hooks/useGuestInvites';
 import { BulkAnswerModal, BulkInviteModal, RsvpEditor } from '../components/RsvpEditor';
@@ -235,7 +236,7 @@ export function Guests() {
               <Menu.Item onClick={() => setTab('dropped')}>Dropped from earlier list ({droppedCount})</Menu.Item>
             </Menu.Dropdown>
           </Menu>
-          {isUnlocked && <Button onClick={() => setEditing('new')}>Add household</Button>}
+          <EditButton onClick={() => setEditing('new')}>Add household</EditButton>
         </Group>
       </Group>
 

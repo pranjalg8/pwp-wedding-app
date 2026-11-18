@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { Anchor, Button, Group, Paper, Progress, Stack, Table, Text } from '@mantine/core';
+import { Anchor, Group, Paper, Progress, Stack, Table, Text } from '@mantine/core';
 import { hasMoney, sum, type AreaRow } from '../lib/budgetPlan';
 import { formatInr, formatInrCompact } from '../lib/topicMeta';
+import { EditButton } from './EditButton';
 
 // Step 3: by area. Each area's budget against what is paid and still to pay, so it is clear where the money
 // goes and where there is room. Chosen quotes with nothing scheduled are called out, because they are money that
 // will need paying but is not yet in the month-by-month view.
-export function AreaBudget({ rows, isUnlocked, onEditBudgets }: { rows: AreaRow[]; isUnlocked: boolean; onEditBudgets: () => void }) {
+export function AreaBudget({ rows, onEditBudgets }: { rows: AreaRow[]; onEditBudgets: () => void }) {
   const [showAll, setShowAll] = useState(false);
   const active = rows.filter(hasMoney);
   const quiet = rows.filter((r) => !hasMoney(r));
@@ -19,13 +20,11 @@ export function AreaBudget({ rows, isUnlocked, onEditBudgets }: { rows: AreaRow[
   return (
     <Paper withBorder p="lg">
       <Stack gap="sm">
-        {isUnlocked && (
-          <Group justify="flex-end">
-            <Button size="compact-md" variant="light" onClick={onEditBudgets}>
-              Set area budgets
-            </Button>
-          </Group>
-        )}
+        <Group justify="flex-end">
+          <EditButton size="compact-md" variant="light" onClick={onEditBudgets}>
+            Set area budgets
+          </EditButton>
+        </Group>
 
         <Table.ScrollContainer minWidth={520}>
           <Table verticalSpacing="sm" horizontalSpacing="xs" withRowBorders>

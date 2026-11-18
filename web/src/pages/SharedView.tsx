@@ -5,6 +5,7 @@ import { CountdownHero } from '../components/CountdownHero';
 import { SECTIONS, SENSITIVE, timeLeft, type SectionKey } from '../lib/shareLinks';
 import { STATUS_COLOR as HOUSEHOLD_COLOR, STATUS_LABEL as HOUSEHOLD_LABEL, STATUS_ORDER } from '../lib/guestStatus';
 import { CountStepper } from '../components/CountStepper';
+import { EmptyState } from '../components/EmptyState';
 import { OPTION_STATUS_COLOR, OPTION_STATUS_LABEL, OWNER_LABEL, STATUS_COLOR, STATUS_LABEL, formatInr } from '../lib/topicMeta';
 
 // What the share function sends back. It has already left out whatever the link does not allow.
@@ -89,9 +90,7 @@ function Home({ d }: { d: Row }) {
             Due next
           </Text>
           {(d.upcoming as Row[]).length === 0 ? (
-            <Text size="sm" c="dimmed">
-              Nothing has a due date.
-            </Text>
+            <EmptyState compact emoji="🗓️" title="Nothing due right now" hint="Anything with a date will show up here." />
           ) : (
             <Stack gap="xs">
               {(d.upcoming as Row[]).map((t) => (
@@ -117,9 +116,7 @@ function Home({ d }: { d: Row }) {
             Needs a decision
           </Text>
           {(d.needsDecision as string[]).length === 0 ? (
-            <Text size="sm" c="dimmed">
-              Everything with options has a pick.
-            </Text>
+            <EmptyState compact emoji="🎉" title="All decided" hint="Everything with options already has a pick." />
           ) : (
             <Stack gap={6}>
               {(d.needsDecision as string[]).map((t) => (
@@ -197,9 +194,7 @@ function Tasks({ tasks, onStatus }: { tasks: unknown; onStatus?: Edits['taskStat
                 </Text>
               )}
               {(t.options as Row[]).length === 0 ? (
-                <Text size="sm" c="dimmed">
-                  No options yet.
-                </Text>
+                <EmptyState compact emoji="🧾" title="No options yet" hint="Choices will appear here as they come in." />
               ) : (
                 (t.options as Row[]).map((o) => (
                   <Group key={o.name} align="flex-start" wrap="nowrap" gap="sm">
@@ -530,9 +525,7 @@ function Budget({ b }: { b: Row }) {
           Payments due
         </Text>
         {(b.schedule as Row[]).length === 0 ? (
-          <Text size="sm" c="dimmed">
-            Nothing scheduled.
-          </Text>
+          <EmptyState compact emoji="🌿" title="Nothing scheduled" hint="No payments are due at the moment." />
         ) : (
           <Stack gap="xs">
             {(b.schedule as Row[]).map((p, i) => (
@@ -618,7 +611,9 @@ function Honeymoon({ h }: { h: Row }) {
   const items = h.items as Row[];
   return (
     <Stack gap="sm">
-      {items.length === 0 && <Text c="dimmed">Nothing here yet.</Text>}
+      {items.length === 0 && (
+        <EmptyState emoji="🌴" title="Nothing here yet" hint="The honeymoon plans are still being dreamt up. Check back soon!" />
+      )}
       {items.map((i, n) => (
         <Paper key={n} withBorder p="md">
           <Group justify="space-between" wrap="nowrap" gap="sm">

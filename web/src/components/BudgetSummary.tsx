@@ -1,6 +1,7 @@
-import { Box, Button, Group, Paper, SimpleGrid, Stack, Text } from '@mantine/core';
+import { Box, Group, Paper, SimpleGrid, Stack, Text } from '@mantine/core';
 import { daysBetween, monthLabel, shortDate, SIDE_LABEL, topUps, type BudgetSettings, type Plan, type Side } from '../lib/budgetPlan';
 import { formatInr } from '../lib/topicMeta';
+import { EditButton } from './EditButton';
 
 const signed = (v: number) => (v < 0 ? `−${formatInr(-v)}` : formatInr(v));
 
@@ -31,7 +32,6 @@ export function BudgetSummary({
   notScheduled,
   outsideBudget = 0,
   today,
-  isUnlocked,
   onEditSettings,
 }: {
   side: Side;
@@ -40,7 +40,6 @@ export function BudgetSummary({
   notScheduled: number;
   outsideBudget?: number;
   today: string;
-  isUnlocked: boolean;
   onEditSettings: () => void;
 }) {
   const total = settings?.total_budget ?? null;
@@ -158,11 +157,9 @@ export function BudgetSummary({
               </Text>
             )}
           </Stack>
-          {isUnlocked && (
-            <Button variant="light" size="compact-md" onClick={onEditSettings}>
-              Budget and funds
-            </Button>
-          )}
+          <EditButton variant="light" size="compact-md" onClick={onEditSettings}>
+            Budget and funds
+          </EditButton>
         </Group>
       </Stack>
     </Paper>
