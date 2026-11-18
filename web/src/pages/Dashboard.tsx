@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { getTopics } from '../lib/topics';
 import { fetchAll } from '../lib/fetchAll';
+import { firstError } from '../lib/loadState';
+import { LoadError } from '../components/PageSkeleton';
 import { useRealtime } from '../hooks/useRealtime';
 import { Link } from 'react-router-dom';
 import { usePendingSuggestions } from '../hooks/usePendingSuggestions';
@@ -48,17 +50,23 @@ export function Dashboard() {
   const [items, setItems] = useState<MoneyRow[]>([]);
   const [lastSynced, setLastSynced] = useState<string | null>(null);
   const [lastMessage, setLastMessage] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   async function load() {
-    const [{ data: topicsData }, { data: itemsData }, { data: synced }, { data: latest }] = await Promise.all([
+    const [topicsResult, itemsResult, { data: synced }, { data: latest }] = await Promise.all([
       getTopics(),
       // Every planner item is counted here, and sync keeps adding them: page past the 1000-row cap.
       fetchAll((from, to) => supabase.from('planning_items').select('id, title, topic_id, status, amount, amount_kind, owner, due_date').order('id').range(from, to)),
       supabase.from('sync_status').select('last_run_at').limit(1),
       supabase.from('messages').select('timestamp').order('timestamp', { ascending: false }).limit(1),
     ]);
-    setTopics((topicsData ?? []) as Topic[]);
-    setItems((itemsData ?? []) as MoneyRow[]);
+    // A failed load must not read as "nothing open": keep what is on screen and say so.
+    const failed = firstError(topicsResult, itemsResult);
+    setLoadError(failed);
+    if (!failed) {
+      setTopics((topicsResult.data ?? []) as Topic[]);
+      setItems((itemsResult.data ?? []) as MoneyRow[]);
+    }
     setLastSynced(synced?.[0]?.last_run_at ?? null);
     setLastMessage(latest?.[0]?.timestamp ?? null);
   }
@@ -82,6 +90,7 @@ export function Dashboard() {
 
   return (
     <Stack gap="lg">
+      {loadError && <LoadError message={loadError} onRetry={() => void load()} />}
       <CountdownHero
         eyebrow={formatRange(dates.wedding, { full: true })}
         days={days}
