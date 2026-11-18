@@ -2,12 +2,14 @@ name: Check pull request
 
 # Runs on every pull request so a broken build, a type error or a stale changelog shows up before merging,
 # not when the deploy runs on main. Lint warnings are listed but do not fail the check. The tests cover the money and
-# room logic; the realtime check fails when a page listens to a table that is not published for live updates.
+# room logic; the realtime check fails when a page listens to a table that is not published for live updates. Edge functions are
+# type-checked here too, because nothing else looks at them before they are deployed.
 on:
   pull_request:
     paths:
       - 'web/**'
       - 'supabase/migrations/**'
+      - 'supabase/functions/**'
       - '.github/workflows/check.yml'
 
 permissions:
@@ -27,6 +29,11 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: web/package-lock.json
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Type-check the edge functions
+        run: deno check supabase/functions/*/index.ts
       - name: Install dependencies
         working-directory: web
         run: npm ci
