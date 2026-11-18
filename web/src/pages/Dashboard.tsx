@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { usePendingSuggestions } from '../hooks/usePendingSuggestions';
-import { Badge, Box, Card, Group, Paper, RingProgress, SimpleGrid, Stack, Text, Title } from '@mantine/core';
+import { Badge, Card, Group, Paper, RingProgress, SimpleGrid, Stack, Text } from '@mantine/core';
+import { CountdownHero } from '../components/CountdownHero';
 import { supabase, type PlanningItem, type Topic } from '../lib/supabase';
 import { TOPIC_EMOJI, formatInr, formatInrCompact, summarizeMoney } from '../lib/topicMeta';
 import { usePlanFacts } from '../hooks/usePlanFacts';
@@ -86,24 +87,15 @@ export function Dashboard() {
 
   return (
     <Stack gap="lg">
-      <Box className="hero" c="white" p={{ base: 'lg', sm: 'xl' }} style={{ borderRadius: 'var(--mantine-radius-xl)' }}>
-        <Text size="sm" fw={600} style={{ letterSpacing: 1, opacity: 0.9 }} tt="uppercase">
-          {formatRange(dates.wedding, { full: true })}
-        </Text>
-        <Group align="baseline" gap="sm" mt={4}>
-          <Title order={1} c="white" fz={{ base: 48, sm: 64 }} lh={1}>
-            {days}
-          </Title>
-          <Text fz={{ base: 'lg', sm: 'xl' }} fw={500}>
-            days to go
-          </Text>
-        </Group>
-        <Text mt="sm" style={{ opacity: 0.95 }}>
-          {open === 0
+      <CountdownHero
+        eyebrow={formatRange(dates.wedding, { full: true })}
+        days={days}
+        note={
+          open === 0
             ? 'Everything is decided. Time to celebrate.'
-            : `${open} thing${open === 1 ? '' : 's'} still open across ${openAreas} area${openAreas === 1 ? '' : 's'}.`}
-        </Text>
-      </Box>
+            : `${open} thing${open === 1 ? '' : 's'} still open across ${openAreas} area${openAreas === 1 ? '' : 's'}.`
+        }
+      />
 
       {pendingSuggestions > 0 && (
         <Paper withBorder p="md" component={Link} to="/activity/suggestions" style={{ textDecoration: 'none', color: 'inherit', borderLeft: '4px solid var(--mantine-color-rose-5)' }}>
