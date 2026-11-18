@@ -49,6 +49,7 @@ export function ScheduleEditor({
   const [quantity, setQuantity] = useState<number | string>(payment?.quantity ?? '');
   const [unit, setUnit] = useState(payment?.unit ?? '');
   const [rate, setRate] = useState<number | string>(payment?.rate ?? '');
+  const [adjustment, setAdjustment] = useState<number | string>(payment?.adjustment ?? 0);
   const [inBudget, setInBudget] = useState(payment?.in_budget !== false);
   const [spreadMonths, setSpreadMonths] = useState<number | string>(3);
   const [spreadStart, setSpreadStart] = useState('');
@@ -59,7 +60,8 @@ export function ScheduleEditor({
   const paridhiNum = Number(paridhi) || 0;
   const planSum = plan.reduce((a, i) => a + (Number(i.amount) || 0), 0);
   const planOk = plan.every((i) => /^\d{4}-\d{2}-\d{2}$/.test(i.on) && Number(i.amount) > 0) && planSum <= paridhiNum + 0.005;
-  const worked = lineAmount(n(quantity), n(rate));
+  const adjustmentNum = Number(adjustment) || 0;
+  const worked = lineAmount(n(quantity), n(rate), adjustmentNum);
   const valid = payee.trim() !== '' && amount !== '' && Number.isFinite(amountNum) && amountNum >= 0 && /^\d{4}-\d{2}-\d{2}$/.test(due) && paridhiNum >= 0 && paridhiNum <= amountNum && planOk;
 
   async function save() {
@@ -74,7 +76,7 @@ export function ScheduleEditor({
       }
       vendor_id = data.id as string;
     } else if (vendorId === NEW) vendor_id = null;
-    const fields = { vendor_id, quantity: n(quantity), unit: unit.trim() || null, rate: n(rate), in_budget: inBudget, payee: payee.trim(), amount: amountNum, due_date: due, topic_id: topicId, note: note.trim() || null, is_estimate: estimate, paridhi_amount: paridhiNum, paridhi_due_date: null, paridhi_plan: paridhiNum > 0 ? plan.map((i): ShareInstalment => ({ on: i.on, amount: Number(i.amount) })) : [] };
+    const fields = { vendor_id, quantity: n(quantity), unit: unit.trim() || null, rate: n(rate), adjustment: adjustmentNum, in_budget: inBudget, payee: payee.trim(), amount: amountNum, due_date: due, topic_id: topicId, note: note.trim() || null, is_estimate: estimate, paridhi_amount: paridhiNum, paridhi_due_date: null, paridhi_plan: paridhiNum > 0 ? plan.map((i): ShareInstalment => ({ on: i.on, amount: Number(i.amount) })) : [] };
     const res = payment
       ? await supabase.from('payment_schedule').update(fields).eq('id', payment.id)
       : await supabase.from('payment_schedule').insert({ ...fields, created_by: profile?.id ?? null });
@@ -115,10 +117,27 @@ export function ScheduleEditor({
           <TextInput label="Unit" placeholder="rooms, plates" value={unit} onChange={(e) => setUnit(e.currentTarget.value)} maxLength={30} />
           <NumberInput label="Rate" prefix="₹" thousandSeparator="," thousandsGroupStyle="lakh" decimalScale={2} min={0} value={rate} onChange={setRate} />
         </Group>
+        {n(quantity) !== null && n(rate) !== null && (
+          <NumberInput
+            label="Plus or minus a fixed amount"
+            description="Use a minus for an advance already paid."
+            prefix="₹"
+            thousandSeparator="," thousandsGroupStyle="lakh"
+            decimalScale={2}
+            value={adjustment}
+            onChange={setAdjustment}
+          />
+        )}
+        {payment?.basis && (
+          <Text size="xs" c="dimmed">
+            The quantity follows the {payment.basis === 'room_nights' ? 'rooms booked' : 'people on the room board'}. The Budget page tells you when it changes.
+          </Text>
+        )}
         {worked !== null && worked !== amountNum && (
           <Group gap="xs">
             <Text size="xs" c="dimmed">
-              {quantity} {unit || 'x'} at ₹{Number(rate).toLocaleString('en-IN')} is ₹{worked.toLocaleString('en-IN')}
+              {quantity} {unit || 'x'} at ₹{Number(rate).toLocaleString('en-IN')}
+              {adjustmentNum ? `, ${adjustmentNum < 0 ? 'less' : 'plus'} ₹${Math.abs(adjustmentNum).toLocaleString('en-IN')},` : ''} is ₹{worked.toLocaleString('en-IN')}
               {amount !== '' ? `, the amount below is ₹${amountNum.toLocaleString('en-IN')}` : ''}.
             </Text>
             <Button size="compact-xs" variant="light" onClick={() => setAmount(worked)}>

@@ -25,7 +25,7 @@ export function useBudgetPlan() {
 
   const reload = useCallback(async () => {
     const [s, st, a, p, i, t, v] = await Promise.all([
-      supabase.from('payment_schedule').select('id, payee, amount, due_date, topic_id, note, is_estimate, status, paid_payment_id, paridhi_amount, paridhi_due_date, paridhi_plan, vendor_id, quantity, unit, rate, in_budget').order('due_date'),
+      supabase.from('payment_schedule').select('id, payee, amount, due_date, topic_id, note, is_estimate, status, paid_payment_id, paridhi_amount, paridhi_due_date, paridhi_plan, vendor_id, quantity, unit, rate, in_budget, adjustment, basis, basis_site_id, basis_night, basis_multiplier, basis_extra').order('due_date'),
       supabase.from('budget_settings').select('total_budget, funds_available, funds_as_of, monthly_addition, paridhi_funds_available, paridhi_monthly_addition, post_wedding_budget, gold_budget').eq('id', 1).maybeSingle(),
       supabase.from('budget_areas').select('id, topic_id, allocation'),
       supabase.from('payments').select('id, paid_on, payee, amount, topic_id, paridhi_amount, vendor_id'),
@@ -47,6 +47,9 @@ export function useBudgetPlan() {
       paridhi_amount: num(r.paridhi_amount),
       quantity: r.quantity == null ? null : num(r.quantity),
       rate: r.rate == null ? null : num(r.rate),
+      adjustment: num(r.adjustment),
+      basis_multiplier: r.basis_multiplier == null ? 1 : num(r.basis_multiplier),
+      basis_extra: num(r.basis_extra),
       paridhi_plan: ((r.paridhi_plan ?? []) as { on: string; amount: number | string }[]).map((i) => ({ on: i.on, amount: num(i.amount) })),
     }));
     const { inBudget, outside } = splitByBudget(lines);

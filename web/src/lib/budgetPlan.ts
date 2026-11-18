@@ -20,6 +20,12 @@ export type Scheduled = {
   unit?: string | null;
   rate?: number | null;
   in_budget?: boolean; // false: tracked, but paid by someone else; left out of the budget and the cash plan
+  adjustment?: number | null; // added after quantity x rate; negative for an advance already paid
+  basis?: 'room_nights' | 'meal_people' | null; // where the quantity comes from (see lineBasis.ts)
+  basis_site_id?: string | null;
+  basis_night?: string | null;
+  basis_multiplier?: number | null;
+  basis_extra?: number | null;
   sourceId?: string; // the stored payment a derived line comes from
   inflow?: boolean; // money coming back to Pranjal (Paridhi repaying a payment he covered); amount is negative
 };
@@ -69,10 +75,10 @@ export function withFullFunds(scoped: Plan, full: Plan): Plan {
 
 export type Vendor = { id: string; name: string; kind: string; planning_item_id: string | null; notes: string | null };
 
-// quantity x rate, rounded to the rupee; null unless both are set.
-export function lineAmount(quantity: number | null | undefined, rate: number | null | undefined) {
+// quantity x rate plus any adjustment, rounded to the rupee; null unless quantity and rate are both set.
+export function lineAmount(quantity: number | null | undefined, rate: number | null | undefined, adjustment: number | null = 0) {
   if (quantity == null || rate == null || !Number.isFinite(quantity) || !Number.isFinite(rate)) return null;
-  return Math.round(quantity * rate);
+  return Math.max(0, Math.round(quantity * rate + (adjustment ?? 0)));
 }
 
 // Lines that count in the budget and the cash plan, and the ones tracked outside it (paid by someone else).
@@ -80,11 +86,11 @@ export function splitByBudget<T extends { in_budget?: boolean }>(rows: T[]) {
   return { inBudget: rows.filter((r) => r.in_budget !== false), outside: rows.filter((r) => r.in_budget === false) };
 }
 
-// What a part payment leaves on a line. Quantity x rate described the whole line, so it no longer matches what is left
-// and is cleared; otherwise the form would offer to put the full amount back.
-export function afterPartPayment(p: Pick<Scheduled, 'amount' | 'paridhi_amount'>, paid: number) {
+// What a part payment leaves on a line. The money paid goes into the adjustment, so quantity x rate still describes
+// the whole job and still adds up to what is left.
+export function afterPartPayment(p: Pick<Scheduled, 'amount' | 'paridhi_amount' | 'adjustment'>, paid: number) {
   const left = Math.round((p.amount - paid) * 100) / 100;
-  return { amount: left, paridhi_amount: Math.round(p.paridhi_amount * (left / p.amount) * 100) / 100, quantity: null, unit: null, rate: null };
+  return { amount: left, paridhi_amount: Math.round(p.paridhi_amount * (left / p.amount) * 100) / 100, adjustment: (p.adjustment ?? 0) - paid };
 }
 
 // What each vendor has been paid and is still owed. Paid comes from the ledger, plus any line closed without a ledger

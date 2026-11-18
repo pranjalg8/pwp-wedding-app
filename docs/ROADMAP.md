@@ -39,7 +39,7 @@ The order changed: safety and accuracy now come before new features, and the bac
 
 ## December: money that follows the plan
 
-- Room and meal lines worked out from nights and headcounts.
+- Hotel and meal lines that follow the rooms booked and the room board (done in migration `0053`).
 - Staff and driver meals from `guests.kind` and a token count.
 - A shared way to load data with visible errors, moved over page by page.
 
