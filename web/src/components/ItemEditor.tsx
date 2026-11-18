@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { Badge, Button, Group, Modal, NumberInput, Select, Stack, Text, Textarea, TextInput } from '@mantine/core';
+import { Badge, Group, NumberInput, Select, Text, Textarea, TextInput } from '@mantine/core';
 import { supabase, type PlanningItem } from '../lib/supabase';
 import { notifications } from '@mantine/notifications';
 import { useProfile } from '../hooks/useProfile';
+import { useDirty } from '../hooks/useDirty';
+import { FormModal } from './FormModal';
 import { OPTIONS } from '../data/travelOptions';
 
 const TYPE_OPTIONS = ['decision', 'todo', 'vendor', 'budget_line', 'note'];
@@ -47,7 +49,9 @@ export function ItemEditor({
   const [routeValue, setRouteValue] = useState(metaString('value'));
   const datesInvalid = isDateFact && (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || (endDate !== '' && (!/^\d{4}-\d{2}-\d{2}$/.test(endDate) || endDate < startDate)));
 
-  async function handleSave() {
+  const dirty = useDirty([title, detail, type, status, amount, amountKind, amountNote, contactPerson, phone, email, owner, dueDate, startDate, endDate, routeValue]);
+
+  async function handleSave(): Promise<boolean> {
     setSaving(true);
     const payload = {
       topic_id: topicId,
@@ -79,103 +83,110 @@ export function ItemEditor({
     setSaving(false);
     if (error) {
       notifications.show({ color: 'red', title: 'Could not save', message: error.message });
-      return;
+      return false;
     }
     onSaved();
     onClose();
+    return true;
   }
 
   return (
-    <Modal opened={opened} onClose={onClose} title={item ? 'Edit item' : 'New item'} centered>
-      <Stack>
-        {slug && (
-          <Group gap="xs">
-            <Badge variant="light" color="rose">Shared setting</Badge>
-            <Text size="xs" c="dimmed">Every page, and the WhatsApp extraction, reads this one value.</Text>
-          </Group>
-        )}
-        <TextInput label="Title" value={title} onChange={(e) => setTitle(e.currentTarget.value)} required />
-        <Textarea label="Detail" value={detail ?? ''} onChange={(e) => setDetail(e.currentTarget.value)} minRows={3} />
-        <Group grow>
-          <Select label="Type" data={TYPE_OPTIONS} value={type} onChange={(v) => v && setType(v)} />
-          <Select label="Status" data={STATUS_OPTIONS} value={status} onChange={(v) => v && setStatus(v)} />
+    <FormModal
+      opened={opened}
+      onClose={onClose}
+      title={item ? 'Edit item' : 'New item'}
+      onSubmit={handleSave}
+      canSubmit={!!title && !datesInvalid && !(isRouteFact && !routeValue)}
+      submitting={saving}
+      dirty={dirty}
+      successMessage={() => `${title.trim()} saved`}
+    >
+      {slug && (
+        <Group gap="xs">
+          <Badge variant="light" color="rose">Shared setting</Badge>
+          <Text size="xs" c="dimmed">Every page, and the WhatsApp extraction, reads this one value.</Text>
         </Group>
-        <Group grow align="flex-start">
-          <Select
-            label="Who is on it?"
-            placeholder="Not assigned"
-            clearable
-            data={[
-              { value: 'both', label: 'Both of us' },
-              { value: 'pranjal', label: 'Pranjal' },
-              { value: 'paridhi', label: 'Paridhi' },
-            ]}
-            value={owner}
-            onChange={setOwner}
-          />
-          <TextInput label="Due date" type="date" value={dueDate} onChange={(e) => setDueDate(e.currentTarget.value)} />
-        </Group>
-        <NumberInput
-          label="Amount (optional)"
-          value={amount}
-          onChange={(v) => setAmount(typeof v === 'number' ? v : '')}
-          thousandSeparator=","
-          prefix="₹"
+      )}
+      <TextInput label="Title" value={title} onChange={(e) => setTitle(e.currentTarget.value)} required />
+      <Textarea label="Detail" value={detail ?? ''} onChange={(e) => setDetail(e.currentTarget.value)} minRows={3} />
+      <Group grow>
+        <Select label="Type" data={TYPE_OPTIONS} value={type} onChange={(v) => v && setType(v)} />
+        <Select label="Status" data={STATUS_OPTIONS} value={status} onChange={(v) => v && setStatus(v)} />
+      </Group>
+      <Group grow align="flex-start">
+        <Select
+          label="Who is on it?"
+          placeholder="Not assigned"
+          clearable
+          data={[
+            { value: 'both', label: 'Both of us' },
+            { value: 'pranjal', label: 'Pranjal' },
+            { value: 'paridhi', label: 'Paridhi' },
+          ]}
+          value={owner}
+          onChange={setOwner}
         />
-        {amount !== '' && (
-          <>
-            <Select
-              label="What kind of amount is this?"
-              data={[
-                { value: 'quote', label: 'Quote (an option being compared)' },
-                { value: 'planned', label: 'Planned budget' },
-                { value: 'paid', label: 'Paid already' },
-              ]}
-              value={amountKind}
-              onChange={(v) => v && setAmountKind(v)}
-              allowDeselect={false}
-            />
-            <TextInput
-              label="Where does this number come from?"
-              placeholder="e.g. Tanishq quote at size 24, incl. making"
-              value={amountNote}
-              onChange={(e) => setAmountNote(e.currentTarget.value)}
-            />
-          </>
-        )}
-        {isDateFact && (
-          <Group grow align="flex-start">
-            <TextInput label="Starts" type="date" value={startDate} onChange={(e) => setStartDate(e.currentTarget.value)} required />
-            <TextInput label="Ends (same day if blank)" type="date" value={endDate} min={startDate} onChange={(e) => setEndDate(e.currentTarget.value)} />
-          </Group>
-        )}
-        {isRouteFact && (
+        <TextInput label="Due date" type="date" value={dueDate} onChange={(e) => setDueDate(e.currentTarget.value)} />
+      </Group>
+      <NumberInput
+        label="Amount (optional)"
+        value={amount}
+        onChange={(v) => setAmount(typeof v === 'number' ? v : '')}
+        thousandSeparator=","
+        thousandsGroupStyle="lakh"
+        inputMode="decimal"
+        prefix="₹"
+      />
+      {amount !== '' && (
+        <>
           <Select
-            label="Chosen honeymoon route"
-            data={OPTIONS.map((o) => ({ value: o.id, label: o.name }))}
-            value={routeValue}
-            onChange={(v) => v && setRouteValue(v)}
+            label="What kind of amount is this?"
+            data={[
+              { value: 'quote', label: 'Quote (an option being compared)' },
+              { value: 'planned', label: 'Planned budget' },
+              { value: 'paid', label: 'Paid already' },
+            ]}
+            value={amountKind}
+            onChange={(v) => v && setAmountKind(v)}
             allowDeselect={false}
           />
-        )}
-        {type === 'vendor' && (
-          <>
-            <TextInput
-              label="Contact person"
-              value={contactPerson}
-              onChange={(e) => setContactPerson(e.currentTarget.value)}
-            />
-            <TextInput label="Phone" value={phone} onChange={(e) => setPhone(e.currentTarget.value)} />
-            <TextInput label="Email" value={email} onChange={(e) => setEmail(e.currentTarget.value)} />
-          </>
-        )}
-        <Text size="xs" c="dimmed">
-          Saving this will be recorded in the audit log as a manual change by {profile?.display_name ?? 'you'}.
-        </Text>
-        <Button onClick={handleSave} loading={saving} disabled={!title || datesInvalid || (isRouteFact && !routeValue)}>
-          Save
-        </Button>
-      </Stack>
-    </Modal>
+          <TextInput
+            label="Where does this number come from?"
+            placeholder="e.g. Tanishq quote at size 24, incl. making"
+            value={amountNote}
+            onChange={(e) => setAmountNote(e.currentTarget.value)}
+          />
+        </>
+      )}
+      {isDateFact && (
+        <Group grow align="flex-start">
+          <TextInput label="Starts" type="date" value={startDate} onChange={(e) => setStartDate(e.currentTarget.value)} required />
+          <TextInput label="Ends (same day if blank)" type="date" value={endDate} min={startDate} onChange={(e) => setEndDate(e.currentTarget.value)} />
+        </Group>
+      )}
+      {isRouteFact && (
+        <Select
+          label="Chosen honeymoon route"
+          data={OPTIONS.map((o) => ({ value: o.id, label: o.name }))}
+          value={routeValue}
+          onChange={(v) => v && setRouteValue(v)}
+          allowDeselect={false}
+        />
+      )}
+      {type === 'vendor' && (
+        <>
+          <TextInput
+            label="Contact person"
+            value={contactPerson}
+            onChange={(e) => setContactPerson(e.currentTarget.value)}
+          />
+          <TextInput label="Phone" type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.currentTarget.value)} />
+          <TextInput label="Email" type="email" inputMode="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.currentTarget.value)} />
+        </>
+      )}
+      <Text size="xs" c="dimmed">
+        Saving this will be recorded in the audit log as a manual change by {profile?.display_name ?? 'you'}.
+      </Text>
+    </FormModal>
   );
 }

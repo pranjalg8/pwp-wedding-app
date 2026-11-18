@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Accordion, Alert, Badge, Box, Button, Container, Group, Loader, NumberInput, Paper, Select, SimpleGrid, Stack, Table, Tabs, Text, Title } from '@mantine/core';
+import { Accordion, Alert, Anchor, Badge, Box, Button, Container, Group, Loader, Paper, Select, SimpleGrid, Stack, Table, Tabs, Text, Title } from '@mantine/core';
 import { SECTIONS, SENSITIVE, timeLeft, type SectionKey } from '../lib/shareLinks';
 import { STATUS_COLOR as HOUSEHOLD_COLOR, STATUS_LABEL as HOUSEHOLD_LABEL, STATUS_ORDER } from '../lib/guestStatus';
+import { CountStepper } from '../components/CountStepper';
 import { OPTION_STATUS_COLOR, OPTION_STATUS_LABEL, OWNER_LABEL, STATUS_COLOR, STATUS_LABEL, formatInr } from '../lib/topicMeta';
 
 // What the share function sends back. It has already left out whatever the link does not allow.
@@ -24,6 +25,34 @@ function Hidden({ what }: { what: string }) {
     <Alert color="gray" variant="light" title="Not included in this link">
       The person who shared this chose not to include {what}.
     </Alert>
+  );
+}
+
+// A vendor contact as tappable links, so a phone can call or email straight from the page.
+function Contact({ c, size = 'xs' }: { c: Row | null | undefined; size?: 'xs' | 'sm' }) {
+  if (!c || !(c.person || c.phone || c.email)) return null;
+  const parts = [
+    c.person ? <span key="p">{c.person}</span> : null,
+    c.phone ? (
+      <Anchor key="t" href={`tel:${String(c.phone).replace(/[^\d+]/g, '')}`} size={size}>
+        {c.phone}
+      </Anchor>
+    ) : null,
+    c.email ? (
+      <Anchor key="e" href={`mailto:${c.email}`} size={size} style={{ wordBreak: 'break-all' }}>
+        {c.email}
+      </Anchor>
+    ) : null,
+  ].filter(Boolean);
+  return (
+    <Text size={size} component="div">
+      {parts.map((p, i) => (
+        <span key={i}>
+          {i > 0 && ' · '}
+          {p}
+        </span>
+      ))}
+    </Text>
   );
 }
 
@@ -118,6 +147,7 @@ function Tasks({ tasks, onStatus }: { tasks: unknown; onStatus?: Edits['taskStat
   const list = tasks as Row[];
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [savedId, setSavedId] = useState<string | null>(null);
   return (
     <Accordion variant="separated" radius="md">
       {list.map((t) => (
@@ -142,19 +172,22 @@ function Tasks({ tasks, onStatus }: { tasks: unknown; onStatus?: Edits['taskStat
               {onStatus && t.id && (
                 <Select
                   label="Status"
-                  size="sm"
-                  w={200}
+                  size="md"
+                  w={{ base: '100%', xs: 260 }}
                   allowDeselect={false}
                   disabled={busy === t.id}
                   value={t.status}
                   data={Object.entries(STATUS_LABEL).map(([value, label]) => ({ value, label }))}
-                  error={err && busy === null ? err : undefined}
+                  error={err && busy === null && savedId === null ? err : undefined}
+                  description={savedId === t.id ? 'Saved ✓' : undefined}
                   onChange={async (v) => {
                     if (!v || v === t.status) return;
                     setBusy(t.id);
                     setErr(null);
+                    setSavedId(null);
                     try {
                       await onStatus(t.id, v);
+                      setSavedId(t.id);
                     } catch {
                       setErr('Could not save that change. Please try again.');
                     } finally {
@@ -195,9 +228,7 @@ function Tasks({ tasks, onStatus }: { tasks: unknown; onStatus?: Edits['taskStat
                           {o.why_note}
                         </Text>
                       )}
-                      {o.contact && (o.contact.person || o.contact.phone || o.contact.email) && (
-                        <Text size="xs">{[o.contact.person, o.contact.phone, o.contact.email].filter(Boolean).join(' · ')}</Text>
-                      )}
+                      <Contact c={o.contact} />
                     </div>
                   </Group>
                 ))
@@ -250,64 +281,92 @@ function Functions({ fns }: { fns: unknown }) {
   );
 }
 
-function AnswerEditor({ persons, answer, onSave }: { persons: number; answer: Row; onSave: (c: Counts) => Promise<void> }) {
-  const [v, setV] = useState<Counts>({ coming: answer.coming, maybe: answer.maybe, declined: answer.declined });
+const ANSWER_FIELDS: { key: keyof Counts; label: string; hint: string; color: string }[] = [
+  { key: 'coming', label: 'Yes', hint: 'coming', color: 'teal' },
+  { key: 'maybe', label: 'Maybe', hint: 'not sure yet', color: 'yellow' },
+  { key: 'declined', label: 'No', hint: 'not coming', color: 'red' },
+];
+
+function AnswerEditor({ name, persons, answer, onSave }: { name: string; persons: number; answer: Row; onSave: (c: Counts) => Promise<void> }) {
+  const current: Counts = { coming: answer.coming, maybe: answer.maybe, declined: answer.declined };
+  // Only hold our own copy while the guest is changing something, so a refresh from the server shows through.
+  const [draft, setDraft] = useState<Counts | null>(null);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const dirty = v.coming !== answer.coming || v.maybe !== answer.maybe || v.declined !== answer.declined;
-  const over = v.coming + v.maybe + v.declined > persons;
-  const field = (key: keyof Counts, label: string) => (
-    <NumberInput
-      key={key}
-      label={label}
-      size="xs"
-      w={64}
-      min={0}
-      max={persons}
-      allowDecimal={false}
-      allowNegative={false}
-      value={v[key]}
-      onChange={(n) => setV((x) => ({ ...x, [key]: typeof n === 'number' ? n : 0 }))}
-    />
-  );
+  const [justSaved, setJustSaved] = useState(false);
+  const v = draft ?? current;
+  const dirty = v.coming !== current.coming || v.maybe !== current.maybe || v.declined !== current.declined;
+  const total = v.coming + v.maybe + v.declined;
+  const over = total > persons;
+
+  useEffect(() => {
+    if (!justSaved) return;
+    const t = setTimeout(() => setJustSaved(false), 4000);
+    return () => clearTimeout(t);
+  }, [justSaved]);
+
+  async function save() {
+    setSaving(true);
+    setErr(null);
+    try {
+      await onSave(v);
+      setDraft(null);
+      setJustSaved(true);
+    } catch {
+      setErr('That did not save. Please check your connection and try again.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
-    <Stack gap={4} mb="xs">
-      <Text size="xs" fw={600}>
-        {shortDay(answer.date)}
-      </Text>
-      <Group gap="xs" align="flex-end" wrap="nowrap">
-        {field('coming', 'Yes')}
-        {field('maybe', 'Maybe')}
-        {field('declined', 'No')}
-        <Button
-          size="xs"
-          disabled={!dirty || over}
-          loading={saving}
-          onClick={async () => {
-            setSaving(true);
-            setErr(null);
-            try {
-              await onSave(v);
-            } catch {
-              setErr('Could not save. Please try again.');
-              setSaving(false);
-            }
-          }}
-        >
-          Save
-        </Button>
-      </Group>
-      {over && (
-        <Text size="xs" c="red">
-          That is more than the {persons} people in this household.
-        </Text>
-      )}
-      {err && (
-        <Text size="xs" c="red">
-          {err}
-        </Text>
-      )}
-    </Stack>
+    <Paper withBorder radius="md" p="sm" mt="xs">
+      <Stack gap="sm">
+        <Group justify="space-between" wrap="nowrap" gap="xs">
+          <Text size="sm" fw={700}>
+            {day(answer.date)}
+          </Text>
+          <Text size="xs" c="dimmed">
+            {total} of {persons} answered
+          </Text>
+        </Group>
+        {ANSWER_FIELDS.map((f) => (
+          <CountStepper
+            key={f.key}
+            label={f.label}
+            hint={f.hint}
+            color={f.color}
+            value={v[f.key]}
+            canAdd={total < persons}
+            disabled={saving}
+            context={`${name} on ${shortDay(answer.date)}`}
+            onChange={(n) => {
+              setJustSaved(false);
+              setDraft({ ...v, [f.key]: n });
+            }}
+          />
+        ))}
+        {over && (
+          <Text size="sm" c="red">
+            That is more than the {persons} people in this household.
+          </Text>
+        )}
+        {err && (
+          <Text size="sm" c="red" role="alert">
+            {err}
+          </Text>
+        )}
+        {justSaved && !dirty ? (
+          <Text size="sm" c="teal" fw={600} ta="center" role="status" aria-live="polite" mih={44} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            Saved ✓ Thank you!
+          </Text>
+        ) : (
+          <Button fullWidth h={44} disabled={!dirty || over} loading={saving} onClick={save}>
+            {dirty ? 'Save answer' : 'No changes to save'}
+          </Button>
+        )}
+      </Stack>
+    </Paper>
   );
 }
 
@@ -384,7 +443,7 @@ function Guests({ g, onRsvp }: { g: Row; onRsvp?: Edits['rsvp'] }) {
                 <Stack gap={0} mt="sm">
                   {(h.answers as Row[]).map((a) =>
                     onRsvp && h.id ? (
-                      <AnswerEditor key={`${a.date}-${a.coming}-${a.maybe}-${a.declined}`} persons={h.persons} answer={a} onSave={(c) => onRsvp(h.id, a.date, c)} />
+                      <AnswerEditor key={a.date} name={h.name} persons={h.persons} answer={a} onSave={(c) => onRsvp(h.id, a.date, c)} />
                     ) : (
                       <Text key={a.date} size="xs">
                         {shortDay(a.date)}: {a.coming} yes, {a.maybe} maybe, {a.declined} no
@@ -552,7 +611,7 @@ function Vendors({ v }: { v: unknown }) {
                     {OPTION_STATUS_LABEL[x.status]}
                   </Badge>
                 </Table.Td>
-                <Table.Td>{x.contact ? [x.contact.person, x.contact.phone, x.contact.email].filter(Boolean).join(' · ') : '—'}</Table.Td>
+                <Table.Td>{x.contact && (x.contact.person || x.contact.phone || x.contact.email) ? <Contact c={x.contact} size="sm" /> : '—'}</Table.Td>
               </Table.Tr>
             ))}
           </Table.Tbody>
@@ -704,8 +763,8 @@ export function SharedView() {
             </Text>
           </Group>
           {(edits.taskStatus || edits.rsvp) && (
-            <Text size="xs" c="dimmed" mt={4}>
-              You can change {[edits.taskStatus ? 'task status' : null, edits.rsvp ? 'RSVP counts' : null].filter(Boolean).join(' and ')} here. Changes save straight away and are recorded under this link.
+            <Text size="sm" c="dimmed" mt={6}>
+              Welcome! You can update {[edits.taskStatus ? 'task status' : null, edits.rsvp ? 'how many people are coming' : null].filter(Boolean).join(' and ')} here. Changes are saved straight away and recorded under this link.
             </Text>
           )}
           {included.length > 0 && (

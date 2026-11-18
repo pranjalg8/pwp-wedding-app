@@ -334,12 +334,12 @@ export function Budget() {
                         <Group gap={6} wrap="nowrap">
                           <Text size="sm">{formatInr(p.amount)}</Text>
                           {isUnlocked && p.status === 'pending' && (
-                            <Button size="compact-xs" variant="light" onClick={() => void settle(p)}>
+                            <Button size="sm" variant="light" onClick={() => void settle(p)}>
                               Mark done
                             </Button>
                           )}
                           {isUnlocked && (
-                            <Button size="compact-xs" variant="subtle" onClick={() => setScheduleEditing(p)}>
+                            <Button size="sm" variant="subtle" onClick={() => setScheduleEditing(p)}>
                               Edit
                             </Button>
                           )}

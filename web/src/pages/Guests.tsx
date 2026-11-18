@@ -24,6 +24,7 @@ import { splitOf } from '../lib/rsvp';
 import { guestNightsOf } from '../lib/stay';
 import { householdsNeedingRooms } from '../lib/rooms';
 import { countByStatus, type HouseholdStatus } from '../lib/guestStatus';
+import { confirmDanger } from '../lib/confirm';
 
 type FunctionRef = { name: string; event_date: string; family_only: boolean };
 type Tab = 'overview' | 'households' | 'rooms' | 'replies' | 'dropped';
@@ -96,7 +97,12 @@ export function Guests() {
   }, []);
 
   async function remove(g: Guest) {
-    if (!window.confirm(`Remove ${g.name} (${g.persons} ${g.persons === 1 ? 'person' : 'people'}) from the list? This is recorded in the activity log.`)) return;
+    const ok = await confirmDanger({
+      title: `Remove ${g.name}?`,
+      message: `${g.name} (${g.persons} ${g.persons === 1 ? 'person' : 'people'}) will be taken off the guest list. This is recorded in the activity log.`,
+      confirmLabel: 'Remove household',
+    });
+    if (!ok) return;
     setError(null);
     const { error: err } = await supabase.from('guests').delete().eq('id', g.id);
     if (err) setError(err.message);
@@ -483,6 +489,7 @@ export function Guests() {
           guest={editing === 'new' ? null : editing}
           side="groom"
           nextOrder={nextOrder}
+          functionNames={fnRows.map((f) => f.name)}
           opened
           onClose={() => setEditing(null)}
           onSaved={load}
