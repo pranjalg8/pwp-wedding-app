@@ -80,14 +80,10 @@ begin
 end;
 $$;
 
--- (e) Audit retention (behaviour change): on the 1st of every month at 03:00 UTC, delete audit rows older than
--- 365 days, so the log does not grow without bound on the free tier. cron.schedule with an existing job name
--- updates that job, so this is safe to run again. To keep everything: select cron.unschedule('monthly-audit-retention');
-select cron.schedule(
-  'monthly-audit-retention',
-  '0 3 1 * *',
-  $$delete from public.audit_log where created_at < now() - interval '365 days'$$
-);
+-- (e) Audit retention is opt-in, so no history is deleted unless you choose to. If the free-tier database
+-- ever gets close to its size limit, run this once to delete audit rows older than a year every month:
+--   select cron.schedule('monthly-audit-retention', '0 3 1 * *',
+--     $$delete from public.audit_log where created_at < now() - interval '365 days'$$);
 
 -- (f) Every chat the sync has seen, once, with its latest name. The extraction script used to read chat_jid and
 -- chat_name from every message, which Supabase silently cut off at 1000 rows. messages_chat_idx (chat_jid,
