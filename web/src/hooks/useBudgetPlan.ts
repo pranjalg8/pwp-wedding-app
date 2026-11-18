@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useId, useState } from 'react';
+import { useCallback, useState } from 'react';
+import { useRealtime } from './useRealtime';
+import { getTopics } from '../lib/topics';
 import { supabase } from '../lib/supabase';
 import { splitByBudget, type AreaBudget, type BudgetSettings, type ItemMoney, type PaidRow, type Scheduled, type TopicRef, type Vendor } from '../lib/budgetPlan';
 
@@ -21,7 +23,6 @@ export function useBudgetPlan() {
   const [data, setData] = useState<Loaded>({ schedule: [], outside: [], vendors: [], settings: null, areas: [], paid: [], items: [], topics: [] });
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const channelName = `budget_plan_${useId()}`;
 
   const reload = useCallback(async () => {
     const [s, st, a, p, i, t, v] = await Promise.all([
@@ -30,7 +31,7 @@ export function useBudgetPlan() {
       supabase.from('budget_areas').select('id, topic_id, allocation'),
       supabase.from('payments').select('id, paid_on, payee, amount, topic_id, paridhi_amount, vendor_id'),
       supabase.from('planning_items').select('topic_id, status, amount, amount_kind, slug').not('amount', 'is', null),
-      supabase.from('topics').select('id, key, label, budget_group').order('sort_order'),
+      getTopics(),
       supabase.from('vendors').select('id, name, kind, planning_item_id, notes').order('name'),
     ]);
     // A failed load must not look like an empty budget: keep what is on screen and say so.
@@ -78,21 +79,7 @@ export function useBudgetPlan() {
     setLoaded(true);
   }, []);
 
-  useEffect(() => {
-    reload();
-    const channel = supabase
-      .channel(channelName)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'payment_schedule' }, reload)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'budget_settings' }, reload)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'budget_areas' }, reload)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, reload)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'planning_items' }, reload)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'vendors' }, reload)
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [reload, channelName]);
+  useRealtime(['payment_schedule', 'budget_settings', 'budget_areas', 'payments', 'planning_items', 'vendors'], reload, { immediate: true });
 
   return { ...data, loaded, loadError, reload };
 }

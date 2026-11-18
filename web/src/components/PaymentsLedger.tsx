@@ -1,9 +1,13 @@
-import { useEffect, useState } from 'react';
-import { Alert, Badge, Button, Group, Paper, Stack, Table, Text } from '@mantine/core';
+import { useState } from 'react';
+import { useRealtime } from '../hooks/useRealtime';
+import { ActionIcon, Alert, Badge, Group, Menu, Paper, Stack, Table, Text } from '@mantine/core';
 import { supabase } from '../lib/supabase';
 import { formatInr } from '../lib/topicMeta';
 import { useEditMode } from '../hooks/useEditMode';
 import { PaymentEditor, type Payment } from './PaymentEditor';
+import { confirmDanger } from '../lib/confirm';
+import { EditButton } from './EditButton';
+import { EmptyState } from './EmptyState';
 
 // Amounts come back from Postgres numeric as strings; add in paise so the total is exact.
 const paise = (n: number | string) => Math.round(Number(n) * 100);
@@ -22,19 +26,15 @@ export function PaymentsLedger({ topics = [], vendors = [] }: { topics?: { id: s
     setRows((data ?? []) as Payment[]);
   }
 
-  useEffect(() => {
-    load();
-    const channel = supabase
-      .channel('payments_ledger')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, load)
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
+  useRealtime(['payments'], load, { immediate: true });
 
   async function remove(p: Payment) {
-    if (!window.confirm(`Delete the ${formatInr(Number(p.amount))} payment to ${p.payee}? This is recorded in the activity log.`)) return;
+    const ok = await confirmDanger({
+      title: 'Delete this payment?',
+      message: `The ${formatInr(Number(p.amount))} payment to ${p.payee} will be removed from the ledger. This is recorded in the activity log.`,
+      confirmLabel: 'Delete payment',
+    });
+    if (!ok) return;
     setError(null);
     const { error: err } = await supabase.from('payments').delete().eq('id', p.id);
     if (err) setError(err.message);
@@ -52,11 +52,9 @@ export function PaymentsLedger({ topics = [], vendors = [] }: { topics?: { id: s
         <Text fw={700} fz="lg">Payments made</Text>
         <Group gap="sm">
           <Text fw={700}>{formatInr(total)}</Text>
-          {isUnlocked && (
-            <Button size="xs" variant="light" onClick={() => setEditing('new')}>
-              Add payment
-            </Button>
-          )}
+          <EditButton size="xs" variant="light" onClick={() => setEditing('new')}>
+            Add payment
+          </EditButton>
         </Group>
       </Group>
       <Text size="sm" c="dimmed">
@@ -96,14 +94,27 @@ export function PaymentsLedger({ topics = [], vendors = [] }: { topics?: { id: s
                   <Table.Td ta="right" fw={600}>{formatInr(Number(r.amount))}</Table.Td>
                   {isUnlocked && (
                     <Table.Td ta="right" style={{ whiteSpace: 'nowrap' }}>
-                      <Button size="compact-xs" variant="subtle" onClick={() => setEditing(r)}>Edit</Button>
-                      <Button size="compact-xs" variant="subtle" color="red" onClick={() => remove(r)}>Delete</Button>
+                      <Menu position="bottom-end" shadow="md" withinPortal>
+                        <Menu.Target>
+                          <ActionIcon variant="subtle" color="gray" size="lg" aria-label={`More actions for the payment to ${r.payee}`}>
+                            <span aria-hidden style={{ fontSize: 18, lineHeight: 1 }}>
+                              ⋯
+                            </span>
+                          </ActionIcon>
+                        </Menu.Target>
+                        <Menu.Dropdown>
+                          <Menu.Item onClick={() => setEditing(r)}>Edit payment</Menu.Item>
+                          <Menu.Item color="red" onClick={() => void remove(r)}>
+                            Delete payment
+                          </Menu.Item>
+                        </Menu.Dropdown>
+                      </Menu>
                     </Table.Td>
                   )}
                 </Table.Tr>
               ))}
               {rows.length === 0 && (
-                <Table.Tr><Table.Td colSpan={columns}><Text c="dimmed">No payments recorded yet.</Text></Table.Td></Table.Tr>
+                <Table.Tr><Table.Td colSpan={columns}><EmptyState compact emoji="🧾" title="No payments recorded yet" hint="Add a payment once money has gone out." /></Table.Td></Table.Tr>
               )}
             </Table.Tbody>
           </Table>

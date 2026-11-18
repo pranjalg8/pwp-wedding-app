@@ -1,7 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { getTopics } from '../lib/topics';
+import { fetchAll } from '../lib/fetchAll';
+import { useRealtime } from '../hooks/useRealtime';
 import { Link } from 'react-router-dom';
 import { usePendingSuggestions } from '../hooks/usePendingSuggestions';
-import { Badge, Box, Card, Group, Paper, RingProgress, SimpleGrid, Stack, Text, Title } from '@mantine/core';
+import { Badge, Card, Group, Paper, RingProgress, SimpleGrid, Stack, Text } from '@mantine/core';
+import { CountdownHero } from '../components/CountdownHero';
 import { supabase, type PlanningItem, type Topic } from '../lib/supabase';
 import { TOPIC_EMOJI, formatInr, formatInrCompact, summarizeMoney } from '../lib/topicMeta';
 import { usePlanFacts } from '../hooks/usePlanFacts';
@@ -47,8 +51,9 @@ export function Dashboard() {
 
   async function load() {
     const [{ data: topicsData }, { data: itemsData }, { data: synced }, { data: latest }] = await Promise.all([
-      supabase.from('topics').select('*').order('sort_order'),
-      supabase.from('planning_items').select('id, title, topic_id, status, amount, amount_kind, owner, due_date'),
+      getTopics(),
+      // Every planner item is counted here, and sync keeps adding them: page past the 1000-row cap.
+      fetchAll((from, to) => supabase.from('planning_items').select('id, title, topic_id, status, amount, amount_kind, owner, due_date').order('id').range(from, to)),
       supabase.from('sync_status').select('last_run_at').limit(1),
       supabase.from('messages').select('timestamp').order('timestamp', { ascending: false }).limit(1),
     ]);
@@ -58,16 +63,7 @@ export function Dashboard() {
     setLastMessage(latest?.[0]?.timestamp ?? null);
   }
 
-  useEffect(() => {
-    load();
-    const channel = supabase
-      .channel('planning_items_dashboard')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'planning_items' }, load)
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
+  useRealtime(['planning_items'], load, { immediate: true });
 
   const total = items.length;
   const settled = items.filter((i) => i.status === 'decided' || i.status === 'done').length;
@@ -86,24 +82,15 @@ export function Dashboard() {
 
   return (
     <Stack gap="lg">
-      <Box className="hero" c="white" p={{ base: 'lg', sm: 'xl' }} style={{ borderRadius: 'var(--mantine-radius-xl)' }}>
-        <Text size="sm" fw={600} style={{ letterSpacing: 1, opacity: 0.9 }} tt="uppercase">
-          {formatRange(dates.wedding, { full: true })}
-        </Text>
-        <Group align="baseline" gap="sm" mt={4}>
-          <Title order={1} c="white" fz={{ base: 48, sm: 64 }} lh={1}>
-            {days}
-          </Title>
-          <Text fz={{ base: 'lg', sm: 'xl' }} fw={500}>
-            days to go
-          </Text>
-        </Group>
-        <Text mt="sm" style={{ opacity: 0.95 }}>
-          {open === 0
+      <CountdownHero
+        eyebrow={formatRange(dates.wedding, { full: true })}
+        days={days}
+        note={
+          open === 0
             ? 'Everything is decided. Time to celebrate.'
-            : `${open} thing${open === 1 ? '' : 's'} still open across ${openAreas} area${openAreas === 1 ? '' : 's'}.`}
-        </Text>
-      </Box>
+            : `${open} thing${open === 1 ? '' : 's'} still open across ${openAreas} area${openAreas === 1 ? '' : 's'}.`
+        }
+      />
 
       {pendingSuggestions > 0 && (
         <Paper withBorder p="md" component={Link} to="/activity/suggestions" style={{ textDecoration: 'none', color: 'inherit', borderLeft: '4px solid var(--mantine-color-rose-5)' }}>

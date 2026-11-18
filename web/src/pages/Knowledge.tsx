@@ -1,5 +1,8 @@
-import { Fragment, useEffect, useMemo, useState, type ReactElement } from 'react';
+import { Fragment, useMemo, useState, type ReactElement } from 'react';
+import { useRealtime } from '../hooks/useRealtime';
 import { Card, Stack, Tabs, Text, TextInput, Title } from '@mantine/core';
+import { PageHeader } from '../components/PageHeader';
+import { EmptyState } from '../components/EmptyState';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
@@ -69,32 +72,26 @@ export function Knowledge() {
     setLoaded(true);
   }
 
-  useEffect(() => {
-    load();
-    const channel = supabase
-      .channel('kb_entries_page')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'kb_entries' }, load)
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
+  useRealtime(['kb_entries'], load, { immediate: true });
 
   const q = query.trim().toLowerCase();
   const hits = useMemo(() => (q ? entries.filter((e) => (e.title + '\n' + e.body).toLowerCase().includes(q)) : []), [entries, q]);
 
   return (
     <Stack gap="md" maw={820} mx="auto">
-      <Title order={2}>Knowledge</Title>
-      <Text size="sm" c="dimmed">
-        A short reference for the wedding: dates, stay and food, money rules and the home move. The planner is the source of
-        truth; if a page here disagrees with it, trust the planner.
-      </Text>
+      <PageHeader
+        title="Knowledge"
+        subtitle="A short reference for the wedding: dates, stay and food, money rules and the home move. The planner is the source of truth; if a page here disagrees with it, trust the planner."
+      />
       <TextInput placeholder="Search the knowledge base" value={query} onChange={(e) => setQuery(e.currentTarget.value)} />
-      {loaded && entries.length === 0 && <Text c="dimmed">Nothing here yet.</Text>}
+      {loaded && !q && entries.length === 0 && (
+        <EmptyState emoji="📚" title="Nothing here yet" hint="Reference pages for the wedding will show up here once they're written." />
+      )}
       {q ? (
         <Stack gap="sm">
-          {hits.length === 0 && <Text c="dimmed">No page mentions that.</Text>}
+          {loaded && hits.length === 0 && (
+            <EmptyState compact emoji="🔍" title="No page mentions that" hint="Try a shorter word, or check the spelling." />
+          )}
           {hits.map((e) => (
             <Card key={e.slug} withBorder p="md">
               <Text fw={700} mb={6}>{e.title}</Text>

@@ -1,12 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useDeferredValue, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Alert, Box, Button, Collapse, Group, Indicator, Menu, Paper, SegmentedControl, Select, Stack, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
 import { useEditMode } from '../hooks/useEditMode';
+import { EditButton } from '../components/EditButton';
 import { GuestEditor, type Guest } from '../components/GuestEditor';
 import { useGuestInvites } from '../hooks/useGuestInvites';
-import { BulkAnswerModal, BulkInviteModal, RsvpEditor, daysFromFunctions, restoreInvites, type InviteSnapshot } from '../components/RsvpEditor';
+import { BulkAnswerModal, BulkInviteModal, RsvpEditor } from '../components/RsvpEditor';
+import { restoreInvites, type InviteSnapshot } from '../lib/rsvpRestore';
 import { DroppedGuests } from '../components/DroppedGuests';
 import { UndoMessage } from '../components/UndoMessage';
 import { RoomCeiling } from '../components/RoomCeiling';
@@ -20,10 +22,14 @@ import { latestNew } from '../lib/replies';
 import { GuestsOverview } from '../components/GuestsOverview';
 import { HouseholdList, type GuestContact } from '../components/HouseholdList';
 import { useStay } from '../hooks/useStay';
-import { splitOf } from '../lib/rsvp';
+import { daysFromFunctions, splitOf } from '../lib/rsvp';
 import { guestNightsOf } from '../lib/stay';
 import { householdsNeedingRooms } from '../lib/rooms';
 import { countByStatus, type HouseholdStatus } from '../lib/guestStatus';
+import { confirmDanger } from '../lib/confirm';
+import { useRealtime } from '../hooks/useRealtime';
+import { fetchAll } from '../lib/fetchAll';
+import { contactTextByGuest, guestMatches } from '../lib/guestSearch';
 
 type FunctionRef = { name: string; event_date: string; family_only: boolean };
 type Tab = 'overview' | 'households' | 'rooms' | 'replies' | 'dropped';
@@ -63,40 +69,39 @@ export function Guests() {
   const roomsView = (['plan', 'board', 'list'] as const).find((v) => v === params.get('view')) ?? 'plan';
   const days = useMemo(() => daysFromFunctions(fnRows), [fnRows]);
 
-  async function loadFunctions() {
+  async function loadFunctions(isActive: () => boolean = () => true) {
     const { data } = await supabase.from('wedding_functions').select('name, event_date, family_only').order('sort_order');
-    setFnRows((data ?? []) as FunctionRef[]);
+    if (isActive()) setFnRows((data ?? []) as FunctionRef[]);
   }
 
-  async function loadContacts() {
-    const { data } = await supabase.from('guest_contacts').select('id, guest_id, person, kind, value, rank');
-    setContacts((data ?? []) as GuestContact[]);
+  async function loadContacts(isActive: () => boolean = () => true) {
+    const { data } = await fetchAll((from, to) => supabase.from('guest_contacts').select('id, guest_id, person, kind, value, rank').order('id').range(from, to));
+    if (isActive()) setContacts((data ?? []) as GuestContact[]);
   }
 
-  async function load() {
-    const { data, error: err } = await supabase.from('guests').select('*').order('sort_order');
-    if (err) setError(err.message);
-    setGuests((data ?? []) as Guest[]);
-    const { count } = await supabase.from('guests_dropped').select('id', { count: 'exact', head: true });
-    setDroppedCount(count ?? 0);
+  // The list and the dropped count load side by side; a reply after the page has gone is dropped.
+  async function load(isActive: () => boolean = () => true) {
+    const [g, d] = await Promise.all([
+      fetchAll((from, to) => supabase.from('guests').select('*').order('sort_order').order('id').range(from, to)),
+      supabase.from('guests_dropped').select('id', { count: 'exact', head: true }),
+    ]);
+    if (!isActive()) return;
+    if (g.error) setError(g.error.message);
+    else setGuests((g.data ?? []) as Guest[]);
+    setDroppedCount(d.count ?? 0);
   }
 
-  useEffect(() => {
-    load();
-    loadFunctions();
-    loadContacts();
-    const channel = supabase
-      .channel('guests_page')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'guests' }, load)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'guest_contacts' }, loadContacts)
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
+  useRealtime(['guests'], load, { immediate: true });
+  useRealtime(['guest_contacts'], loadContacts, { immediate: true });
+  useRealtime(['wedding_functions'], loadFunctions, { immediate: true });
 
   async function remove(g: Guest) {
-    if (!window.confirm(`Remove ${g.name} (${g.persons} ${g.persons === 1 ? 'person' : 'people'}) from the list? This is recorded in the activity log.`)) return;
+    const ok = await confirmDanger({
+      title: `Remove ${g.name}?`,
+      message: `${g.name} (${g.persons} ${g.persons === 1 ? 'person' : 'people'}) will be taken off the guest list. This is recorded in the activity log.`,
+      confirmLabel: 'Remove household',
+    });
+    if (!ok) return;
     setError(null);
     const { error: err } = await supabase.from('guests').delete().eq('id', g.id);
     if (err) setError(err.message);
@@ -105,6 +110,9 @@ export function Guests() {
 
   const groups = useMemo(() => [...new Set(guests.map((g) => g.list_group).filter((x): x is string => !!x))], [guests]);
   const { counts, statusById } = useMemo(() => countByStatus(guests, invites), [guests, invites]);
+  // Built once per contacts change rather than scanning every contact for every guest on every keystroke.
+  const contactText = useMemo(() => contactTextByGuest(contacts), [contacts]);
+  const deferredQuery = useDeferredValue(query);
   const answeredCount = counts.coming.households + counts.maybe.households + counts.declined.households;
 
   const visible = useMemo(
@@ -116,15 +124,8 @@ export function Guests() {
         })
         .filter((g) => group === 'all' || g.list_group === group)
         .filter((g) => !priority || (priority === 'none' ? g.priority === null : String(g.priority) === priority))
-        .filter((g) => {
-          const q = query.trim().toLowerCase();
-          return (
-            !q ||
-            [g.name, g.family_members, g.location, g.relation].some((v) => v?.toLowerCase().includes(q)) ||
-            contacts.some((c) => c.guest_id === g.id && (c.value.toLowerCase().includes(q) || c.person.toLowerCase().includes(q)))
-          );
-        }),
-    [guests, group, priority, query, view, statusById, contacts]
+        .filter((g) => guestMatches(g, deferredQuery.trim().toLowerCase(), contactText)),
+    [guests, group, priority, deferredQuery, view, statusById, contactText]
   );
 
   // Households that need rooms and are not fully placed yet: the number on the Rooms tab and the Overview.
@@ -235,7 +236,7 @@ export function Guests() {
               <Menu.Item onClick={() => setTab('dropped')}>Dropped from earlier list ({droppedCount})</Menu.Item>
             </Menu.Dropdown>
           </Menu>
-          {isUnlocked && <Button onClick={() => setEditing('new')}>Add household</Button>}
+          <EditButton onClick={() => setEditing('new')}>Add household</EditButton>
         </Group>
       </Group>
 
@@ -252,7 +253,7 @@ export function Guests() {
               ← Back to guests
             </Button>
           </Group>
-          <DroppedGuests onChanged={load} />
+          <DroppedGuests onChanged={() => void load()} />
         </Stack>
       ) : (
         <>
@@ -483,9 +484,10 @@ export function Guests() {
           guest={editing === 'new' ? null : editing}
           side="groom"
           nextOrder={nextOrder}
+          functionNames={fnRows.map((f) => f.name)}
           opened
           onClose={() => setEditing(null)}
-          onSaved={load}
+          onSaved={() => void load()}
         />
       )}
 

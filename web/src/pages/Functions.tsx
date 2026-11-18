@@ -1,6 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useRealtime } from '../hooks/useRealtime';
 import { Link } from 'react-router-dom';
-import { Button, Group, Modal, Select, SimpleGrid, Stack, Text, TagsInput, Textarea, TextInput, Title } from '@mantine/core';
+import { Button, Group, Modal, Select, SimpleGrid, Stack, Text, TagsInput, Textarea, TextInput } from '@mantine/core';
+import { PageHeader } from '../components/PageHeader';
+import { EmptyState } from '../components/EmptyState';
+import { LoadError, PageSkeleton } from '../components/PageSkeleton';
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
 import { useEditMode } from '../hooks/useEditMode';
@@ -58,38 +62,37 @@ export function Functions() {
   const [rows, setRows] = useState<WeddingFunction[]>([]);
   const [outfits, setOutfits] = useState<OutfitOption[]>([]);
   const [editing, setEditing] = useState<WeddingFunction | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   async function load() {
     const [fns, opts] = await Promise.all([
       supabase.from('wedding_functions').select('*').order('sort_order'),
       supabase.from('task_options').select('name, status, tasks!inner(title)').ilike('tasks.title', 'Groom outfits%'),
     ]);
+    // A failed load must not look like "no functions": keep what is on screen and say so.
+    setLoadError(fns.error?.message ?? null);
+    if (fns.error) return;
     setRows((fns.data ?? []) as WeddingFunction[]);
     setOutfits(((opts.data ?? []) as OutfitOption[]).map((o) => ({ name: o.name, status: o.status })));
+    setLoaded(true);
   }
 
-  useEffect(() => {
-    load();
-    const channel = supabase
-      .channel('wedding_functions')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'wedding_functions' }, load)
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
+  useRealtime(['wedding_functions'], load, { immediate: true });
 
   const days = [...new Set(rows.map((r) => r.event_date))];
 
   return (
     <Stack gap="xl">
-      <Group justify="space-between" align="center">
-        <Title order={2}>Functions</Title>
+      <PageHeader
+        title="Functions"
+        action={
         <Group gap="xs">
           <Button component={Link} to="/functions/results" variant="light" color="rose" size="sm">Results</Button>
           <Button component={Link} to="/functions/swipe" color="rose" size="sm">Pick looks together</Button>
         </Group>
-      </Group>
+        }
+      />
       {days.map((d) => (
         <Stack key={d} gap="sm">
           <Text fw={700} c="dimmed" tt="uppercase" size="sm">
@@ -111,7 +114,11 @@ export function Functions() {
           </SimpleGrid>
         </Stack>
       ))}
-      {rows.length === 0 && <Text c="dimmed">No functions yet.</Text>}
+      {loadError && <LoadError message={loadError} onRetry={() => void load()} />}
+      {!loaded && !loadError && <PageSkeleton cards={3} />}
+      {loaded && !loadError && rows.length === 0 && (
+        <EmptyState emoji="🪔" title="No functions yet" hint="Once the wedding events are set up, each one shows here with its date, venue and RSVPs." />
+      )}
       {isUnlocked && editing && <Editor key={editing.id} fn={editing} onClose={() => setEditing(null)} onSaved={load} />}
     </Stack>
   );

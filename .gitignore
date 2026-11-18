@@ -9,3 +9,4 @@ sync/cursors.local.json
 
 # Supabase CLI scratch files
 supabase/.temp/
+.claude/worktrees/

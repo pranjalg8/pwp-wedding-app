@@ -23,6 +23,9 @@ const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
 
 const CURSOR_FILE = path.join(import.meta.dirname, 'cursors.local.json');
 const GROUP_NAME_PREFIX = 'PwP'; // discover groups by name, not a hardcoded JID list
+const CHAT_NAMES_KEY = '_chatNames';
+const EDGE_IDS_KEY = '_edgeMsgIds';
+const UPSERT_BATCH = 500;
 
 function loadCursors() {
   if (!existsSync(CURSOR_FILE)) return {};
@@ -84,23 +87,51 @@ async function main() {
   const perGroupCounts = [];
 
   try {
+    // Extra bookkeeping kept in the cursor file next to the per-chat timestamps (keys that are not JIDs):
+    //   CHAT_NAMES_KEY  the group name last written to messages.chat_name, so the rename runs only when it changes
+    //   EDGE_IDS_KEY    the ids of the messages at each chat's cursor timestamp (see the rewind below)
+    const names = (cursors[CHAT_NAMES_KEY] ??= {});
+    const edgeIds = (cursors[EDGE_IDS_KEY] ??= {});
     for (const g of groups) {
       const jid = g.JID;
       const after = cursors[jid];
       // wacli's per-message ChatName is sometimes the raw JID; the group list has the real name.
-      await supabase.from('messages').update({ chat_name: g.Name }).eq('chat_jid', jid).neq('chat_name', g.Name);
+      if (names[jid] !== g.Name) {
+        const { error: renameError } = await supabase.from('messages').update({ chat_name: g.Name }).eq('chat_jid', jid).neq('chat_name', g.Name);
+        if (renameError) console.error(`Chat name update failed for ${g.Name}:`, renameError.message);
+        else names[jid] = g.Name;
+      }
 
-      const messages = exportMessagesSince(jid, after, tmpDir);
+      // Timestamps are whole seconds and --after is exclusive, so a message that arrived in the same second as the
+      // cursor, after the last run, would never be exported. Ask from one second earlier and drop what was already
+      // synced: anything before the cursor, and the messages at the cursor second that the last run saw.
+      const seen = new Set(edgeIds[jid] ?? []);
+      const afterMs = after ? Date.parse(after) : NaN;
+      const exportAfter = Number.isNaN(afterMs) ? after : new Date(afterMs - 1000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+      const messages = exportMessagesSince(jid, exportAfter, tmpDir).filter((m) => {
+        if (Number.isNaN(afterMs)) return true;
+        const t = Date.parse(m.Timestamp);
+        return t > afterMs || (t === afterMs && !seen.has(m.MsgID));
+      });
       if (messages.length === 0) continue;
 
+      // Upsert in batches: one request with thousands of rows can time out on the free tier.
       const rows = messages.map((m) => toRow(m, g.Name));
-      const { error } = await supabase.from('messages').upsert(rows, { onConflict: 'msg_id' });
-      if (error) {
-        console.error(`Upsert failed for ${g.Name}:`, error.message);
+      let failed = null;
+      for (let i = 0; i < rows.length && !failed; i += UPSERT_BATCH) {
+        const { error } = await supabase.from('messages').upsert(rows.slice(i, i + UPSERT_BATCH), { onConflict: 'msg_id' });
+        if (error) failed = error;
+      }
+      if (failed) {
+        // The cursor is not moved, so the next run tries the whole set again; the upsert makes that safe.
+        console.error(`Upsert failed for ${g.Name}:`, failed.message);
         continue;
       }
 
       const latest = messages.reduce((max, m) => (m.Timestamp > max ? m.Timestamp : max), after || '');
+      const latestMs = Date.parse(latest);
+      const atLatest = messages.filter((m) => Date.parse(m.Timestamp) === latestMs).map((m) => m.MsgID);
+      edgeIds[jid] = latestMs === afterMs ? [...seen, ...atLatest] : atLatest;
       cursors[jid] = latest;
       totalNew += rows.length;
       perGroupCounts.push(`${g.Name}: ${rows.length}`);
