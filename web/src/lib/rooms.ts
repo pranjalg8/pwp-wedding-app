@@ -49,6 +49,8 @@ export type RoomGuest = {
   rooms_outside: number | string;
   needs_lift?: boolean;
   family_members?: string | null;
+  arrive_on?: string | null; // when the household said it arrives and leaves; empty = it follows its guest days
+  leave_on?: string | null;
   sort_order: number;
 };
 
@@ -88,6 +90,7 @@ export type Household = {
   people: number; // people who might come: the household minus those who said no
   roomsNeeded: number; // whole rooms (a half room still takes a room)
   mainRooms: number; // of roomsNeeded, the ones meant for the main stay; the rest go elsewhere
+  halfRoom: boolean; // the list gives it half a room, so it can share with another such household
   nights: string[]; // the nights it is there; every night when it is not invited yet
   firstNight: string | null;
 };
@@ -101,7 +104,16 @@ export function householdsNeedingRooms(guests: RoomGuest[], invites: Inv[], allN
     const roomsNeeded = Math.ceil(need.main + need.other - 0.001);
     if (roomsNeeded <= 0) continue;
     const mainRooms = Math.min(roomsNeeded, Math.ceil(need.main - 0.001));
-    out.push({ g, people: need.people, roomsNeeded, mainRooms, nights: need.nights, firstNight: need.firstNight });
+    const own = g.arrive_on && g.leave_on ? nightsBetween(g.arrive_on, g.leave_on) : null;
+    out.push({
+      g,
+      people: need.people,
+      roomsNeeded,
+      mainRooms,
+      halfRoom: need.main + need.other <= 0.5 + 0.001,
+      nights: own ?? need.nights,
+      firstNight: own?.[0] ?? need.firstNight,
+    });
   }
   return out;
 }
@@ -116,7 +128,8 @@ export function stateOf(roomsPlaced: number, roomsNeeded: number): HouseholdStat
 
 // nights = the nights the household is in this room (its own dates, or its guest nights plus extra nights);
 // baseNights = the guest nights alone.
-export type Occupant = { stay: RoomStay; guest: RoomGuest; people: number; nights: string[]; baseNights: string[]; firstNight: string | null };
+// needed = false: the household no longer needs a room (everyone declined, or it is not invited any more).
+export type Occupant = { stay: RoomStay; guest: RoomGuest; people: number; nights: string[]; baseNights: string[]; firstNight: string | null; needed: boolean };
 
 // Who sleeps in each room: the households in it, how many people each puts there, and the nights they are there.
 export function occupantsByRoom(stays: RoomStay[], households: Household[], guests: RoomGuest[], allNights: string[]) {
@@ -135,7 +148,7 @@ export function occupantsByRoom(stays: RoomStay[], households: Household[], gues
     const list = out.get(s.room_id) ?? [];
     const baseNights = h?.nights ?? allNights;
     const nights = stayNights(s, baseNights);
-    list.push({ stay: s, guest, people, nights, baseNights, firstNight: nights[0] ?? null });
+    list.push({ stay: s, guest, people, nights, baseNights, firstNight: nights[0] ?? null, needed: !!h });
     out.set(s.room_id, list);
   }
   return out;
@@ -143,7 +156,12 @@ export function occupantsByRoom(stays: RoomStay[], households: Household[], gues
 
 // ---- Fill rooms and Suggest layout: put households into rooms that are free on all their nights ----
 
-export type AutoPlace = { rows: { guest_id: string; room_id: string }[]; short: { guest_id: string; rooms: number }[] };
+// tight: rooms that would hold more people than they are set for, because no free room was big enough.
+export type AutoPlace = {
+  rows: { guest_id: string; room_id: string }[];
+  short: { guest_id: string; rooms: number }[];
+  tight: { guest_id: string; room_id: string; people: number; capacity: number }[];
+};
 
 const floorOf = (r: StayRoom) => r.floor ?? 0;
 
@@ -175,7 +193,9 @@ function pickRooms(free: StayRoom[], count: number, order: Map<string, number>, 
 // smaller, then by priority. Main-stay rooms go to the main place first and the rest to the other places first, in the
 // places' order. A room is used only when it is open and empty on every night the household is there, and a household
 // needing a lift only goes where there is one. A household is kept at one place when one place has all the rooms it
-// still needs, and its rooms sit together. Rooms already placed (occ) stay as they are; nothing is moved.
+// still needs, and its rooms sit together. Within the places meant for it, rooms big enough for the household come
+// first; a household that fits nowhere is still placed and reported in tight. Two half-room households with the same
+// nights share a room when they fit. Rooms already placed (occ) stay as they are; nothing is moved.
 export function autoPlace(households: Household[], rooms: StayRoom[], sites: StaySite[], occ: Map<string, Occupant[]>, placed: Map<string, number>): AutoPlace {
   const busy = new Map<string, Set<string>>();
   for (const [roomId, list] of occ) busy.set(roomId, new Set(list.flatMap((o) => o.nights)));
@@ -208,28 +228,49 @@ export function autoPlace(households: Household[], rooms: StayRoom[], sites: Sta
 
   const rows: AutoPlace['rows'] = [];
   const short: AutoPlace['short'] = [];
+  const tight: AutoPlace['tight'] = [];
+  const openHalves: { room: StayRoom; people: number; nights: string }[] = [];
   for (const h of todo) {
     const have = placed.get(h.g.id) ?? 0;
     const mainLeft = Math.max(0, h.mainRooms - have);
     const otherLeft = h.roomsNeeded - have - mainLeft;
     const free = (siteId: string) => bySite(siteId).filter((r) => h.nights.every((n) => roomOpenOn(r, n) && !busy.get(r.id)?.has(n)));
-    const take = (count: number, siteOrder: StaySite[]) => {
+    const perRoom = Math.ceil(h.people / Math.max(1, h.roomsNeeded));
+    const fits = (r: StayRoom) => r.capacity >= perRoom;
+    const take = (count: number, siteOrder: StaySite[], meantFor: StaySite[]) => {
       if (count <= 0) return 0;
       const usable = siteOrder.filter((s) => !h.g.needs_lift || s.has_lift);
+      const nightsKey = h.nights.join('|');
+      if (h.halfRoom && count === 1) {
+        const i = openHalves.findIndex((o) => o.nights === nightsKey && o.people + h.people <= o.room.capacity && usable.some((s) => s.id === o.room.site_id));
+        if (i >= 0) {
+          rows.push({ guest_id: h.g.id, room_id: openHalves[i].room.id });
+          openHalves.splice(i, 1);
+          return 0;
+        }
+      }
+      const low = !!h.g.needs_lift;
+      const roomy = usable.find((s) => meantFor.some((m) => m.id === s.id) && free(s.id).filter(fits).length >= count);
       const whole = usable.find((s) => free(s.id).length >= count);
-      const picks = whole ? pickRooms(free(whole.id), count, order, !!h.g.needs_lift) : pickRooms(usable.flatMap((s) => free(s.id)), count, order, !!h.g.needs_lift);
+      const picks = roomy
+        ? pickRooms(free(roomy.id).filter(fits), count, order, low)
+        : whole
+          ? pickRooms(free(whole.id), count, order, low)
+          : pickRooms(usable.flatMap((s) => free(s.id)), count, order, low);
       for (const r of picks) {
         rows.push({ guest_id: h.g.id, room_id: r.id });
+        if (!fits(r)) tight.push({ guest_id: h.g.id, room_id: r.id, people: perRoom, capacity: r.capacity });
+        if (h.halfRoom) openHalves.push({ room: r, people: h.people, nights: nightsKey });
         const set = busy.get(r.id) ?? new Set<string>();
         h.nights.forEach((n) => set.add(n));
         busy.set(r.id, set);
       }
       return count - picks.length;
     };
-    const left = take(mainLeft, [...main, ...other]) + take(otherLeft, [...other, ...main]);
+    const left = take(mainLeft, [...main, ...other], main) + take(otherLeft, [...other, ...main], other);
     if (left > 0) short.push({ guest_id: h.g.id, rooms: left });
   }
-  return { rows, short };
+  return { rows, short, tight };
 }
 
 export type LayoutChange = { guest_id: string; from: string[]; to: string[] }; // room ids before and after
@@ -240,6 +281,7 @@ export type Suggestion = {
   kept: number; // households that stay exactly where they are
   fixed: number; // stays the suggestion leaves alone (pinned, or with their own details)
   short: AutoPlace['short'];
+  tight: AutoPlace['tight'];
 };
 
 // Plan the layout around the fixed stays: pinned stays, and stays with their own head count, dates or extra nights,
@@ -319,10 +361,10 @@ export function suggestLayout(
     removeIds.push(...freeStays.filter((s) => s.guest_id === id).map((s) => s.id));
     rows.push(...to.map((room_id) => ({ guest_id: id, room_id })));
   }
-  return { rows, removeIds, changes, kept, fixed: fixedStays.length, short: plan.short };
+  return { rows, removeIds, changes, kept, fixed: fixedStays.length, short: plan.short, tight: plan.tight };
 }
 
-export type RoomIssue = 'over' | 'stairs' | 'not_open' | 'shared';
+export type RoomIssue = 'over' | 'stairs' | 'not_open' | 'not_needed' | 'shared';
 
 // What is worth a look in a room. "over" is the most people on any night against its capacity; "stairs" is a household
 // that cannot manage stairs in a place without a lift; "not_open" is a household with a night when the room is not open;
@@ -333,6 +375,7 @@ export function roomIssues(room: StayRoom, site: StaySite | undefined, occupants
   if (worst > room.capacity) issues.push('over');
   if (site && !site.has_lift && occupants.some((o) => o.guest.needs_lift)) issues.push('stairs');
   if (occupants.some((o) => o.nights.some((n) => !roomOpenOn(room, n)))) issues.push('not_open');
+  if (occupants.some((o) => !o.needed)) issues.push('not_needed');
   if (occupants.length > 1) issues.push('shared');
   return issues;
 }
@@ -341,6 +384,7 @@ export const ISSUE_TEXT: Record<RoomIssue, string> = {
   over: 'More people than the room holds',
   stairs: 'Needs a lift, but this place has none',
   not_open: 'Stays a night when the room is not open',
+  not_needed: 'This household no longer needs a room',
   shared: 'Shared by more than one household',
 };
 

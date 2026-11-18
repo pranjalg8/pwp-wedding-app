@@ -142,15 +142,23 @@ export function InviteReplies({
         if (error) throw new Error(error.message);
       }
       const mine = roomStays.filter((s) => s.guest_id === r.guest_id);
-      if (r.arrive_on && r.leave_on && mine.length > 0) {
-        const { error } = await supabase
-          .from('room_stays')
-          .update({ check_in: r.arrive_on, check_out: r.leave_on, extra_nights: [] })
-          .in('id', mine.map((s) => s.id));
+      if (r.arrive_on && r.leave_on) {
+        // Kept on the household, so the dates apply whenever it is placed. Stays with their own dates follow them.
+        const { error } = await supabase.from('guests').update({ arrive_on: r.arrive_on, leave_on: r.leave_on }).eq('id', r.guest_id);
+        if (error) throw new Error(error.message);
+        const dated = mine.filter((s) => s.check_in);
+        if (dated.length > 0) {
+          const { error: e2 } = await supabase.from('room_stays').update({ check_in: r.arrive_on, check_out: r.leave_on }).in('id', dated.map((s) => s.id));
+          if (e2) throw new Error(e2.message);
+        }
+      }
+      const nobodyComing = plan.rows.length > 0 && plan.rows.every((x) => x.coming + x.maybe === 0);
+      if (nobodyComing && mine.length > 0 && window.confirm(`${g.name} can't come. Free the ${mine.length === 1 ? 'room' : `${mine.length} rooms`} held for them?`)) {
+        const { error } = await supabase.from('room_stays').delete().in('id', mine.map((s) => s.id));
         if (error) throw new Error(error.message);
       }
       await review(r, 'applied');
-      notifications.show({ color: 'teal', title: 'Reply applied', message: `${g.name}: answers updated${r.arrive_on && r.leave_on && mine.length > 0 ? ', room dates set' : ''}.` });
+      notifications.show({ color: 'teal', title: 'Reply applied', message: `${g.name}: answers updated${r.arrive_on && r.leave_on ? ', stay dates saved' : ''}.` });
       onApplied();
     } catch (e) {
       fail('Could not apply', (e as Error).message);
@@ -265,7 +273,7 @@ export function InviteReplies({
                     {r.travel ? `${r.arrive_on || r.leave_on ? ' · ' : ''}${r.travel}` : ''}
                     {r.arrive_on && r.leave_on ? (
                       <Text span size="xs" c="dimmed">
-                        {placed ? ' (Apply sets these dates on their rooms)' : ' (not in a room yet; dates stay on this reply)'}
+                        {placed ? ' (Apply updates their room dates)' : ' (Apply saves these for when they get a room)'}
                       </Text>
                     ) : null}
                   </Text>

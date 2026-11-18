@@ -104,6 +104,12 @@ export function RoomSuggestModal({
               · {short} room{short === 1 ? '' : 's'} still short
             </Text>
           )}
+          {out.tight.length > 0 && (
+            <Text span c="orange">
+              {' '}
+              · {out.tight.length} room{out.tight.length === 1 ? '' : 's'} over the set number of people
+            </Text>
+          )}
         </Text>
         {out.changes.length > 0 && (
           <ScrollArea.Autosize mah={300} type="auto" offsetScrollbars>

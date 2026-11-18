@@ -9,8 +9,8 @@ const KIND: Record<string, string> = { venue: 'Venue', hotel: 'Hotel', caterer: 
 // Who the money goes to: each vendor's payment lines from the Budget page, paid and still to pay. Lines are linked
 // to a vendor in the Budget page's payment form.
 export function VendorTotals() {
-  const { schedule, outside, vendors, loaded } = useBudgetPlan();
-  const rows = useMemo(() => vendorTotals(vendors, [...schedule, ...outside]), [vendors, schedule, outside]);
+  const { schedule, outside, vendors, paid, loaded } = useBudgetPlan();
+  const rows = useMemo(() => vendorTotals(vendors, [...schedule, ...outside], paid), [vendors, schedule, outside, paid]);
   if (!loaded || vendors.length === 0) return null;
   return (
     <Stack gap="sm">
@@ -47,7 +47,7 @@ export function VendorTotals() {
         </Table.ScrollContainer>
       </Paper>
       <Text size="xs" c="dimmed">
-        From the Budget page's payments. Pick a vendor in a payment's form to add it here.
+        Paid comes from the payments recorded on the Budget page. Pick a vendor in a payment's form to add it here.
       </Text>
     </Stack>
   );

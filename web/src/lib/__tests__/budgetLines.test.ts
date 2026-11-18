@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildPlan, lineAmount, splitByBudget, vendorTotals, type BudgetSettings, type Vendor } from '../budgetPlan';
+import { afterPartPayment, buildPlan, lineAmount, splitByBudget, vendorTotals, type BudgetSettings, type Vendor } from '../budgetPlan';
 import { line } from './fixtures';
 
 const vendor = (id: string, name: string): Vendor => ({ id, name, kind: 'hotel', planning_item_id: null, notes: null });
@@ -51,5 +51,25 @@ describe('vendorTotals', () => {
       ['sai', 0, 120500, 1],
       ['rp', 0, 0, 0],
     ]);
+  });
+});
+
+describe('vendor payments from the ledger', () => {
+  it('counts ledger payments once, even when a paid line links to one, and adds lines settled without a payment', () => {
+    const rows = [
+      line({ id: 'rings', amount: 292500, due_date: '2026-10-30', vendor_id: 'm', status: 'paid', paid_payment_id: 'p1' }),
+      line({ id: 'nath', amount: 175000, due_date: '2026-11-21', vendor_id: 'm' }),
+      line({ id: 'parents', amount: 9000, due_date: '2026-11-21', vendor_id: 'm', status: 'paid', paid_payment_id: null }),
+    ];
+    const ledger = [{ vendor_id: 'm', amount: 900000 }, { vendor_id: 'm', amount: 292500 }, { vendor_id: null, amount: 96525 }];
+    const [out] = vendorTotals([vendor('m', 'Malabar')], rows, ledger);
+    expect(out.paid).toBe(900000 + 292500 + 9000);
+    expect(out.pending).toBe(175000);
+  });
+});
+
+describe('afterPartPayment', () => {
+  it('leaves the balance, keeps the share in proportion, and clears quantity x rate', () => {
+    expect(afterPartPayment({ amount: 35000, paridhi_amount: 7000 }, 10000)).toEqual({ amount: 25000, paridhi_amount: 5000, quantity: null, unit: null, rate: null });
   });
 });

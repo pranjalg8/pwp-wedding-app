@@ -57,7 +57,7 @@ export function Guests() {
   const [contacts, setContacts] = useState<GuestContact[]>([]);
   const { invites, totals, reload: reloadInvites } = useGuestInvites();
   const { sites, nights } = useStay();
-  const { rooms: stayRooms, roomStays, reload: reloadRoomBoard } = useRoomBoard();
+  const { rooms: stayRooms, roomStays, loadError: roomsError, reload: reloadRoomBoard } = useRoomBoard();
   const inviteReplies = useInviteReplies();
   const repliesToReview = useMemo(() => latestNew(inviteReplies.replies).length, [inviteReplies.replies]);
   const roomsView = (['plan', 'board', 'list'] as const).find((v) => v === params.get('view')) ?? 'plan';
@@ -438,6 +438,7 @@ export function Guests() {
               settings={inviteReplies.settings}
               reload={inviteReplies.reload}
               onApplied={() => {
+                void load();
                 void reloadInvites();
                 void reloadRoomBoard();
               }}
@@ -446,6 +447,11 @@ export function Guests() {
 
           {tab === 'rooms' && (
             <Stack gap="lg">
+              {roomsError && (
+                <Alert color="red" variant="light" title="The rooms could not be loaded">
+                  What you see may be out of date. Check your connection and reload the page.
+                </Alert>
+              )}
               <SegmentedControl
                 size="xs"
                 value={roomsView}

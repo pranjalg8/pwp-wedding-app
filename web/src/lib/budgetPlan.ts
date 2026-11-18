@@ -36,7 +36,7 @@ export type BudgetSettings = {
 };
 
 export type AreaBudget = { id: string; topic_id: string; allocation: number };
-export type PaidRow = { id: string; paid_on: string; amount: number; topic_id: string | null; paridhi_amount: number; payee?: string | null };
+export type PaidRow = { id: string; paid_on: string; amount: number; topic_id: string | null; paridhi_amount: number; payee?: string | null; vendor_id?: string | null };
 export type ItemMoney = { topic_id: string; status: string; amount: number | null; amount_kind: string | null; slug: string | null };
 export type TopicRef = { id: string; key: string; label: string; budget_group?: 'wedding' | 'post_wedding' | 'gold' | 'buffer' };
 
@@ -80,15 +80,23 @@ export function splitByBudget<T extends { in_budget?: boolean }>(rows: T[]) {
   return { inBudget: rows.filter((r) => r.in_budget !== false), outside: rows.filter((r) => r.in_budget === false) };
 }
 
-// What each vendor is owed: paid, still to pay and lines, from the schedule (cancelled lines left out).
-export function vendorTotals(vendors: Vendor[], rows: Pick<Scheduled, 'vendor_id' | 'amount' | 'status'>[]) {
+// What a part payment leaves on a line. Quantity x rate described the whole line, so it no longer matches what is left
+// and is cleared; otherwise the form would offer to put the full amount back.
+export function afterPartPayment(p: Pick<Scheduled, 'amount' | 'paridhi_amount'>, paid: number) {
+  const left = Math.round((p.amount - paid) * 100) / 100;
+  return { amount: left, paridhi_amount: Math.round(p.paridhi_amount * (left / p.amount) * 100) / 100, quantity: null, unit: null, rate: null };
+}
+
+// What each vendor has been paid and is still owed. Paid comes from the ledger, plus any line closed without a ledger
+// entry (paid by someone else). Cancelled lines are left out.
+export function vendorTotals(vendors: Vendor[], rows: Pick<Scheduled, 'vendor_id' | 'amount' | 'status' | 'paid_payment_id'>[], ledger: Pick<PaidRow, 'vendor_id' | 'amount'>[] = []) {
   return vendors
     .map((v) => {
       const mine = rows.filter((r) => r.vendor_id === v.id && r.status !== 'cancelled');
       return {
         vendor: v,
         lines: mine.length,
-        paid: sum(mine.filter((r) => r.status === 'paid').map((r) => r.amount)),
+        paid: sum(ledger.filter((p) => p.vendor_id === v.id).map((p) => p.amount)) + sum(mine.filter((r) => r.status === 'paid' && !r.paid_payment_id).map((r) => r.amount)),
         pending: sum(mine.filter((r) => r.status === 'pending').map((r) => r.amount)),
       };
     })

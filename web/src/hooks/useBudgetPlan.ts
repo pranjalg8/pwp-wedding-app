@@ -20,6 +20,7 @@ const num = (v: unknown) => Number(v) || 0;
 export function useBudgetPlan() {
   const [data, setData] = useState<Loaded>({ schedule: [], outside: [], vendors: [], settings: null, areas: [], paid: [], items: [], topics: [] });
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const channelName = `budget_plan_${useId()}`;
 
   const reload = useCallback(async () => {
@@ -27,11 +28,19 @@ export function useBudgetPlan() {
       supabase.from('payment_schedule').select('id, payee, amount, due_date, topic_id, note, is_estimate, status, paid_payment_id, paridhi_amount, paridhi_due_date, paridhi_plan, vendor_id, quantity, unit, rate, in_budget').order('due_date'),
       supabase.from('budget_settings').select('total_budget, funds_available, funds_as_of, monthly_addition, paridhi_funds_available, paridhi_monthly_addition, post_wedding_budget, gold_budget').eq('id', 1).maybeSingle(),
       supabase.from('budget_areas').select('id, topic_id, allocation'),
-      supabase.from('payments').select('id, paid_on, payee, amount, topic_id, paridhi_amount'),
+      supabase.from('payments').select('id, paid_on, payee, amount, topic_id, paridhi_amount, vendor_id'),
       supabase.from('planning_items').select('topic_id, status, amount, amount_kind, slug').not('amount', 'is', null),
       supabase.from('topics').select('id, key, label, budget_group').order('sort_order'),
       supabase.from('vendors').select('id, name, kind, planning_item_id, notes').order('name'),
     ]);
+    // A failed load must not look like an empty budget: keep what is on screen and say so.
+    const failed = [s, st, a, p, i, t, v].find((r) => r.error);
+    if (failed?.error) {
+      setLoadError(failed.error.message);
+      setLoaded(true);
+      return;
+    }
+    setLoadError(null);
     const lines = ((s.data ?? []) as Scheduled[]).map((r) => ({
       ...r,
       amount: num(r.amount),
@@ -82,5 +91,5 @@ export function useBudgetPlan() {
     };
   }, [reload, channelName]);
 
-  return { ...data, loaded, reload };
+  return { ...data, loaded, loadError, reload };
 }
