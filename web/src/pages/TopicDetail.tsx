@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Accordion, ActionIcon, Anchor, Badge, Button, Group, Paper, Stack, Text, Title } from '@mantine/core';
+import { Accordion, ActionIcon, Anchor, Badge, Button, Group, Paper, Stack, Text } from '@mantine/core';
+import { PageHeader } from '../components/PageHeader';
 import { notifications } from '@mantine/notifications';
 import { supabase, type ChatMessage, type PlanningItem, type Topic } from '../lib/supabase';
 import { useEditMode } from '../hooks/useEditMode';
@@ -100,15 +101,11 @@ export function TopicDetail() {
       <Anchor component={Link} to="/areas" size="sm" c="dimmed">
         ← All areas
       </Anchor>
-      <Group justify="space-between" align="center" wrap="nowrap">
-        <Group gap="sm" wrap="nowrap">
-          <Text fz={32} lh={1}>
-            {TOPIC_EMOJI[topic.key] ?? '✨'}
-          </Text>
-          <Title order={2}>{topic.label}</Title>
-        </Group>
-        {isUnlocked && <Button onClick={() => setEditingItem('new')}>Add item</Button>}
-      </Group>
+      <PageHeader
+        icon={TOPIC_EMOJI[topic.key] ?? '✨'}
+        title={topic.label}
+        action={isUnlocked && <Button onClick={() => setEditingItem('new')}>Add item</Button>}
+      />
 
       {sorted.length === 0 && (
         <Paper withBorder p="xl" ta="center">

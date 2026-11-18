@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Anchor, Badge, Button, Card, Group, SimpleGrid, Stack, Text, Title } from '@mantine/core';
+import { Anchor, Badge, Button, Card, Group, SimpleGrid, Stack, Text } from '@mantine/core';
+import { PageHeader } from '../components/PageHeader';
 import { supabase, type PlanningItem, type Topic } from '../lib/supabase';
 import { whatsappUrl } from '../lib/whatsapp';
 import { VendorTotals } from '../components/VendorTotals';
@@ -54,7 +55,7 @@ export function Vendors() {
 
   return (
     <Stack gap="xl">
-      <Title order={2}>Vendors</Title>
+      <PageHeader title="Vendors" />
       <VendorTotals />
       {Object.entries(groups).map(([key, g]) => (
       <Stack key={key} gap="sm">

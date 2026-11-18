@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Accordion, Alert, Anchor, Badge, Button, Group, Modal, NumberInput, Paper, Select, Stack, Text, Textarea, TextInput, Title } from '@mantine/core';
+import { PageHeader } from '../components/PageHeader';
 import { notifications } from '@mantine/notifications';
 import { useEditMode } from '../hooks/useEditMode';
 import { supabase, type ChatMessage, type PlanningItem, type Suggestion, type SuggestionPayload, type Topic } from '../lib/supabase';
@@ -291,12 +292,10 @@ export function Suggestions() {
 
   return (
     <Stack gap="lg">
-      <div>
-        <Title order={2}>Suggestions</Title>
-        <Text c="dimmed" size="sm">
-          Claude reads new chat messages and bill photos and proposes planner changes here. Nothing changes until one of you accepts it.
-        </Text>
-      </div>
+      <PageHeader
+        title="Suggestions"
+        subtitle="Claude reads new chat messages and bill photos and proposes planner changes here. Nothing changes until one of you accepts it."
+      />
 
       {loaded && pending.length === 0 && (
         <Paper withBorder p="xl" ta="center">

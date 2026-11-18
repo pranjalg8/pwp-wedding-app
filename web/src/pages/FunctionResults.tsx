@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Accordion, Badge, Button, Card, Group, Loader, Progress, Stack, Text, Title } from '@mantine/core';
+import { Accordion, Badge, Button, Card, Group, Loader, Progress, Stack, Text } from '@mantine/core';
+import { PageHeader } from '../components/PageHeader';
 import { CardDetails } from '../components/CardDetails';
 import { useProfile } from '../hooks/useProfile';
 import { supabase, type Swipe, type SwipeCard, type SwipeChoice, type SwipeDeck } from '../lib/supabase';
@@ -104,13 +105,11 @@ export function FunctionResults() {
 
   return (
     <Stack gap="md" maw={820} mx="auto">
-      <Group justify="space-between" align="center">
-        <Title order={2}>Results</Title>
-        <Button component={Link} to="/functions/swipe" color="rose" size="sm">Keep swiping</Button>
-      </Group>
-      <Text c="dimmed" size="sm">
-        Where you both said yes, where you disagree, and what is still waiting, for every function.
-      </Text>
+      <PageHeader
+        title="Results"
+        subtitle="Where you both said yes, where you disagree, and what is still waiting, for every function."
+        action={<Button component={Link} to="/functions/swipe" color="rose" size="sm">Keep swiping</Button>}
+      />
 
       <Card withBorder p="md">
         <Group justify="space-between" wrap="wrap" gap="md">
