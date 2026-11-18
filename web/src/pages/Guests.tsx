@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Alert, Box, Button, Collapse, Group, Indicator, Menu, Paper, SegmentedControl, Select, Stack, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
+import { LoadError } from '../components/PageSkeleton';
 import { useEditMode } from '../hooks/useEditMode';
 import { EditButton } from '../components/EditButton';
 import { GuestEditor, type Guest } from '../components/GuestEditor';
@@ -61,8 +62,8 @@ export function Guests() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [droppedCount, setDroppedCount] = useState(0);
   const [contacts, setContacts] = useState<GuestContact[]>([]);
-  const { invites, totals, reload: reloadInvites } = useGuestInvites();
-  const { sites, nights } = useStay();
+  const { invites, totals, loadError: invitesError, reload: reloadInvites } = useGuestInvites();
+  const { sites, nights, loadError: stayError, reload: reloadStay } = useStay();
   const { rooms: stayRooms, roomStays, loadError: roomsError, reload: reloadRoomBoard } = useRoomBoard();
   const inviteReplies = useInviteReplies();
   const repliesToReview = useMemo(() => latestNew(inviteReplies.replies).length, [inviteReplies.replies]);
@@ -240,6 +241,16 @@ export function Guests() {
         </Group>
       </Group>
 
+      {(invitesError || stayError || inviteReplies.loadError) && (
+        <LoadError
+          message={(invitesError ?? stayError ?? inviteReplies.loadError) as string}
+          onRetry={() => {
+            void reloadInvites();
+            void reloadStay();
+            void inviteReplies.reload();
+          }}
+        />
+      )}
       {error && (
         <Alert color="red" withCloseButton onClose={() => setError(null)}>
           {error}

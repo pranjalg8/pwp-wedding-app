@@ -1,5 +1,5 @@
--- Performance pass. Nothing here changes what anyone can see or do, except the audit-log retention job (e), which
--- deletes audit rows older than a year once a month. Safe to run more than once.
+-- Performance pass. Nothing here changes what anyone can see or do, and no history is deleted (audit retention in (e)
+-- is opt-in). Safe to run more than once.
 
 -- (a) unmapped_messages: the old view ran three correlated "= any (source_msg_ids)" checks per message, which is a
 -- scan of tasks, task_options and planning_items for every message. Now the mapped ids are unnested once and the

@@ -12,22 +12,20 @@ const fetchInvites = () =>
 export function useGuestInvites() {
   const [invites, setInvites] = useState<InviteWithSize[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  useRealtime(
-    ['guest_rsvps', 'guests'],
-    async (isActive) => {
-      const { data } = await fetchInvites();
-      if (!isActive()) return;
-      setInvites((data ?? []) as unknown as InviteWithSize[]);
-      setLoaded(true);
-    },
-    { immediate: true }
-  );
-
-  const totals = useMemo(() => totalsByDay(invites), [invites]);
-  const reload = useCallback(async () => {
-    const { data } = await fetchInvites();
+  const load = useCallback(async (isActive: () => boolean) => {
+    const { data, error } = await fetchInvites();
+    if (!isActive()) return;
+    setLoadError(error?.message ?? null);
+    setLoaded(true);
+    if (error) return; // keep what is on screen
     setInvites((data ?? []) as unknown as InviteWithSize[]);
   }, []);
-  return { invites, totals, loaded, reload };
+
+  useRealtime(['guest_rsvps', 'guests'], load, { immediate: true });
+  const reload = useCallback(() => load(() => true), [load]);
+
+  const totals = useMemo(() => totalsByDay(invites), [invites]);
+  return { invites, totals, loaded, loadError, reload };
 }

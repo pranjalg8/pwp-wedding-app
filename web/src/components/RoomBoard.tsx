@@ -23,6 +23,7 @@ import {
 import { AddRoomsModal, RoomModal } from './RoomModals';
 import { RoomSuggestModal } from './RoomSuggest';
 import { UndoMessage } from './UndoMessage';
+import { confirmDanger } from '../lib/confirm';
 
 const nightShort = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
 const first = (name: string) => name.split(/[\s(-]/)[0] || name;
@@ -154,7 +155,7 @@ export function RoomBoard({
       (shortRooms > 0 ? ` ${shortRooms} more room${shortRooms === 1 ? '' : 's'} would still be needed.` : '') +
       (plan.tight.length > 0 ? ` ${plan.tight.length} room${plan.tight.length === 1 ? '' : 's'} would hold more people than set for.` : '') +
       ' Households already in rooms stay where they are.';
-    if (!window.confirm(msg)) return;
+    if (!(await confirmDanger({ title: 'Fill rooms', message: msg, confirmLabel: 'Fill rooms', confirmColor: 'teal' }))) return;
     const { data, error } = await supabase.from('room_stays').insert(plan.rows).select('id');
     if (error) {
       notifications.show({ color: 'red', title: 'Could not fill rooms', message: error.message });
