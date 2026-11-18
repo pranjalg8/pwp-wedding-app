@@ -255,3 +255,63 @@ describe('suggestLayout (pinned stays)', () => {
     expect(out.short.reduce((x, y) => x + y.rooms, 0)).toBe(2);
   });
 });
+
+describe('household dates from a reply', () => {
+  const EARLY = '2027-02-13';
+  it('decides the nights before the household has a room, and any room it gets later follows them', () => {
+    const guests = [guest('a', 3, 1, 0, { arrive_on: EARLY, leave_on: DAY2 })];
+    const [h] = householdsNeedingRooms(guests, [invite('a', DAY1)], [DAY1, DAY2]);
+    expect(h.nights).toEqual([EARLY, DAY1]);
+    expect(h.firstNight).toBe(EARLY);
+    const occ = occupantsByRoom([stay('a')], [h], guests, [DAY1, DAY2]).get('r1')![0];
+    expect(occ.nights).toEqual([EARLY, DAY1]);
+  });
+});
+
+describe('a household that no longer needs its room', () => {
+  it('is flagged, because the stay would otherwise hold the room unnoticed', () => {
+    const guests = [guest('gone', 3, 1)];
+    const households = householdsNeedingRooms(guests, [invite('gone', DAY1, 0, 3)], [DAY1, DAY2]);
+    expect(households).toEqual([]);
+    const occ = occupantsByRoom([stay('gone')], households, guests, [DAY1, DAY2]).get('r1')!;
+    expect(roomIssues(room(), SHRI_KANTH, occ, [DAY1, DAY2])).toContain('not_needed');
+  });
+});
+
+describe('Fill rooms and room sizes', () => {
+  const nights = [DAY1, DAY2];
+  const at = (site_id: string, id: string, capacity: number, sort_order: number) => room({ id, site_id, label: id, capacity, sort_order, floor: null });
+  const fill = (guests: ReturnType<typeof guest>[], rooms: StayRoom[], sites = [ROYAL_PEPPER, SHRI_KANTH, HOTEL_SAI]) => {
+    const hh = householdsNeedingRooms(guests, guests.map((g) => invite(g.id, DAY1)), nights);
+    return autoPlace(hh, rooms, sites, new Map(), new Map());
+  };
+
+  it('takes a room big enough at its own place before a smaller one', () => {
+    const plan = fill([guest('big', 5, 1)], [at(ROYAL_PEPPER.id, 'small', 4, 1), at(ROYAL_PEPPER.id, 'large', 6, 2)]);
+    expect(plan.rows).toEqual([{ guest_id: 'big', room_id: 'large' }]);
+    expect(plan.tight).toEqual([]);
+  });
+
+  it('stays at the main place and reports the room when nothing there is big enough', () => {
+    const plan = fill([guest('big', 6, 1)], [at(ROYAL_PEPPER.id, 'rp', 4, 1), at(SHRI_KANTH.id, 'sk', 6, 2)]);
+    expect(plan.rows).toEqual([{ guest_id: 'big', room_id: 'rp' }]);
+    expect(plan.tight).toEqual([{ guest_id: 'big', room_id: 'rp', people: 6, capacity: 4 }]);
+  });
+
+  it('puts two half-room households with the same nights in one room, and no third', () => {
+    const halves = ['a', 'b', 'c'].map((id) => guest(id, 1, 0, 0.5));
+    const plan = fill(halves, [at(SHRI_KANTH.id, 's1', 5, 1), at(SHRI_KANTH.id, 's2', 5, 2)]);
+    expect(plan.rows).toEqual([
+      { guest_id: 'a', room_id: 's1' },
+      { guest_id: 'b', room_id: 's1' },
+      { guest_id: 'c', room_id: 's2' },
+    ]);
+  });
+
+  it('does not pair half-room households on different nights', () => {
+    const guests = [guest('a', 1, 0, 0.5), guest('b', 1, 0, 0.5)];
+    const hh = householdsNeedingRooms(guests, [invite('a', DAY1), invite('b', DAY2)], nights);
+    const plan = autoPlace(hh, [at(SHRI_KANTH.id, 's1', 5, 1), at(SHRI_KANTH.id, 's2', 5, 2)], [SHRI_KANTH], new Map(), new Map());
+    expect(new Set(plan.rows.map((r) => r.room_id)).size).toBe(2);
+  });
+});

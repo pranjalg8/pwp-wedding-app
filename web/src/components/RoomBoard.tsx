@@ -124,6 +124,7 @@ export function RoomBoard({
     const msg =
       `Put ${placedNow} household${placedNow === 1 ? '' : 's'} into ${plan.rows.length} room${plan.rows.length === 1 ? '' : 's'}?` +
       (shortRooms > 0 ? ` ${shortRooms} more room${shortRooms === 1 ? '' : 's'} would still be needed.` : '') +
+      (plan.tight.length > 0 ? ` ${plan.tight.length} room${plan.tight.length === 1 ? '' : 's'} would hold more people than set for.` : '') +
       ' Households already in rooms stay where they are.';
     if (!window.confirm(msg)) return;
     const { data, error } = await supabase.from('room_stays').insert(plan.rows).select('id');

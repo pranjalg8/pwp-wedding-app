@@ -18,6 +18,8 @@ export type Guest = {
   priority: 1 | 2 | null;
   functions: string | null;
   needs_lift?: boolean;
+  arrive_on?: string | null;
+  leave_on?: string | null;
   kind?: GuestKind;
   sort_order: number;
 };
@@ -51,11 +53,14 @@ export function GuestEditor({
   const [functions, setFunctions] = useState(guest?.functions ?? '');
   const [kind, setKind] = useState<GuestKind>(guest?.kind ?? 'guest');
   const [needsLift, setNeedsLift] = useState(!!guest?.needs_lift);
+  const [arriveOn, setArriveOn] = useState(guest?.arrive_on ?? '');
+  const [leaveOn, setLeaveOn] = useState(guest?.leave_on ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const personsNum = Number(persons);
-  const valid = name.trim() !== '' && Number.isInteger(personsNum) && personsNum >= 0;
+  const datesOk = (arriveOn === '' && leaveOn === '') || (arriveOn !== '' && leaveOn !== '' && leaveOn > arriveOn);
+  const valid = name.trim() !== '' && Number.isInteger(personsNum) && personsNum >= 0 && datesOk;
 
   async function save() {
     setSaving(true);
@@ -73,6 +78,8 @@ export function GuestEditor({
       functions: functions.trim() || null,
       kind,
       needs_lift: needsLift,
+      arrive_on: arriveOn || null,
+      leave_on: leaveOn || null,
     };
     const res = guest
       ? await supabase.from('guests').update(fields).eq('id', guest.id)
@@ -129,6 +136,16 @@ export function GuestEditor({
             onChange={setPriority}
           />
           <TextInput label="Functions" description='As in the list, e.g. "All"' value={functions} onChange={(e) => setFunctions(e.currentTarget.value)} />
+        </Group>
+        <Group grow align="flex-start">
+          <TextInput label="Arrives (first night)" type="date" value={arriveOn} onChange={(e) => setArriveOn(e.currentTarget.value)} />
+          <TextInput
+            label="Leaves (check-out)"
+            type="date"
+            value={leaveOn}
+            onChange={(e) => setLeaveOn(e.currentTarget.value)}
+            error={!datesOk ? 'Fill in both, with leaving after arriving' : undefined}
+          />
         </Group>
         <Checkbox
           label="Needs a lift (cannot manage stairs)"

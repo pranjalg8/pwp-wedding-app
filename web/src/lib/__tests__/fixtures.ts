@@ -32,6 +32,8 @@ export const DAY2 = '2027-02-15';
 export type TestGuest = {
   id: string; name: string; persons: number; rooms_inside: number; rooms_outside: number;
   priority: 1 | 2 | null; needs_lift?: boolean; family_members?: string | null; sort_order: number;
+  arrive_on?: string | null;
+  leave_on?: string | null;
 };
 export const guest = (id: string, persons: number, rooms_inside: number, rooms_outside = 0, extra: Partial<TestGuest> = {}): TestGuest => ({
   id, name: `Household ${id}`, persons, rooms_inside, rooms_outside, priority: 1, sort_order: 0, ...extra,

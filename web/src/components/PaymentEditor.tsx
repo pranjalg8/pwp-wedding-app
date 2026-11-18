@@ -15,12 +15,14 @@ export type Payment = {
   verification_note: string | null;
   topic_id?: string | null;
   paridhi_amount?: number | string | null;
+  vendor_id?: string | null;
 };
 
 // Add or edit one payment. Changes are recorded in the audit log by a database trigger.
 export function PaymentEditor({
   payment,
   topics,
+  vendors,
   defaults,
   opened,
   onClose,
@@ -28,8 +30,9 @@ export function PaymentEditor({
 }: {
   payment: Payment | null;
   topics?: { id: string; label: string }[];
+  vendors?: { id: string; name: string }[];
   // Starting values for a new payment, for example when marking a scheduled payment as paid.
-  defaults?: { payee?: string; amount?: number; purpose?: string | null; topic_id?: string | null; paridhi_amount?: number };
+  defaults?: { payee?: string; amount?: number; purpose?: string | null; topic_id?: string | null; paridhi_amount?: number; vendor_id?: string | null };
   opened: boolean;
   onClose: () => void;
   onSaved: (id?: string, amount?: number) => void;
@@ -43,6 +46,7 @@ export function PaymentEditor({
   const [purpose, setPurpose] = useState(payment?.purpose ?? defaults?.purpose ?? '');
   const [paridhiAmount, setParidhiAmount] = useState<number | string>(Number(payment?.paridhi_amount ?? defaults?.paridhi_amount ?? 0) || 0);
   const [topicId, setTopicId] = useState<string | null>(payment?.topic_id ?? defaults?.topic_id ?? null);
+  const [vendorId, setVendorId] = useState<string | null>(payment?.vendor_id ?? defaults?.vendor_id ?? null);
   const [verification, setVerification] = useState<string>(payment?.verification ?? 'chat_only');
   const [note, setNote] = useState(payment?.verification_note ?? '');
   const [saving, setSaving] = useState(false);
@@ -66,6 +70,7 @@ export function PaymentEditor({
       verification_note: note.trim() || null,
       topic_id: topicId,
       paridhi_amount: paridhiNum,
+      vendor_id: vendorId,
     };
     let savedId: string | undefined = payment?.id;
     let failure: string | null = null;
@@ -120,6 +125,17 @@ export function PaymentEditor({
             data={topics.map((t) => ({ value: t.id, label: t.label }))}
             value={topicId}
             onChange={setTopicId}
+          />
+        )}
+        {vendors && (
+          <Select
+            label="Vendor"
+            placeholder="Not set"
+            clearable
+            searchable
+            data={vendors.map((v) => ({ value: v.id, label: v.name }))}
+            value={vendorId}
+            onChange={setVendorId}
           />
         )}
         <TextInput label="What for" value={purpose} onChange={(e) => setPurpose(e.currentTarget.value)} />

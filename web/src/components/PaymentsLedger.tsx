@@ -8,7 +8,7 @@ import { PaymentEditor, type Payment } from './PaymentEditor';
 // Amounts come back from Postgres numeric as strings; add in paise so the total is exact.
 const paise = (n: number | string) => Math.round(Number(n) * 100);
 
-export function PaymentsLedger({ topics = [] }: { topics?: { id: string; label: string }[] }) {
+export function PaymentsLedger({ topics = [], vendors = [] }: { topics?: { id: string; label: string }[]; vendors?: { id: string; name: string }[] }) {
   const { isUnlocked } = useEditMode();
   const [rows, setRows] = useState<Payment[]>([]);
   const [editing, setEditing] = useState<Payment | null | 'new'>(null);
@@ -17,7 +17,7 @@ export function PaymentsLedger({ topics = [] }: { topics?: { id: string; label: 
   async function load() {
     const { data } = await supabase
       .from('payments')
-      .select('id, paid_on, payee, amount, method, reference, purpose, verification, verification_note, topic_id, paridhi_amount')
+      .select('id, paid_on, payee, amount, method, reference, purpose, verification, verification_note, topic_id, paridhi_amount, vendor_id')
       .order('paid_on', { ascending: false });
     setRows((data ?? []) as Payment[]);
   }
@@ -115,6 +115,7 @@ export function PaymentsLedger({ topics = [] }: { topics?: { id: string; label: 
           key={editing === 'new' ? 'new' : editing.id}
           payment={editing === 'new' ? null : editing}
           topics={topics}
+          vendors={vendors}
           opened
           onClose={() => setEditing(null)}
           onSaved={load}

@@ -7,6 +7,7 @@ export function useRoomBoard() {
   const [rooms, setRooms] = useState<StayRoom[]>([]);
   const [roomStays, setRoomStays] = useState<RoomStay[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const channelName = useRef(`room_board_${Math.random().toString(36).slice(2)}`);
 
   const reload = useCallback(async () => {
@@ -14,9 +15,15 @@ export function useRoomBoard() {
       supabase.from('stay_rooms').select('*').order('sort_order'),
       supabase.from('room_stays').select('id, room_id, guest_id, people, extra_nights, check_in, check_out, locked'),
     ]);
+    const failed = r.error ?? s.error;
+    setLoaded(true);
+    if (failed) {
+      setLoadError(failed.message);
+      return;
+    }
+    setLoadError(null);
     setRooms((r.data ?? []) as StayRoom[]);
     setRoomStays((s.data ?? []) as RoomStay[]);
-    setLoaded(true);
   }, []);
 
   useEffect(() => {
@@ -31,5 +38,5 @@ export function useRoomBoard() {
     };
   }, [reload]);
 
-  return { rooms, roomStays, loaded, reload };
+  return { rooms, roomStays, loaded, loadError, reload };
 }

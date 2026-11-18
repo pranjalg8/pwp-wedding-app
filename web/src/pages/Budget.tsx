@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Accordion, Badge, Button, Group, Paper, SegmentedControl, Stack, Table, Text, Title } from '@mantine/core';
+import { Accordion, Alert, Badge, Button, Group, Paper, SegmentedControl, Stack, Table, Text, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { supabase, type PlanningItem, type Topic } from '../lib/supabase';
 import { PaymentsLedger } from '../components/PaymentsLedger';
@@ -16,7 +16,7 @@ import { useBudgetPlan } from '../hooks/useBudgetPlan';
 import { usePlanFacts } from '../hooks/usePlanFacts';
 import { useEditMode } from '../hooks/useEditMode';
 import { SideBySide } from '../components/SideBySide';
-import { SCOPE_LABEL, SIDE_LABEL, buildAreas, buildPlan, filterScope, forSide, scheduleForSide, settingsForSide, sum, withFullFunds, type Plan, type Scheduled, type Scope, type Side } from '../lib/budgetPlan';
+import { afterPartPayment, SCOPE_LABEL, SIDE_LABEL, buildAreas, buildPlan, filterScope, forSide, scheduleForSide, settingsForSide, sum, withFullFunds, type Plan, type Scheduled, type Scope, type Side } from '../lib/budgetPlan';
 import { KIND_LABEL, STATUS_COLOR, STATUS_LABEL, formatAsOf, formatInr } from '../lib/topicMeta';
 
 type BudgetRow = Pick<PlanningItem, 'id' | 'title' | 'type' | 'status' | 'amount' | 'amount_kind' | 'amount_note' | 'as_of'> & {
@@ -131,7 +131,7 @@ function AmountsTable() {
 export function Budget() {
   const { isUnlocked } = useEditMode();
   const { dates } = usePlanFacts();
-  const { schedule, outside, vendors, settings, areas, paid, items, topics, reload } = useBudgetPlan();
+  const { schedule, outside, vendors, settings, areas, paid, items, topics, loadError, reload } = useBudgetPlan();
   const [today] = useState(() => new Date().toLocaleDateString('en-CA'));
   const [scheduleEditing, setScheduleEditing] = useState<Scheduled | 'new' | null>(null);
   const [markPaid, setMarkPaid] = useState<Scheduled | null>(null);
@@ -188,10 +188,7 @@ export function Budget() {
     const remaining = p.amount - (amountPaid ?? p.amount);
     const { error } =
       remaining > 0.005
-        ? await supabase
-            .from('payment_schedule')
-            .update({ amount: Math.round(remaining * 100) / 100, paridhi_amount: Math.round(p.paridhi_amount * (remaining / p.amount) * 100) / 100 })
-            .eq('id', p.id)
+        ? await supabase.from('payment_schedule').update(afterPartPayment(p, amountPaid ?? p.amount)).eq('id', p.id)
         : await supabase.from('payment_schedule').update({ status: 'paid', paid_payment_id: paymentId }).eq('id', p.id);
     if (error) {
       notifications.show({ color: 'red', title: 'Payment saved, schedule not updated', message: error.message });
@@ -201,8 +198,26 @@ export function Budget() {
     await reload();
   }
 
+  // Close a line that needs no payment in the ledger: included at no charge, or paid by someone else.
+  async function settle(p: Scheduled) {
+    const { error } = await supabase.from('payment_schedule').update({ status: 'paid' }).eq('id', p.id);
+    if (error) notifications.show({ color: 'red', title: 'Could not save', message: error.message });
+    else notifications.show({ color: 'teal', message: `${p.payee} is marked done.` });
+    await reload();
+  }
+
   return (
     <Stack gap="xl">
+      {loadError && (
+        <Alert color="red" variant="light" title="The budget could not be loaded">
+          <Group justify="space-between" gap="sm">
+            <Text size="sm">The figures below may be out of date or empty. Check your connection and try again.</Text>
+            <Button size="compact-sm" variant="light" color="red" onClick={() => void reload()}>
+              Try again
+            </Button>
+          </Group>
+        </Alert>
+      )}
       <Group justify="space-between" align="flex-end" gap="sm">
         <div>
           <Title order={2}>Budget</Title>
@@ -250,6 +265,7 @@ export function Budget() {
           isUnlocked={isUnlocked}
           onAdd={() => setScheduleEditing('new')}
           onPaid={(p) => setMarkPaid(schedule.find((x) => x.id === (p.sourceId ?? p.id)) ?? p)}
+          onSettle={(p) => void settle(schedule.find((x) => x.id === (p.sourceId ?? p.id)) ?? p)}
           onEdit={(p) => setScheduleEditing(schedule.find((x) => x.id === (p.sourceId ?? p.id)) ?? p)}
         />
       </Section>
@@ -289,7 +305,7 @@ export function Budget() {
               </Text>
             </Accordion.Control>
             <Accordion.Panel>
-              <PaymentsLedger topics={topics} />
+              <PaymentsLedger topics={topics} vendors={vendors} />
             </Accordion.Panel>
           </Accordion.Item>
           {outside.filter((p) => p.status !== 'cancelled').length > 0 && (
@@ -317,6 +333,11 @@ export function Budget() {
                         </Text>
                         <Group gap={6} wrap="nowrap">
                           <Text size="sm">{formatInr(p.amount)}</Text>
+                          {isUnlocked && p.status === 'pending' && (
+                            <Button size="compact-xs" variant="light" onClick={() => void settle(p)}>
+                              Mark done
+                            </Button>
+                          )}
                           {isUnlocked && (
                             <Button size="compact-xs" variant="subtle" onClick={() => setScheduleEditing(p)}>
                               Edit
@@ -360,7 +381,8 @@ export function Budget() {
           key={markPaid.id}
           payment={null}
           topics={topics}
-          defaults={{ payee: markPaid.payee, amount: markPaid.amount, purpose: markPaid.note, topic_id: markPaid.topic_id, paridhi_amount: markPaid.paridhi_amount }}
+          vendors={vendors}
+          defaults={{ payee: markPaid.payee, amount: markPaid.amount, purpose: markPaid.note, topic_id: markPaid.topic_id, paridhi_amount: markPaid.paridhi_amount, vendor_id: markPaid.vendor_id }}
           opened
           onClose={() => setMarkPaid(null)}
           onSaved={(id, amount) => afterPaid(markPaid, id, amount)}
