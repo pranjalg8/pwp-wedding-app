@@ -1,6 +1,6 @@
 # Planner roadmap
 
-Updated 18 November 2026, after the second senior-engineer review. The wedding starts on 12 February 2027.
+Updated 18 November 2026. The wedding starts on 12 February 2027.
 
 The order changed: safety and accuracy now come before new features, and the backup moved up from the final cleanup.
 
@@ -8,7 +8,9 @@ The order changed: safety and accuracy now come before new features, and the bac
 
 - **Phase 0, safety net:** share-link fixes, live updates, tests in CI.
 - **Phase 1, stays with dates:** room stay dates, the room board as the only placement screen, invite replies.
-- **Phase 2, part 1:** vendors, quantity × rate, lines outside the budget, ₹0 included lines.
+- **Accuracy fixes:** reply dates, rooms that are no longer needed, room sizes in Fill rooms, vendor totals.
+- **Safety net:** nightly backup workflow, edge functions checked in CI, a harder reply function.
+- **Phone and speed update (1.11):** tab bar, shared forms, lazy-loaded pages, faster database rules.
 
 ## Now
 
@@ -16,19 +18,8 @@ The order changed: safety and accuracy now come before new features, and the bac
 | --- | --- | --- |
 | 1 | Update the funds figure and decide how the budget gap closes | Pranjal |
 | 2 | Rotate the service-role key (`docs/rotate-service-role-key.md`) | Pranjal |
-| 3 | Nightly encrypted backup and one test restore (`docs/backup-and-restore.md`) | Claude builds, Pranjal adds two secrets |
-| 4 | Type-check edge functions in CI and harden `invite-rsvp` | Claude |
-| 5 | Renumber and merge the quote reader (PR #81, migration `0051`) | Quote reader session |
-
-## Next: accuracy, before replies open
-
-- Keep replied arrival and leaving dates on the household, so they apply whenever it is placed.
-- Flag and release rooms held by households that no longer need one.
-- Make Fill rooms respect room capacity and pair half-room households.
-- Total vendor payments from the ledger.
-- Let ₹0 and outside-budget lines be closed without a payment.
-- Stop a part payment from being added back through quantity × rate.
-- Show an error when the Budget or Rooms data fails to load.
+| 3 | Add the two backup secrets, run the backup once and try one restore (`docs/backup-and-restore.md`) | Pranjal |
+| 4 | Update the quote reader (PR #81): resolve its conflicts and renumber its migration to `0051` | Quote reader session |
 
 ## Then: go live with replies
 
@@ -37,11 +28,18 @@ The order changed: safety and accuracy now come before new features, and the bac
 3. Invite the remaining households, make the codes and send the links.
 4. Open replies. Freeze the room plan by mid-December.
 
-## December: money that follows the plan
+## Phase 2: money that follows the plan
 
-- Hotel and meal lines that follow the rooms booked and the room board (done in migration `0053`).
-- Staff and driver meals from `guests.kind` and a token count.
-- A shared way to load data with visible errors, moved over page by page.
+Done:
+
+- Vendors, quantity × rate, lines outside the budget and ₹0 included lines.
+- Vendor totals from the payments ledger, and part payments that keep the line's working correct.
+- Hotel and meal lines that follow the rooms booked and the room board.
+- Visible errors when data fails to load, on every main screen.
+
+Still open:
+
+- Staff and driver meals. This needs the number of people, the days and the thali rate.
 
 The Anvaya link is dropped from this phase: it adds risk and nothing depends on it before the wedding.
 
