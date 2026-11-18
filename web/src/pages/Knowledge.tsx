@@ -1,7 +1,10 @@
-import { Fragment, useEffect, useMemo, useState, type ReactElement } from 'react';
+import { useMemo, useState, type ReactElement } from 'react';
 import { Card, Stack, Tabs, Text, TextInput, Title } from '@mantine/core';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { rowsOf } from '../lib/liveData';
+import { useLiveData } from '../hooks/useLiveData';
+import { LoadError } from '../components/LoadError';
 
 type KbEntry = { slug: string; title: string; body: string; sort_order: number; updated_at: string };
 
@@ -57,34 +60,23 @@ export function Body({ text }: { text: string }) {
   return <Stack gap={6}>{blocks}</Stack>;
 }
 
+const NO_ENTRIES: KbEntry[] = [];
+
+async function loadEntries() {
+  return rowsOf<KbEntry>(await supabase.from('kb_entries').select('slug, title, body, sort_order, updated_at').order('sort_order'));
+}
+
 export function Knowledge() {
-  const [entries, setEntries] = useState<KbEntry[]>([]);
+  const { data: entries, loaded, loadError, reload } = useLiveData({ tables: ['kb_entries'], load: loadEntries, initial: NO_ENTRIES });
   const [query, setQuery] = useState('');
-  const [loaded, setLoaded] = useState(false);
   const openPage = useSearchParams()[0].get('page'); // set by the Ask panel's source links
-
-  async function load() {
-    const { data } = await supabase.from('kb_entries').select('slug, title, body, sort_order, updated_at').order('sort_order');
-    setEntries((data ?? []) as KbEntry[]);
-    setLoaded(true);
-  }
-
-  useEffect(() => {
-    load();
-    const channel = supabase
-      .channel('kb_entries_page')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'kb_entries' }, load)
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
 
   const q = query.trim().toLowerCase();
   const hits = useMemo(() => (q ? entries.filter((e) => (e.title + '\n' + e.body).toLowerCase().includes(q)) : []), [entries, q]);
 
   return (
     <Stack gap="md" maw={820} mx="auto">
+      <LoadError error={loadError} what="The knowledge base" onRetry={() => void reload()} />
       <Title order={2}>Knowledge</Title>
       <Text size="sm" c="dimmed">
         A short reference for the wedding: dates, stay and food, money rules and the home move. The planner is the source of

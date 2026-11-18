@@ -24,7 +24,7 @@ for (const file of readdirSync(migrationsDir).filter((f) => f.endsWith('.sql')).
   if (loop) for (const t of loop[1].split(',')) published.add(t.trim().replace(/'/g, ''));
 }
 
-// Every `table: '<name>'` inside a postgres_changes subscription in the app.
+// Every table the app subscribes to: `table: '<name>'` in a postgres_changes call, and the `tables` list of useLiveData.
 const subscribed = new Map();
 function walk(dir) {
   for (const name of readdirSync(dir)) {
@@ -32,10 +32,11 @@ function walk(dir) {
     if (statSync(p).isDirectory()) walk(p);
     else if (/\.(ts|tsx)$/.test(name)) {
       const src = readFileSync(p, 'utf8');
-      for (const m of src.matchAll(/postgres_changes'[^}]*table:\s*'([a-z_]+)'/g)) {
-        const list = subscribed.get(m[1]) ?? [];
-        list.push(path.relative(root, p));
-        subscribed.set(m[1], list);
+      const add = (table) => subscribed.set(table, [...(subscribed.get(table) ?? []), path.relative(root, p)]);
+      for (const m of src.matchAll(/postgres_changes'[^}]*table:\s*'([a-z_]+)'/g)) add(m[1]);
+      // useLiveData({ tables: ['a', 'b'], ... })
+      for (const m of src.matchAll(/useLiveData\(\{\s*tables:\s*\[([^\]]*)\]/g)) {
+        for (const t of m[1].matchAll(/'([a-z_]+)'/g)) add(t[1]);
       }
     }
   }

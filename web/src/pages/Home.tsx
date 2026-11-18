@@ -1,7 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Anchor, Badge, Box, Group, Paper, SimpleGrid, Stack, Text, Title } from '@mantine/core';
 import { supabase, type PlanningItem, type Task } from '../lib/supabase';
+import { rowsOf } from '../lib/liveData';
+import { useLiveData } from '../hooks/useLiveData';
+import { LoadError } from '../components/LoadError';
 import { OWNER_LABEL, TOPIC_EMOJI, daysToDue, dueBadge, formatInr, formatInrCompact, summarizeMoney } from '../lib/topicMeta';
 import { usePlanFacts } from '../hooks/usePlanFacts';
 import { usePendingSuggestions } from '../hooks/usePendingSuggestions';
@@ -59,55 +62,49 @@ function TaskLine({ task, detail, badge }: { task: TaskRow; detail: string; badg
 
 type Alert = { key: string; color: string; text: string; to: string };
 
+const EMPTY_HOME = {
+  tasks: [] as TaskRow[],
+  topicKeyById: {} as Record<string, string>,
+  options: [] as OptionRow[],
+  items: [] as MoneyRow[],
+  payments: [] as PaymentRow[],
+  functions: [] as WeddingFunction[],
+  unsorted: 0,
+  lastSynced: null as string | null,
+};
+
+async function loadHome() {
+  const [t, tp, o, i, p, f, u, s] = await Promise.all([
+    supabase.from('tasks').select('id, title, topic_id, owner, priority, due_date, status, sort_order'),
+    supabase.from('topics').select('id, key'),
+    supabase.from('task_options').select('task_id, name, status'),
+    supabase.from('planning_items').select('status, amount, amount_kind'),
+    supabase.from('payments').select('amount, verification'),
+    supabase.from('wedding_functions').select('*').order('sort_order'),
+    supabase.from('unmapped_messages').select('msg_id', { count: 'exact', head: true }),
+    supabase.from('sync_status').select('last_run_at').limit(1),
+  ]);
+  return {
+    tasks: rowsOf<TaskRow>(t),
+    topicKeyById: Object.fromEntries(rowsOf<{ id: string; key: string }>(tp).map((x) => [x.id, x.key])),
+    options: rowsOf<OptionRow>(o),
+    items: rowsOf<MoneyRow>(i),
+    payments: rowsOf<PaymentRow>(p),
+    functions: rowsOf<WeddingFunction>(f),
+    unsorted: u.count ?? 0,
+    lastSynced: (s.data?.[0]?.last_run_at as string | undefined) ?? null,
+  };
+}
+
 export function Home() {
   const { profile } = useProfile();
   const { dates } = usePlanFacts();
   const pendingSuggestions = usePendingSuggestions();
   const { invites, totals } = useGuestInvites();
-  const [tasks, setTasks] = useState<TaskRow[]>([]);
-  const [topicKeyById, setTopicKeyById] = useState<Record<string, string>>({});
-  const [options, setOptions] = useState<OptionRow[]>([]);
-  const [items, setItems] = useState<MoneyRow[]>([]);
-  const [payments, setPayments] = useState<PaymentRow[]>([]);
-  const [functions, setFunctions] = useState<WeddingFunction[]>([]);
-  const [unsorted, setUnsorted] = useState(0);
-  const [lastSynced, setLastSynced] = useState<string | null>(null);
   const [now] = useState(() => Date.now());
 
-  async function load() {
-    const [t, tp, o, i, p, f, u, s] = await Promise.all([
-      supabase.from('tasks').select('id, title, topic_id, owner, priority, due_date, status, sort_order'),
-      supabase.from('topics').select('id, key'),
-      supabase.from('task_options').select('task_id, name, status'),
-      supabase.from('planning_items').select('status, amount, amount_kind'),
-      supabase.from('payments').select('amount, verification'),
-      supabase.from('wedding_functions').select('*').order('sort_order'),
-      supabase.from('unmapped_messages').select('msg_id', { count: 'exact', head: true }),
-      supabase.from('sync_status').select('last_run_at').limit(1),
-    ]);
-    setTasks((t.data ?? []) as TaskRow[]);
-    setTopicKeyById(Object.fromEntries(((tp.data ?? []) as { id: string; key: string }[]).map((x) => [x.id, x.key])));
-    setOptions((o.data ?? []) as OptionRow[]);
-    setItems((i.data ?? []) as MoneyRow[]);
-    setPayments((p.data ?? []) as PaymentRow[]);
-    setFunctions((f.data ?? []) as WeddingFunction[]);
-    setUnsorted(u.count ?? 0);
-    setLastSynced(s.data?.[0]?.last_run_at ?? null);
-  }
-
-  useEffect(() => {
-    load();
-    const channel = supabase
-      .channel('home_dashboard')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, load)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'task_options' }, load)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'planning_items' }, load)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'wedding_functions' }, load)
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
+  const { data, loadError, reload } = useLiveData({ tables: ['tasks', 'task_options', 'planning_items', 'wedding_functions'], load: loadHome, initial: EMPTY_HOME });
+  const { tasks, topicKeyById, options, items, payments, functions, unsorted, lastSynced } = data;
 
   const emoji = (t: TaskRow) => (t.topic_id && TOPIC_EMOJI[topicKeyById[t.topic_id]]) || '✨';
   const byDue = (a: TaskRow, b: TaskRow) => (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999') || a.sort_order - b.sort_order;
@@ -180,6 +177,7 @@ export function Home() {
 
   return (
     <Stack gap="lg">
+      <LoadError error={loadError} what="The overview" onRetry={() => void reload()} />
       <Box className="hero" c="white" p={{ base: 'lg', sm: 'xl' }} style={{ borderRadius: 'var(--mantine-radius-xl)' }}>
         <Text size="sm" fw={600} tt="uppercase" style={{ letterSpacing: 1, opacity: 0.9 }}>
           {profile?.display_name ? `Hi ${profile.display_name} · ` : ''}

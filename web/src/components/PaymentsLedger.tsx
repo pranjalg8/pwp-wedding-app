@@ -1,6 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Alert, Badge, Button, Group, Paper, Stack, Table, Text } from '@mantine/core';
 import { supabase } from '../lib/supabase';
+import { rowsOf } from '../lib/liveData';
+import { useLiveData } from '../hooks/useLiveData';
+import { LoadError } from './LoadError';
 import { formatInr } from '../lib/topicMeta';
 import { useEditMode } from '../hooks/useEditMode';
 import { PaymentEditor, type Payment } from './PaymentEditor';
@@ -8,30 +11,22 @@ import { PaymentEditor, type Payment } from './PaymentEditor';
 // Amounts come back from Postgres numeric as strings; add in paise so the total is exact.
 const paise = (n: number | string) => Math.round(Number(n) * 100);
 
-export function PaymentsLedger({ topics = [], vendors = [] }: { topics?: { id: string; label: string }[]; vendors?: { id: string; name: string }[] }) {
-  const { isUnlocked } = useEditMode();
-  const [rows, setRows] = useState<Payment[]>([]);
-  const [editing, setEditing] = useState<Payment | null | 'new'>(null);
-  const [error, setError] = useState<string | null>(null);
+const NO_PAYMENTS: Payment[] = [];
 
-  async function load() {
-    const { data } = await supabase
+async function loadPayments() {
+  return rowsOf<Payment>(
+    await supabase
       .from('payments')
       .select('id, paid_on, payee, amount, method, reference, purpose, verification, verification_note, topic_id, paridhi_amount, vendor_id')
-      .order('paid_on', { ascending: false });
-    setRows((data ?? []) as Payment[]);
-  }
+      .order('paid_on', { ascending: false })
+  );
+}
 
-  useEffect(() => {
-    load();
-    const channel = supabase
-      .channel('payments_ledger')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, load)
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
+export function PaymentsLedger({ topics = [], vendors = [] }: { topics?: { id: string; label: string }[]; vendors?: { id: string; name: string }[] }) {
+  const { isUnlocked } = useEditMode();
+  const { data: rows, loadError, reload: load } = useLiveData({ tables: ['payments'], load: loadPayments, initial: NO_PAYMENTS });
+  const [editing, setEditing] = useState<Payment | null | 'new'>(null);
+  const [error, setError] = useState<string | null>(null);
 
   async function remove(p: Payment) {
     if (!window.confirm(`Delete the ${formatInr(Number(p.amount))} payment to ${p.payee}? This is recorded in the activity log.`)) return;
@@ -48,6 +43,7 @@ export function PaymentsLedger({ topics = [], vendors = [] }: { topics?: { id: s
 
   return (
     <Stack gap="xs">
+      <LoadError error={loadError} what="The payments" onRetry={() => void load()} />
       <Group justify="space-between" align="center">
         <Text fw={700} fz="lg">Payments made</Text>
         <Group gap="sm">

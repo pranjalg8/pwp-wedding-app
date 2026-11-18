@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Accordion,
@@ -17,6 +17,9 @@ import {
   Title,
 } from '@mantine/core';
 import { supabase, type PlanningItem, type Task, type TaskOption, type Topic } from '../lib/supabase';
+import { rowsOf } from '../lib/liveData';
+import { useLiveData } from '../hooks/useLiveData';
+import { LoadError } from '../components/LoadError';
 import {
   OPTION_STATUS_LABEL,
   OWNER_LABEL,
@@ -111,43 +114,28 @@ function TaskCard({ task, topic, options, items }: { task: Task; topic?: Topic; 
   );
 }
 
+const EMPTY_BOARD = { tasks: [] as Task[], topics: [] as Topic[], options: [] as OptionRow[], items: [] as ItemRow[] };
+
+async function loadBoard() {
+  const [t, tp, o, i] = await Promise.all([
+    supabase.from('tasks').select('*').order('sort_order'),
+    supabase.from('topics').select('*').order('sort_order'),
+    supabase.from('task_options').select('id, task_id, name, status'),
+    supabase.from('planning_items').select('id, task_id, status, amount, amount_kind').not('task_id', 'is', null),
+  ]);
+  return { tasks: rowsOf<Task>(t), topics: rowsOf<Topic>(tp), options: rowsOf<OptionRow>(o), items: rowsOf<ItemRow>(i) };
+}
+
 export function Tasks() {
   const navigate = useNavigate();
   const { isUnlocked } = useEditMode();
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [topics, setTopics] = useState<Topic[]>([]);
-  const [options, setOptions] = useState<OptionRow[]>([]);
-  const [items, setItems] = useState<ItemRow[]>([]);
   const [area, setArea] = useState<string>('all');
   const [owner, setOwner] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [creating, setCreating] = useState(false);
 
-  async function load() {
-    const [t, tp, o, i] = await Promise.all([
-      supabase.from('tasks').select('*').order('sort_order'),
-      supabase.from('topics').select('*').order('sort_order'),
-      supabase.from('task_options').select('id, task_id, name, status'),
-      supabase.from('planning_items').select('id, task_id, status, amount, amount_kind').not('task_id', 'is', null),
-    ]);
-    setTasks((t.data ?? []) as Task[]);
-    setTopics((tp.data ?? []) as Topic[]);
-    setOptions((o.data ?? []) as OptionRow[]);
-    setItems((i.data ?? []) as ItemRow[]);
-  }
-
-  useEffect(() => {
-    load();
-    const channel = supabase
-      .channel('tasks_board')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, load)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'task_options' }, load)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'planning_items' }, load)
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
+  const { data, loadError, reload } = useLiveData({ tables: ['tasks', 'task_options', 'planning_items'], load: loadBoard, initial: EMPTY_BOARD });
+  const { tasks, topics, options, items } = data;
 
   const topicById = useMemo(() => Object.fromEntries(topics.map((t) => [t.id, t])), [topics]);
   const areasWithTasks = topics.filter((t) => tasks.some((k) => k.topic_id === t.id));
@@ -191,6 +179,7 @@ export function Tasks() {
 
   return (
     <Stack gap="lg">
+      <LoadError error={loadError} what="The tasks" onRetry={() => void reload()} />
       <Group justify="space-between" align="flex-end">
         <div>
           <Title order={2}>Tasks</Title>

@@ -1,31 +1,28 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { supabase } from '../lib/supabase';
+import { rowsOf } from '../lib/liveData';
 import { peopleByNight, type PlanCounts } from '../lib/lineBasis';
 import { householdsNeedingRooms, occupantsByRoom, type RoomGuest } from '../lib/rooms';
 import { guestNightsOf } from '../lib/stay';
 import { useGuestInvites } from './useGuestInvites';
+import { useLiveData } from './useLiveData';
 import { useRoomBoard } from './useRoomBoard';
 import { useStay } from './useStay';
+
+const NONE: RoomGuest[] = [];
+
+async function loadGuests() {
+  return rowsOf<RoomGuest>(
+    await supabase.from('guests').select('id, name, persons, priority, rooms_inside, rooms_outside, needs_lift, family_members, arrive_on, leave_on, sort_order')
+  );
+}
 
 // The rooms booked and the people on the room board, for checking budget lines against the plan.
 export function usePlanCounts(): PlanCounts {
   const { nights } = useStay();
   const { rooms, roomStays } = useRoomBoard();
   const { invites } = useGuestInvites();
-  const [guests, setGuests] = useState<RoomGuest[]>([]);
-
-  useEffect(() => {
-    let active = true;
-    supabase
-      .from('guests')
-      .select('id, name, persons, priority, rooms_inside, rooms_outside, needs_lift, family_members, arrive_on, leave_on, sort_order')
-      .then(({ data }) => {
-        if (active) setGuests((data ?? []) as RoomGuest[]);
-      });
-    return () => {
-      active = false;
-    };
-  }, [invites]);
+  const { data: guests } = useLiveData({ tables: ['guests'], load: loadGuests, initial: NONE });
 
   return useMemo(() => {
     const guestNights = guestNightsOf(nights, invites);

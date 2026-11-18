@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Anchor, Badge, Button, Card, Group, SimpleGrid, Stack, Text, Title } from '@mantine/core';
 import { supabase, type PlanningItem, type Topic } from '../lib/supabase';
+import { rowsOf } from '../lib/liveData';
+import { useLiveData } from '../hooks/useLiveData';
+import { LoadError } from '../components/LoadError';
 import { whatsappUrl } from '../lib/whatsapp';
 import { VendorTotals } from '../components/VendorTotals';
 
@@ -24,28 +26,16 @@ function metaString(metadata: Record<string, unknown>, key: string) {
 const STATUS_LABEL: Record<string, string> = { open: 'Open', in_progress: 'In progress', decided: 'Chosen', done: 'Done' };
 const KIND_LABEL: Record<string, string> = { quote: 'Quote', planned: 'Planned', paid: 'Paid' };
 
+const NO_VENDORS: VendorRow[] = [];
+
+async function loadVendors() {
+  return rowsOf<VendorRow>(
+    await supabase.from('planning_items').select('id, title, detail, status, amount, amount_kind, metadata, topic:topics(key, label)').eq('type', 'vendor').order('title')
+  );
+}
+
 export function Vendors() {
-  const [rows, setRows] = useState<VendorRow[]>([]);
-
-  async function load() {
-    const { data } = await supabase
-      .from('planning_items')
-      .select('id, title, detail, status, amount, amount_kind, metadata, topic:topics(key, label)')
-      .eq('type', 'vendor')
-      .order('title');
-    setRows((data ?? []) as unknown as VendorRow[]);
-  }
-
-  useEffect(() => {
-    load();
-    const channel = supabase
-      .channel('planning_items_vendors')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'planning_items', filter: 'type=eq.vendor' }, load)
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
+  const { data: rows, loadError, reload } = useLiveData({ tables: ['planning_items'], load: loadVendors, initial: NO_VENDORS });
 
   const groups = rows.reduce<Record<string, { label: string; rows: VendorRow[] }>>((acc, r) => {
     (acc[r.topic.key] ??= { label: r.topic.label, rows: [] }).rows.push(r);
@@ -54,6 +44,7 @@ export function Vendors() {
 
   return (
     <Stack gap="xl">
+      <LoadError error={loadError} what="The vendors" onRetry={() => void reload()} />
       <Title order={2}>Vendors</Title>
       <VendorTotals />
       {Object.entries(groups).map(([key, g]) => (

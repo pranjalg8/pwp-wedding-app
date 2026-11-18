@@ -1,8 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button, Group, Modal, Select, SimpleGrid, Stack, Text, TagsInput, Textarea, TextInput, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
+import { rowsOf } from '../lib/liveData';
+import { useLiveData } from '../hooks/useLiveData';
+import { LoadError } from '../components/LoadError';
 import { useEditMode } from '../hooks/useEditMode';
 import { useGuestInvites } from '../hooks/useGuestInvites';
 import { FUNCTION_STATUS_LABEL, FunctionCard, tintFor, type OutfitOption, type WeddingFunction } from '../components/FunctionCard';
@@ -52,37 +55,29 @@ function Editor({ fn, onClose, onSaved }: { fn: WeddingFunction; onClose: () => 
   );
 }
 
+const EMPTY_FUNCTIONS = { rows: [] as WeddingFunction[], outfits: [] as OutfitOption[] };
+
+async function loadFunctions() {
+  const [fns, opts] = await Promise.all([
+    supabase.from('wedding_functions').select('*').order('sort_order'),
+    supabase.from('task_options').select('name, status, tasks!inner(title)').ilike('tasks.title', 'Groom outfits%'),
+  ]);
+  return { rows: rowsOf<WeddingFunction>(fns), outfits: rowsOf<OutfitOption>(opts).map((o) => ({ name: o.name, status: o.status })) };
+}
+
 export function Functions() {
   const { isUnlocked } = useEditMode();
   const { totals } = useGuestInvites();
-  const [rows, setRows] = useState<WeddingFunction[]>([]);
-  const [outfits, setOutfits] = useState<OutfitOption[]>([]);
   const [editing, setEditing] = useState<WeddingFunction | null>(null);
 
-  async function load() {
-    const [fns, opts] = await Promise.all([
-      supabase.from('wedding_functions').select('*').order('sort_order'),
-      supabase.from('task_options').select('name, status, tasks!inner(title)').ilike('tasks.title', 'Groom outfits%'),
-    ]);
-    setRows((fns.data ?? []) as WeddingFunction[]);
-    setOutfits(((opts.data ?? []) as OutfitOption[]).map((o) => ({ name: o.name, status: o.status })));
-  }
-
-  useEffect(() => {
-    load();
-    const channel = supabase
-      .channel('wedding_functions')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'wedding_functions' }, load)
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
+  const { data, loadError, reload: load } = useLiveData({ tables: ['wedding_functions'], load: loadFunctions, initial: EMPTY_FUNCTIONS });
+  const { rows, outfits } = data;
 
   const days = [...new Set(rows.map((r) => r.event_date))];
 
   return (
     <Stack gap="xl">
+      <LoadError error={loadError} what="The functions" onRetry={() => void load()} />
       <Group justify="space-between" align="center">
         <Title order={2}>Functions</Title>
         <Group gap="xs">

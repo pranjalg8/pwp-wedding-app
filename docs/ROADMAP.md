@@ -40,8 +40,10 @@ The order changed: safety and accuracy now come before new features, and the bac
 ## December: money that follows the plan
 
 - Hotel and meal lines that follow the rooms booked and the room board (done in migration `0053`).
-- Staff and driver meals from `guests.kind` and a token count.
-- A shared way to load data with visible errors, moved over page by page.
+- Staff and driver meals from `guests.kind` and a token count. This needs the number of staff, the days and the thali
+  rate first.
+- A shared way to load data with visible errors: done for Home, Tasks, Guests, Rooms, Budget, Functions, Vendors and
+  Knowledge. Task details, Suggestions, Activity and the older dashboard still load the old way.
 
 The Anvaya link is dropped from this phase: it adds risk and nothing depends on it before the wedding.
 

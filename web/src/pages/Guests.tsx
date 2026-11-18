@@ -1,8 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Alert, Box, Button, Collapse, Group, Indicator, Menu, Paper, SegmentedControl, Select, Stack, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
+import { rowsOf } from '../lib/liveData';
+import { useLiveData } from '../hooks/useLiveData';
+import { LoadError } from '../components/LoadError';
 import { useEditMode } from '../hooks/useEditMode';
 import { GuestEditor, type Guest } from '../components/GuestEditor';
 import { useGuestInvites } from '../hooks/useGuestInvites';
@@ -31,6 +34,18 @@ type ListView = 'all' | 'not_invited' | 'waiting' | 'answered';
 
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
 
+const EMPTY_GUESTS = { guests: [] as Guest[], fnRows: [] as FunctionRef[], contacts: [] as GuestContact[], droppedCount: 0 };
+
+async function loadGuestPage() {
+  const [g, f, c, d] = await Promise.all([
+    supabase.from('guests').select('*').order('sort_order'),
+    supabase.from('wedding_functions').select('name, event_date, family_only').order('sort_order'),
+    supabase.from('guest_contacts').select('id, guest_id, person, kind, value, rank'),
+    supabase.from('guests_dropped').select('id', { count: 'exact', head: true }),
+  ]);
+  return { guests: rowsOf<Guest>(g), fnRows: rowsOf<FunctionRef>(f), contacts: rowsOf<GuestContact>(c), droppedCount: d.count ?? 0 };
+}
+
 // The Guests page is three views instead of one long page: Overview (what needs you, replies, each day), Households
 // (the list, with each household's answers and room) and Rooms (who sleeps where). Dropped households are one click
 // away in the More menu.
@@ -40,7 +55,8 @@ export function Guests() {
   const tab: Tab = (['overview', 'households', 'rooms', 'replies', 'dropped'] as const).find((t) => t === params.get('tab')) ?? 'overview';
   const setTab = (t: Tab) => setParams(t === 'overview' ? {} : { tab: t });
 
-  const [guests, setGuests] = useState<Guest[]>([]);
+  const { data: guestData, loadError: guestsError, reload: load } = useLiveData({ tables: ['guests', 'guest_contacts', 'wedding_functions'], load: loadGuestPage, initial: EMPTY_GUESTS });
+  const { guests, fnRows, contacts, droppedCount } = guestData;
   const [group, setGroup] = useState('all');
   const [priority, setPriority] = useState<string | null>(null);
   const [query, setQuery] = useState('');
@@ -48,52 +64,17 @@ export function Guests() {
   const [showFilters, setShowFilters] = useState(false);
   const [editing, setEditing] = useState<Guest | null | 'new'>(null);
   const [error, setError] = useState<string | null>(null);
-  const [fnRows, setFnRows] = useState<FunctionRef[]>([]);
   const [rsvpFor, setRsvpFor] = useState<Guest | null>(null);
   const [bulk, setBulk] = useState(false);
   const [bulkAnswer, setBulkAnswer] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [droppedCount, setDroppedCount] = useState(0);
-  const [contacts, setContacts] = useState<GuestContact[]>([]);
-  const { invites, totals, reload: reloadInvites } = useGuestInvites();
-  const { sites, nights } = useStay();
+  const { invites, totals, loadError: invitesError, reload: reloadInvites } = useGuestInvites();
+  const { sites, nights, loadError: stayError, reload: reloadStay } = useStay();
   const { rooms: stayRooms, roomStays, loadError: roomsError, reload: reloadRoomBoard } = useRoomBoard();
   const inviteReplies = useInviteReplies();
   const repliesToReview = useMemo(() => latestNew(inviteReplies.replies).length, [inviteReplies.replies]);
   const roomsView = (['plan', 'board', 'list'] as const).find((v) => v === params.get('view')) ?? 'plan';
   const days = useMemo(() => daysFromFunctions(fnRows), [fnRows]);
-
-  async function loadFunctions() {
-    const { data } = await supabase.from('wedding_functions').select('name, event_date, family_only').order('sort_order');
-    setFnRows((data ?? []) as FunctionRef[]);
-  }
-
-  async function loadContacts() {
-    const { data } = await supabase.from('guest_contacts').select('id, guest_id, person, kind, value, rank');
-    setContacts((data ?? []) as GuestContact[]);
-  }
-
-  async function load() {
-    const { data, error: err } = await supabase.from('guests').select('*').order('sort_order');
-    if (err) setError(err.message);
-    setGuests((data ?? []) as Guest[]);
-    const { count } = await supabase.from('guests_dropped').select('id', { count: 'exact', head: true });
-    setDroppedCount(count ?? 0);
-  }
-
-  useEffect(() => {
-    load();
-    loadFunctions();
-    loadContacts();
-    const channel = supabase
-      .channel('guests_page')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'guests' }, load)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'guest_contacts' }, loadContacts)
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
 
   async function remove(g: Guest) {
     if (!window.confirm(`Remove ${g.name} (${g.persons} ${g.persons === 1 ? 'person' : 'people'}) from the list? This is recorded in the activity log.`)) return;
@@ -239,6 +220,16 @@ export function Guests() {
         </Group>
       </Group>
 
+      <LoadError
+        error={guestsError ?? invitesError ?? stayError ?? inviteReplies.loadError}
+        what="The guest list"
+        onRetry={() => {
+          void load();
+          void reloadInvites();
+          void reloadStay();
+          void inviteReplies.reload();
+        }}
+      />
       {error && (
         <Alert color="red" withCloseButton onClose={() => setError(null)}>
           {error}
