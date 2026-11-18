@@ -1,5 +1,21 @@
 [
   {
+    "version": "1.11",
+    "date": "2026-11-18",
+    "title": "Easier on the phone, faster everywhere",
+    "items": [
+      { "kind": "new", "text": "Phone: a tab bar at the bottom for Home, Tasks, Guests and Budget, with More for everything else, and a lock button in the header to unlock editing." },
+      { "kind": "improved", "text": "Add and edit buttons now show even when locked. Tapping one asks for the PIN, then carries on. The PIN box is ready to type in and checks itself after the fourth digit." },
+      { "kind": "improved", "text": "Forms: Enter saves, they fill the screen on a phone with Save always in reach, a tap outside no longer throws away what you typed, and a short message confirms each save. Payments put the amount first, default to today, and offer UPI, bank transfer, card or cash." },
+      { "kind": "improved", "text": "Deleting something asks in the app's own dialog instead of a browser pop-up." },
+      { "kind": "improved", "text": "Share links: bigger plus and minus buttons for RSVP counts, a clear Saved message, and tap-to-call contacts." },
+      { "kind": "improved", "text": "Pages show a placeholder while they load instead of an empty list, a Retry button if loading fails, and friendlier messages when there is nothing yet." },
+      { "kind": "improved", "text": "A new look for sign-in, page titles and the countdown, and dark mode fixes." },
+      { "kind": "fix", "text": "After an update the app offers a Reload instead of showing a blank page, and live updates no longer get lost when you switch pages quickly." },
+      { "kind": "improved", "text": "Faster: pages load on demand, live updates are batched, and the database answers common questions with less work." }
+    ]
+  },
+  {
     "version": "1.10",
     "date": "2026-11-17",
     "title": "Ask panel, tidier",

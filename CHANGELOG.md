@@ -2,6 +2,26 @@
 
 Every version of the planner, newest first. This file is generated from `web/src/data/releases.json`; edit that file and run `npm run changelog`. The same list shows in the app under Activity, What's new.
 
+## 1.11 - 2026-11-18: Easier on the phone, faster everywhere
+
+**New**
+
+- Phone: a tab bar at the bottom for Home, Tasks, Guests and Budget, with More for everything else, and a lock button in the header to unlock editing.
+
+**Improved**
+
+- Add and edit buttons now show even when locked. Tapping one asks for the PIN, then carries on. The PIN box is ready to type in and checks itself after the fourth digit.
+- Forms: Enter saves, they fill the screen on a phone with Save always in reach, a tap outside no longer throws away what you typed, and a short message confirms each save. Payments put the amount first, default to today, and offer UPI, bank transfer, card or cash.
+- Deleting something asks in the app's own dialog instead of a browser pop-up.
+- Share links: bigger plus and minus buttons for RSVP counts, a clear Saved message, and tap-to-call contacts.
+- Pages show a placeholder while they load instead of an empty list, a Retry button if loading fails, and friendlier messages when there is nothing yet.
+- A new look for sign-in, page titles and the countdown, and dark mode fixes.
+- Faster: pages load on demand, live updates are batched, and the database answers common questions with less work.
+
+**Fixed**
+
+- After an update the app offers a Reload instead of showing a blank page, and live updates no longer get lost when you switch pages quickly.
+
 ## 1.10 - 2026-11-17: Ask panel, tidier
 
 **Improved**
