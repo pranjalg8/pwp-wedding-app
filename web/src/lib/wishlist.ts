@@ -63,7 +63,10 @@ export function fitsBudget(item: Pick<PublicItem, 'price_min' | 'price_max'>, ke
 // "Amazon", "Flipkart" or the site's name, for the badge and the button.
 export const storeOf = (url: string | null): string | null => (url ? storeName(url) : null);
 
-export const isWebAddress = (s: string) => /^https?:\/\/[^\s]{1,2000}$/i.test(s.trim());
+export const isWebAddress = (s: string) => {
+  const t = s.trim();
+  return t.length <= 2000 && /^https?:\/\/\S+$/i.test(t);
+};
 
 export const wishlistUrl = () => `${window.location.origin}${import.meta.env.BASE_URL}#/gifts`;
 
