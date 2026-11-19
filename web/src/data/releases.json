@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.12",
+    "date": "2026-11-19",
+    "title": "Gift wishlist",
+    "items": [
+      { "kind": "new", "text": "Gift wishlist: collect what we need for the new home. Paste a link from Amazon, Flipkart or any shop and the name, picture and price are filled in where the shop allows it, or add a picture and a price range by hand." },
+      { "kind": "new", "text": "A page for friends (no login) that shows the list by room and budget. A friend taps \"I'll gift this\" and types their name so nobody buys the same thing; the page only says an item is taken, and you see who took what in the planner. It stays closed until you switch it on." }
+    ]
+  },
+  {
     "version": "1.11",
     "date": "2026-11-18",
     "title": "Easier on the phone, faster everywhere",

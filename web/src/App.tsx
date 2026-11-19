@@ -44,6 +44,8 @@ const Suggestions = lazyPage(() => import('./pages/Suggestions'), 'Suggestions')
 const Updates = lazyPage(() => import('./pages/Updates'), 'Updates');
 const ShareLinks = lazyPage(() => import('./pages/ShareLinks'), 'ShareLinks');
 const SharedView = lazyPage(() => import('./pages/SharedView'), 'SharedView');
+const Wishlist = lazyPage(() => import('./pages/Wishlist'), 'Wishlist');
+const GiftWishlist = lazyPage(() => import('./pages/GiftWishlist'), 'GiftWishlist');
 const AskKb = lazyPage(() => import('./components/AskKb'), 'AskKb');
 
 // Vite reports a page file that failed to preload, usually because a new version was deployed while this tab was
@@ -87,6 +89,7 @@ const NAV_GROUPS = [
   {
     label: 'Share and history',
     items: [
+      { to: '/wishlist', label: 'Gift wishlist', icon: '🎁' },
       { to: '/share', label: 'Share', icon: '🔗' },
       { to: '/activity', label: 'Activity', icon: '🔔' },
     ],
@@ -252,6 +255,7 @@ function AuthedApp() {
               <Route path="/topics/:topicKey" element={<TopicDetail />} />
               <Route path="/budget" element={<Budget />} />
               <Route path="/share" element={<ShareLinks />} />
+              <Route path="/wishlist" element={<Wishlist />} />
               <Route path="/vendors" element={<Vendors />} />
               <Route path="/knowledge" element={<Knowledge />} />
               <Route path="/functions" element={<Functions />} />
@@ -289,6 +293,8 @@ export default function App() {
           <Routes>
             {/* Opened from a share link: no planner login, and it must not wait for one. */}
             <Route path="/s/:token" element={<SharedView />} />
+            {/* The gift wishlist friends open from a link: public, no planner login. */}
+            <Route path="/gifts" element={<GiftWishlist />} />
             <Route path="*" element={loading ? pageLoader : session ? <AuthedApp /> : <Login />} />
           </Routes>
         </Suspense>

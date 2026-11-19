@@ -2,6 +2,13 @@
 
 Every version of the planner, newest first. This file is generated from `web/src/data/releases.json`; edit that file and run `npm run changelog`. The same list shows in the app under Activity, What's new.
 
+## 1.12 - 2026-11-19: Gift wishlist
+
+**New**
+
+- Gift wishlist: collect what we need for the new home. Paste a link from Amazon, Flipkart or any shop and the name, picture and price are filled in where the shop allows it, or add a picture and a price range by hand.
+- A page for friends (no login) that shows the list by room and budget. A friend taps "I'll gift this" and types their name so nobody buys the same thing; the page only says an item is taken, and you see who took what in the planner. It stays closed until you switch it on.
+
 ## 1.11 - 2026-11-18: Easier on the phone, faster everywhere
 
 **New**
