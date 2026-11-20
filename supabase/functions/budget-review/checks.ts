@@ -411,7 +411,10 @@ function ledger(input: ReviewInput): Flag[] {
   for (const p of input.payments) {
     const k = `${p.payee.toLowerCase()}|${p.paid_on}|${p.amount}`;
     const first = seen.get(k);
-    if (first) out.push(flag({ table: 'payments', rowId: p.id, label: p.payee, code: CODES.DOUBLE_COUNT, severity: 'error', message: `${p.payee}: two ledger entries of ${inr(p.amount)} on ${p.paid_on}. Is one a duplicate?`, details: { other_id: first.id } }));
+    // Two receipts with different references are two payments (two advances of 37,000 on one day), not a duplicate.
+    const apart = first && first.reference?.trim() && p.reference?.trim() && first.reference.trim() !== p.reference.trim();
+    if (first && apart) seen.set(k + '|' + p.id, p);
+    else if (first) out.push(flag({ table: 'payments', rowId: p.id, label: p.payee, code: CODES.DOUBLE_COUNT, severity: 'error', message: `${p.payee}: two ledger entries of ${inr(p.amount)} on ${p.paid_on}. Is one a duplicate?`, details: { other_id: first.id } }));
     else seen.set(k, p);
   }
   return out;
@@ -426,7 +429,8 @@ function payment(p: PaymentRow): Flag[] {
   // A transfer figure typed into the note that is close to, but not, the amount: a typo in one of the two
   // (Paridhi's 29 Oct NEFT, 20 Nov 2026: 87,000 sent, 82,000 recorded).
   const text = `${p.purpose ?? ''} ${p.verification_note ?? ''}`;
-  const figs = figuresIn(text).filter((f) => f >= 1000);
+  // A note that talks about a quote, an estimate or a pre-discount price is not stating what was transferred.
+  const figs = /\b(quote|quoted|before discount|estimate|about|approx)/i.test(text) ? [] : figuresIn(text).filter((f) => f >= 1000);
   if (figs.length > 0 && !figs.some((f) => same(f, p.amount, 0.5))) {
     const near = figs.find((f) => Math.abs(f - p.amount) <= p.amount * 0.25);
     if (near !== undefined) {

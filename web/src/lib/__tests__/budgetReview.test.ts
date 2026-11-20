@@ -213,6 +213,16 @@ describe('ledger against schedule', () => {
     expect(codes(f)).toEqual(expect.arrayContaining([CODES.LEDGER_LINK_BROKEN, CODES.DOUBLE_COUNT]));
     expect(f.filter((x) => x.code === CODES.DOUBLE_COUNT)).toHaveLength(2);
   });
+  it('does not call two same-day payments a duplicate when their receipts differ', () => {
+    const a = pay({ id: 'a', payee: 'Malabar', amount: 37000, reference: 'Advance ...134' });
+    const b = pay({ id: 'b', payee: 'Malabar', amount: 37000, reference: 'Advance ...135' });
+    expect(codes(review({ payments: [a, b] }))).not.toContain(CODES.DOUBLE_COUNT);
+    expect(codes(review({ payments: [a, { ...b, reference: null }] }))).toContain(CODES.DOUBLE_COUNT);
+  });
+  it('does not read a quoted price in a note as the amount transferred', () => {
+    const p = pay({ id: 'k', amount: 160880, verification_note: 'Paid on the card; quote before discount about 1,68,527' });
+    expect(codes(review({ payments: [p] }))).not.toContain(CODES.PAYMENT_NOTE_MISMATCH);
+  });
   it('flags unverified payments and missing references, but not cash', () => {
     const f = review({ payments: [pay({ id: 'a', amount: 10, verification: 'chat_only', reference: null }), pay({ id: 'b', amount: 10, method: 'cash', reference: null })] });
     expect(about(f, 'a').map((x) => x.code).sort()).toEqual([CODES.PAYMENT_NO_REFERENCE, CODES.PAYMENT_UNVERIFIED]);
