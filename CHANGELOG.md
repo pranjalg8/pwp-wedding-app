@@ -2,6 +2,13 @@
 
 Every version of the planner, newest first. This file is generated from `web/src/data/releases.json`; edit that file and run `npm run changelog`. The same list shows in the app under Activity, What's new.
 
+## 1.12 - 2026-11-20: A guided tour and a timeline
+
+**New**
+
+- Guided tour: twelve short stops that open each page in the order work flows, from deciding in Tasks to paying in Budget and sharing a link. It is offered once on each device, and you can take it again from the menu or from Home.
+- Timeline on Home: every dated task, payment and function up to the honeymoon, by month, with overdue items on top. Switch between Planning (tasks) and Executing (payments, functions, the trip), and tap any line to open it where it is handled. Payments due on the same day are grouped into one line.
+
 ## 1.12 - 2026-11-19: Gift wishlist
 
 **New**
