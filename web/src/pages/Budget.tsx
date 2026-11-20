@@ -5,6 +5,7 @@ import { Accordion, Alert, Badge, Button, Group, Paper, SegmentedControl, Stack,
 import { PageHeader } from '../components/PageHeader';
 import { notifications } from '@mantine/notifications';
 import { supabase, type PlanningItem, type Topic } from '../lib/supabase';
+import { QuoteUpload } from '../components/QuoteUpload';
 import { PaymentsLedger } from '../components/PaymentsLedger';
 import { PlanCheck } from '../components/PlanCheck';
 import { BudgetReview } from '../components/BudgetReview';
@@ -265,6 +266,7 @@ export function Budget() {
         subtitle="What is paid, what is still to pay, and whether each month is covered."
         action={
         <Stack gap={6} align="flex-end">
+          <QuoteUpload topics={topics} />
           <SegmentedControl
             size="xs"
             value={scope}

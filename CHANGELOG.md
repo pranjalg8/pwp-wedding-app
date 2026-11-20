@@ -2,6 +2,16 @@
 
 Every version of the planner, newest first. This file is generated from `web/src/data/releases.json`; edit that file and run `npm run changelog`. The same list shows in the app under Activity, What's new.
 
+## 1.14 - 2026-11-21: Quote reader
+
+**New**
+
+- Add a quote: on Budget (and in the Ask panel) photograph or upload a vendor quote or contract. Claude reads it and proposes payments, tasks and a note of the terms in Suggestions. Nothing is added until you accept; bank details are ignored and never saved, and each upload asks before it goes to Gemini. Payments with no due date in the document are left out until you add them.
+
+**Improved**
+
+- Suggestions now show proposed payments and tasks, with Edit and accept, and a link to the source file.
+
 ## 1.13 - 2026-11-20: A reviewer for the budget
 
 **New**

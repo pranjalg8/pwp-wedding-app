@@ -154,13 +154,23 @@ export type SuggestionPayload = {
   amount_kind?: PlanningItem['amount_kind'];
   amount_note?: string | null;
   metadata?: Record<string, unknown>;
+  // new_payment (a proposed payment-schedule row)
+  payee?: string;
+  due_date?: string | null;
+  note?: string | null;
+  is_estimate?: boolean;
+  paridhi_amount?: number | null;
+  // new_task
+  priority?: 'high' | 'normal' | 'low';
+  owner?: 'pranjal' | 'paridhi' | 'both' | null;
+  summary?: string | null;
 };
 
 export type Suggestion = {
   id: string;
   created_at: string;
   run_id: string;
-  kind: 'new_item' | 'update_item';
+  kind: 'new_item' | 'update_item' | 'new_payment' | 'new_task';
   topic_id: string;
   target_item_id: string | null;
   base_updated_at: string | null;
@@ -173,4 +183,5 @@ export type Suggestion = {
   decided_by: string | null;
   decided_at: string | null;
   decision_note: string | null;
+  document_id: string | null;
 };
