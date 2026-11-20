@@ -1,6 +1,15 @@
 [
   {
     "version": "1.12",
+    "date": "2026-11-20",
+    "title": "A guided tour and a timeline",
+    "items": [
+      { "kind": "new", "text": "Guided tour: twelve short stops that open each page in the order work flows, from deciding in Tasks to paying in Budget and sharing a link. It is offered once on each device, and you can take it again from the menu or from Home." },
+      { "kind": "new", "text": "Timeline on Home: every dated task, payment and function up to the honeymoon, by month, with overdue items on top. Switch between Planning (tasks) and Executing (payments, functions, the trip), and tap any line to open it where it is handled. Payments due on the same day are grouped into one line." }
+    ]
+  },
+  {
+    "version": "1.12",
     "date": "2026-11-19",
     "title": "Gift wishlist",
     "items": [

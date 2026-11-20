@@ -10,6 +10,8 @@ import { PinGateButton, PinGateIcon } from './components/PinGate';
 import { DeviceNicknameModal } from './components/DeviceNickname';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { BottomNav } from './components/BottomNav';
+import { TourProvider } from './components/GuidedTour';
+import { useTour } from './hooks/useTour';
 import { getDeviceNickname } from './lib/device';
 import { reloadOnceForNewVersion } from './lib/chunkReload';
 import { usePendingSuggestions } from './hooks/usePendingSuggestions';
@@ -140,6 +142,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   const [nameOpened, nameHandlers] = useDisclosure(false);
   const [nickname, setNickname] = useState(getDeviceNickname());
   const pending = usePendingSuggestions() + useUnseenUpdates();
+  const tour = useTour();
   const { pathname } = useLocation();
   const onTab = pathname === '/' || TAB_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'));
 
@@ -173,6 +176,7 @@ function Shell({ children }: { children: React.ReactNode }) {
               <Menu.Dropdown>
                 <Menu.Label>{nickname ? `This device: ${nickname}` : 'This device is unnamed'}</Menu.Label>
                 <Menu.Item onClick={nameHandlers.open}>{nickname ? 'Rename this device' : 'Name this device'}</Menu.Item>
+                <Menu.Item onClick={tour.start}>Take the tour</Menu.Item>
                 <Menu.Divider />
                 <Menu.Item color="red" onClick={() => supabase.auth.signOut()}>
                   Sign out
@@ -192,6 +196,16 @@ function Shell({ children }: { children: React.ReactNode }) {
           <NavLinks onNavigate={close} pending={pending} />
           <Divider />
           <Stack gap="xs" align="stretch">
+            <Button
+              variant="subtle"
+              color="gray"
+              onClick={() => {
+                close();
+                tour.start();
+              }}
+            >
+              Take the tour
+            </Button>
             <Button variant="subtle" color="gray" onClick={nameHandlers.open}>
               {nickname ? `Device: ${nickname}` : 'Name this device'}
             </Button>
@@ -244,6 +258,7 @@ function AuthedApp() {
 
   return (
     <EditModeProvider>
+      <TourProvider>
       <Shell>
         <RouteBoundary>
           <Suspense fallback={pageLoader}>
@@ -279,6 +294,7 @@ function AuthedApp() {
           </Suspense>
         </RouteBoundary>
       </Shell>
+      </TourProvider>
     </EditModeProvider>
   );
 }

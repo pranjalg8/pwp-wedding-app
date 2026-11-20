@@ -16,6 +16,8 @@ import { firstError } from '../lib/loadState';
 import { LoadError, PageSkeleton } from '../components/PageSkeleton';
 import { FunctionCard, tintFor, type OutfitOption, type WeddingFunction } from '../components/FunctionCard';
 import { EmptyState } from '../components/EmptyState';
+import { PlanTimeline } from '../components/PlanTimeline';
+import { useTour } from '../hooks/useTour';
 
 type TaskRow = Pick<Task, 'id' | 'title' | 'topic_id' | 'owner' | 'priority' | 'due_date' | 'status' | 'sort_order'>;
 type OptionRow = { task_id: string; name: string; status: string };
@@ -67,6 +69,7 @@ type Alert = { key: string; color: string; text: string; to: string };
 
 export function Home() {
   const { profile } = useProfile();
+  const tour = useTour();
   const { dates } = usePlanFacts();
   const pendingSuggestions = usePendingSuggestions();
   const { invites, totals } = useGuestInvites();
@@ -196,6 +199,13 @@ export function Home() {
         }
       />
 
+      <Text size="sm" c="dimmed" mt={-8}>
+        New to the planner?{' '}
+        <Anchor component="button" type="button" size="sm" c="rose.6" onClick={tour.start}>
+          Take the two-minute tour
+        </Anchor>
+      </Text>
+
       {loadError && <LoadError message={loadError} onRetry={() => load()} />}
 
       {!loaded ? (
@@ -291,6 +301,8 @@ export function Home() {
         </Panel>
       </SimpleGrid>
       )}
+
+      <PlanTimeline />
 
       <Stack gap="sm">
         <Group justify="space-between">
