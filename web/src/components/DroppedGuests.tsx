@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useLoad } from '../hooks/useLoad';
 import { Alert, Badge, Button, Chip, Group, Paper, Select, SimpleGrid, Stack, Switch, Table, Text, TextInput } from '@mantine/core';
 import { supabase } from '../lib/supabase';
 import { useEditMode } from '../hooks/useEditMode';
@@ -63,9 +64,7 @@ export function DroppedGuests({ onChanged }: { onChanged: () => void }) {
     setLoaded(true);
   }
 
-  useEffect(() => {
-    load();
-  }, []);
+  useLoad(load);
 
   async function toggleMark(r: Dropped) {
     setBusy(r.id);

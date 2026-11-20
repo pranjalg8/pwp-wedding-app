@@ -9,7 +9,8 @@ import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
 import { useEditMode } from '../hooks/useEditMode';
 import { useGuestInvites } from '../hooks/useGuestInvites';
-import { FUNCTION_STATUS_LABEL, FunctionCard, tintFor, type OutfitOption, type WeddingFunction } from '../components/FunctionCard';
+import { FunctionCard, type OutfitOption, type WeddingFunction } from '../components/FunctionCard';
+import { FUNCTION_STATUS_LABEL, tintFor } from '../lib/schedule';
 import { MealsPlan } from '../components/MealsPlan';
 
 export type Site = { id: string; name: string };

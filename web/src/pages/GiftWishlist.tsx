@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useLoad } from '../hooks/useLoad';
 import { Alert, Badge, Button, Card, Chip, Container, Group, Image, Loader, Modal, SimpleGrid, Stack, Text, TextInput, Title } from '@mantine/core';
 import {
   BUDGETS, claimGift, fitsBudget, formatPrice, loadPublicList, myClaims, storeOf, unclaimGift,
@@ -26,10 +27,10 @@ export function GiftWishlist() {
     }
   }, []);
 
+  useLoad(load);
   useEffect(() => {
-    void load();
     document.title = 'Gift wishlist';
-  }, [load]);
+  }, []);
 
   const list = state.phase === 'ready' ? state.list : null;
   const items = useMemo(() => (list && list.open ? list.items : []), [list]);

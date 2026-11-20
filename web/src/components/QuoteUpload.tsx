@@ -1,20 +1,12 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Alert, Button, Checkbox, FileButton, Group, Modal, Select, Stack, Text } from '@mantine/core';
 import { useEditMode } from '../hooks/useEditMode';
 import { supabase, type Topic } from '../lib/supabase';
+import { mimeOf } from '../lib/quoteFile';
 
 const MAX_BYTES = 10 * 1024 * 1024;
-const TYPES: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', heic: 'image/heic', heif: 'image/heif', pdf: 'application/pdf' };
-
-// What the file is, from the browser's own guess or else the extension (phones sometimes report nothing for HEIC).
-export function mimeOf(name: string, reported: string): string | null {
-  const ext = name.split('.').pop()?.toLowerCase() ?? '';
-  const guess = Object.values(TYPES).includes(reported) ? reported : TYPES[ext];
-  return guess ?? null;
-}
-
-const safeName = (n: string) => n.replace(/[^\w.\-]+/g, '_').slice(-80) || 'document';
+const safeName = (n: string) => n.replace(/[^\w.-]+/g, '_').slice(-80) || 'document';
 
 type Result = { payments: number; tasks: number; notes: number; skipped: string[]; summary: string };
 
@@ -37,8 +29,7 @@ export function QuoteUpload({ topics = [], label = 'Add a quote', variant = 'lig
   const [busy, setBusy] = useState<'idle' | 'upload' | 'read'>('idle');
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Result | null>(null);
-  const reset = useRef(() => {});
-  reset.current = () => {
+  const reset = () => {
     setFile(null);
     setConsent(false);
     setError(null);
@@ -81,7 +72,8 @@ export function QuoteUpload({ topics = [], label = 'Add a quote', variant = 'lig
     if (fnErr) {
       let code = '';
       try {
-        code = ((await (fnErr as { context?: Response }).context?.clone().json()) as { error?: string }).error ?? '';
+        const body = (await (fnErr as { context?: Response }).context?.clone().json()) as { error?: string } | undefined;
+        code = body?.error ?? '';
       } catch {
         // not a JSON error body
       }
@@ -97,7 +89,7 @@ export function QuoteUpload({ topics = [], label = 'Add a quote', variant = 'lig
       <Button variant={variant} color="rose" size="sm" leftSection={<span aria-hidden>📎</span>} onClick={() => setOpened(true)}>
         {label}
       </Button>
-      <Modal opened={opened} onClose={() => { setOpened(false); reset.current(); }} title="Add a quote or contract" centered>
+      <Modal opened={opened} onClose={() => { setOpened(false); reset(); }} title="Add a quote or contract" centered>
         <Stack gap="sm">
           {!result && (
             <>
@@ -144,11 +136,11 @@ export function QuoteUpload({ topics = [], label = 'Add a quote', variant = 'lig
               )}
               <Group>
                 {total > 0 && (
-                  <Button component={Link} to="/activity/suggestions" color="rose" onClick={() => { setOpened(false); reset.current(); }}>
+                  <Button component={Link} to="/activity/suggestions" color="rose" onClick={() => { setOpened(false); reset(); }}>
                     Review suggestions
                   </Button>
                 )}
-                <Button variant="subtle" color="gray" onClick={() => reset.current()}>Add another</Button>
+                <Button variant="subtle" color="gray" onClick={() => reset()}>Add another</Button>
               </Group>
             </>
           )}

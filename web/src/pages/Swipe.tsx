@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useLoad } from '../hooks/useLoad';
 import { useSearchParams } from 'react-router-dom';
 import { Avatar, Badge, Card, Group, Loader, Progress, SegmentedControl, Select, Stack, Tabs, Text, Title } from '@mantine/core';
 import { PageHeader } from '../components/PageHeader';
@@ -115,9 +116,7 @@ export function Swipe({ scope = 'honeymoon' }: { scope?: 'honeymoon' | 'wedding'
     setHistory([]);
   }, [deck]);
 
-  useEffect(() => {
-    loadDeck();
-  }, [loadDeck]);
+  useLoad(loadDeck, deck?.id ?? null);
 
   const mineByCard = useMemo(() => {
     const m = new Map<string, SwipeChoice>();
