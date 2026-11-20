@@ -59,6 +59,16 @@ Still open:
 
 ## Last: housekeeping
 
-- Drop `guest_invites` and `guest_stays`, delete merged remote branches and the retired `gemini-ping` function.
-- Move older access rules to `is_allowed_user()`, clear the remaining lint warnings.
-- Decide on the queued notifications and the auto-sync job.
+Done (21 Nov):
+
+- Older access rules moved to `is_allowed_user()` (migration 0060; same access as before).
+- Lint warnings cleared (0 left), and the unused `web/src/lib/core` client removed.
+
+Waiting for a go-ahead, because they delete things:
+
+- Drop the empty `guest_invites` and `guest_stays` tables, and delete the retired `gemini-ping` function.
+- Delete the remote branches of merged or closed PRs, and the old local worktrees.
+
+Decisions still open:
+
+- The queued notifications (`send-notifications` is a dry run) and the auto-sync job.

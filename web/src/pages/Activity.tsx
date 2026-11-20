@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
+import { useLoad } from '../hooks/useLoad';
 import { Badge, Box, Table, Tabs, Text } from '@mantine/core';
 import { EmptyState } from '../components/EmptyState';
 import { LoadError, PageSkeleton } from '../components/PageSkeleton';
@@ -72,13 +73,7 @@ export function Activity() {
     setLoaded(true);
   }, []);
 
-  useEffect(() => {
-    let active = true;
-    void load(() => active);
-    return () => {
-      active = false;
-    };
-  }, [load]);
+  useLoad(load);
 
   const manual = entries.filter((e) => e.actor_type === 'manual');
   const sync = entries.filter((e) => e.actor_type === 'sync');

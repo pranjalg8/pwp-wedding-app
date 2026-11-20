@@ -13,3 +13,9 @@ export function whenLabel(fn: { slot: 'first_half' | 'second_half'; start_time?:
   if (!fn.start_time) return SLOT_LABEL[fn.slot];
   return fn.end_time ? `${clockLabel(fn.start_time)} to ${clockLabel(fn.end_time)}` : clockLabel(fn.start_time);
 }
+
+export const FUNCTION_STATUS_LABEL = { open: 'Open', in_progress: 'In progress', decided: 'Decided' } as const;
+
+// One soft tint per function so the cards are easy to tell apart at a glance.
+const TINTS = ['rose', 'grape', 'blue', 'teal', 'orange', 'pink'];
+export const tintFor = (index: number) => TINTS[index % TINTS.length];

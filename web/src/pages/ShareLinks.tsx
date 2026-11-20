@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
+import { useLoad } from '../hooks/useLoad';
 import {
   Alert,
   Badge,
@@ -324,9 +325,7 @@ export function ShareLinks() {
     setLoaded(true);
   }, []);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useLoad(load);
 
   async function revoke(l: ShareLink) {
     const ok = await confirmDanger({

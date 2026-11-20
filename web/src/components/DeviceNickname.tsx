@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Button, Group, Modal, Stack, Text, TextInput } from '@mantine/core';
 import { getDeviceNickname, setDeviceNickname } from '../lib/device';
 
@@ -13,9 +13,12 @@ export function DeviceNicknameModal({
 }) {
   const [value, setValue] = useState(getDeviceNickname() ?? '');
 
-  useEffect(() => {
+  // Refresh the field each time the dialog opens (adjusting state while rendering, not in an effect).
+  const [wasOpened, setWasOpened] = useState(opened);
+  if (opened !== wasOpened) {
+    setWasOpened(opened);
     if (opened) setValue(getDeviceNickname() ?? '');
-  }, [opened]);
+  }
 
   function handleSave() {
     const name = value.trim();

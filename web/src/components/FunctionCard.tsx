@@ -3,7 +3,7 @@ import { Badge, Box, Button, Group, Paper, Stack, Text } from '@mantine/core';
 import { OPTION_STATUS_LABEL, daysToDue } from '../lib/topicMeta';
 import { RsvpBar } from './RsvpBar';
 import type { RsvpTotals } from '../lib/rsvp';
-import { whenLabel } from '../lib/schedule';
+import { FUNCTION_STATUS_LABEL, whenLabel } from '../lib/schedule';
 
 export type WeddingFunction = {
   id: string;
@@ -29,12 +29,8 @@ export type WeddingFunction = {
   dress: string | null;
 };
 
-export const FUNCTION_STATUS_LABEL = { open: 'Open', in_progress: 'In progress', decided: 'Decided' } as const;
 const STATUS_LEVEL = { open: 1, in_progress: 2, decided: 3 } as const;
 
-// One soft tint per function so the cards are easy to tell apart at a glance.
-const TINTS = ['rose', 'grape', 'blue', 'teal', 'orange', 'pink'];
-export const tintFor = (index: number) => TINTS[index % TINTS.length];
 
 // Groom outfit options are named after the function they are for (Tilak, Haldi, Varmala...).
 const OUTFIT_OPTION_NAMES: Record<string, string[]> = {

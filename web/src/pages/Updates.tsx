@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { Badge, Card, Stack, Text } from '@mantine/core';
 import { PageHeader } from '../components/PageHeader';
 import { RELEASES, markUpdatesSeen, useUnseenUpdates, type ReleaseKind } from '../hooks/useUpdates';
@@ -12,7 +12,7 @@ const KIND: Record<ReleaseKind, { label: string; color: string }> = {
 export function Updates() {
   const unseen = useUnseenUpdates();
   // Remember which versions were new when the page opened, then mark them seen.
-  const newOnOpen = useRef(unseen);
+  const [newOnOpen] = useState(unseen);
   useEffect(() => {
     markUpdatesSeen();
   }, []);
@@ -26,7 +26,7 @@ export function Updates() {
             <div>
               <Text fw={700} fz="lg">
                 {r.title}{' '}
-                {i < newOnOpen.current && <Badge color="rose" size="sm" ml={4}>New</Badge>}
+                {i < newOnOpen && <Badge color="rose" size="sm" ml={4}>New</Badge>}
               </Text>
               <Text size="xs" c="dimmed">
                 Version {r.version} · {new Date(r.date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
