@@ -1,6 +1,6 @@
 [
   {
-    "version": "1.15",
+    "version": "1.91",
     "date": "2026-11-21",
     "title": "Ask can propose",
     "items": [
@@ -11,6 +11,25 @@
       {
         "kind": "new",
         "text": "Ask can propose a task, a payment or a note when you ask it to (for example: add a task, confirm the dhol wala by Friday). It only adds a suggestion; nothing changes until you accept it in Suggestions. Payments need the payee, amount and due date."
+      }
+    ]
+  },
+  {
+    "version": "1.15",
+    "date": "2026-11-21",
+    "title": "One schedule",
+    "items": [
+      {
+        "kind": "new",
+        "text": "Functions: each function can now have a start and end time and a venue (one of the hotels, or somewhere else such as the bride's home). The card shows the time once it is set."
+      },
+      {
+        "kind": "new",
+        "text": "The invite site now takes its schedule from the planner: the name, part of the day, short line and dress code are edited under Functions, in a section called On the invite site. A time only reaches the invite once Show the time on the invite is switched on. Family-only functions never show there."
+      },
+      {
+        "kind": "new",
+        "text": "Meals, 12 to 16 February: a new section under Functions lists every meal by day, with who it is for, where, people, rate per head and what it comes to. Each meal can point at its budget line, and a note appears when the meals and the line do not agree. It starts with the Shri Kanth meals from the budget."
       }
     ]
   },

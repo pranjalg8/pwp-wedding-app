@@ -2,12 +2,20 @@
 
 Every version of the planner, newest first. This file is generated from `web/src/data/releases.json`; edit that file and run `npm run changelog`. The same list shows in the app under Activity, What's new.
 
-## 1.15 - 2026-11-21: Ask can propose
+## 1.91 - 2026-11-21: Ask can propose
 
 **New**
 
 - Ask now knows the live planner (open tasks and due dates, payments still to make, RSVP counts per day, rooms) as well as the Knowledge pages, so you can ask what is due this week.
 - Ask can propose a task, a payment or a note when you ask it to (for example: add a task, confirm the dhol wala by Friday). It only adds a suggestion; nothing changes until you accept it in Suggestions. Payments need the payee, amount and due date.
+
+## 1.15 - 2026-11-21: One schedule
+
+**New**
+
+- Functions: each function can now have a start and end time and a venue (one of the hotels, or somewhere else such as the bride's home). The card shows the time once it is set.
+- The invite site now takes its schedule from the planner: the name, part of the day, short line and dress code are edited under Functions, in a section called On the invite site. A time only reaches the invite once Show the time on the invite is switched on. Family-only functions never show there.
+- Meals, 12 to 16 February: a new section under Functions lists every meal by day, with who it is for, where, people, rate per head and what it comes to. Each meal can point at its budget line, and a note appears when the meals and the line do not agree. It starts with the Shri Kanth meals from the budget.
 
 ## 1.14 - 2026-11-21: Quote reader
 
