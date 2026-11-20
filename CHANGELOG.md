@@ -2,7 +2,7 @@
 
 Every version of the planner, newest first. This file is generated from `web/src/data/releases.json`; edit that file and run `npm run changelog`. The same list shows in the app under Activity, What's new.
 
-## 1.91 - 2026-11-21: Ask can propose
+## 1.16 - 2026-11-21: Ask can propose
 
 **New**
 
