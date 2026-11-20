@@ -126,7 +126,8 @@ stable code, a severity (`error`, `warning`, `info`) and a plain message.
 | `PAID_NOT_IN_LEDGER`, `PAID_ITEM_NOT_IN_LEDGER` | marked paid (schedule or planner item) with no payments-ledger entry |
 | `PAID_STILL_PENDING`, `DOUBLE_COUNT`, `LEDGER_LINK_BROKEN` | a payment counted twice, or a link to a payment that is gone |
 | `PAYMENT_NOTE_MISMATCH` | a payment's amount differs from the figure in its own note (a typo) |
-| `PAYMENT_PARIDHI_EXCEEDS`, `PAYMENT_UNVERIFIED`, `PAYMENT_NO_REFERENCE` | ledger entry problems: receipt not checked, no reference |
+| `PAYMENT_PARIDHI_EXCEEDS` | her part of a ledger entry is more than the payment |
+| `PAYMENT_UNVERIFIED`, `PAYMENT_NO_REFERENCE` | receipt not checked, no reference. **Off by default**; set `checkReceipts: true` in the review input to switch on |
 | `STAY_QUANTITY_MISMATCH` | room-nights on a hotel line differ from `stay_nights` |
 | `DUE_PAST`, `DUE_BEFORE_HANDOVER` | pending past its date; new-home line due before possession |
 | `HEADER_OVER_BUDGET` | gold, wedding, post-wedding (and the buffer, once it has a figure) over budget |
