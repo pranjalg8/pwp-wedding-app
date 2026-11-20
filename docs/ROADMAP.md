@@ -64,11 +64,16 @@ Done (21 Nov):
 - Older access rules moved to `is_allowed_user()` (migration 0060; same access as before).
 - Lint warnings cleared (0 left), and the unused `web/src/lib/core` client removed.
 
-Waiting for a go-ahead, because they delete things:
+- Remote branches of merged or closed PRs deleted (42), and the old room-board worktrees removed.
+- Notifications: `send-notifications` skips rows queued more than 48 hours earlier instead of sending them, and a
+  cron job (`drain-notification-outbox`, every 15 minutes, migration 0061) calls it once the Vault secret
+  `service_role_key` exists.
+- The WhatsApp auto-sync job runs again every 30 minutes, now on Homebrew's node (`/opt/homebrew/bin/node`), so a
+  node upgrade no longer breaks it.
 
-- Drop the empty `guest_invites` and `guest_stays` tables, and delete the retired `gemini-ping` function.
-- Delete the remote branches of merged or closed PRs, and the old local worktrees.
+Left for you (blocked from here):
 
-Decisions still open:
-
-- The queued notifications (`send-notifications` is a dry run) and the auto-sync job.
+- Real sending: add the Vault secret `service_role_key`, and the function secrets `CORE_PUBSUB_URL`,
+  `CORE_SVC_USERNAME` and `CORE_SVC_PASSWORD` (see the top of `send-notifications/index.ts`).
+- Drop the empty `guest_invites` and `guest_stays` tables (the drop was declined at the permission prompt).
+- Delete the retired `gemini-ping` function in the dashboard (Edge Functions).

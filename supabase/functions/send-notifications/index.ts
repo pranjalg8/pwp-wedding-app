@@ -4,6 +4,8 @@
 //  * Only the service role may call it (the Supabase anon key is public, so it is rejected).
 //  * With no core-services credentials configured it is a dry run: it reports what it WOULD send and
 //    changes nothing, so rows stay pending.
+//  * Once live, rows older than STALE_HOURS (queued while sending was off) are marked skipped, not sent, so
+//    switching on never floods anyone with old reminders.
 //
 // Configuration (Edge Function secrets):
 //   CORE_PUBSUB_URL      e.g. https://r50lczvu84.execute-api.us-west-2.amazonaws.com/prod
@@ -20,6 +22,7 @@ import { AuthenticationDetails, CognitoUser, CognitoUserPool } from 'npm:amazon-
 import { buildMessage, type OutboxRow } from './messages.ts';
 
 const MAX_ATTEMPTS = 5;
+const STALE_HOURS = 48;
 
 function callerRole(req: Request): string | null {
   const token = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
@@ -67,7 +70,7 @@ Deno.serve(async (req) => {
 
   const { data: rows, error } = await supabase
     .from('notification_outbox')
-    .select('id, kind, recipient_profile_id, payload, attempts')
+    .select('id, kind, recipient_profile_id, payload, attempts, created_at')
     .eq('status', 'pending')
     .order('created_at')
     .limit(25);
@@ -85,7 +88,10 @@ Deno.serve(async (req) => {
   }
   const live = Boolean(pubsubUrl && token);
 
-  const batch = (rows ?? []) as (OutboxRow & { attempts: number })[];
+  const all = (rows ?? []) as (OutboxRow & { attempts: number; created_at: string })[];
+  const cutoff = Date.now() - STALE_HOURS * 3_600_000;
+  const stale = all.filter((r) => new Date(r.created_at).getTime() < cutoff);
+  const batch = all.filter((r) => new Date(r.created_at).getTime() >= cutoff);
   const prepared = batch.map((row) => ({
     row,
     topic: topicMap[row.recipient_profile_id] ?? `notify-${(nameOf.get(row.recipient_profile_id) ?? 'unknown').toLowerCase()}`,
@@ -93,7 +99,10 @@ Deno.serve(async (req) => {
   }));
 
   if (!live) {
-    const results = prepared.map(({ row, topic, subject, message }) => ({ id: row.id, kind: row.kind, status: 'dry-run', topic, subject, message }));
+    const results = [
+      ...prepared.map(({ row, topic, subject, message }) => ({ id: row.id, kind: row.kind, status: 'dry-run', topic, subject, message })),
+      ...stale.map((row) => ({ id: row.id, kind: row.kind, status: 'dry-run: would skip (stale)' })),
+    ];
     return json({ live, authError, pending: rows?.length ?? 0, results });
   }
 
@@ -109,7 +118,13 @@ Deno.serve(async (req) => {
     }),
   );
 
-  const results: Record<string, unknown>[] = [];
+  const results: Record<string, unknown>[] = stale.map((row) => ({ id: row.id, kind: row.kind, status: 'skipped' }));
+  if (stale.length) {
+    await supabase
+      .from('notification_outbox')
+      .update({ status: 'skipped', last_error: `Queued more than ${STALE_HOURS} hours before sending; not sent` })
+      .in('id', stale.map((r) => r.id));
+  }
   // Sent rows are marked in one update per distinct attempt count (usually just one), so each row still records
   // attempts + 1. Failed rows keep their own error text, so they are updated one by one, in parallel.
   const sentByAttempts = new Map<number, string[]>();
