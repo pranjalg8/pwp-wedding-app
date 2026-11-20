@@ -3,6 +3,7 @@ import { Badge, Box, Button, Group, Paper, Stack, Text } from '@mantine/core';
 import { OPTION_STATUS_LABEL, daysToDue } from '../lib/topicMeta';
 import { RsvpBar } from './RsvpBar';
 import type { RsvpTotals } from '../lib/rsvp';
+import { whenLabel } from '../lib/schedule';
 
 export type WeddingFunction = {
   id: string;
@@ -17,11 +18,19 @@ export type WeddingFunction = {
   notes: string | null;
   status: 'open' | 'in_progress' | 'decided';
   family_only: boolean; // family ceremonies: no guest RSVP, invites or room night
+  start_time: string | null; // "09:00:00"
+  end_time: string | null;
+  show_time: boolean; // the time is on the invite site
+  venue_site_id: string | null;
+  venue_text: string | null;
+  invite_name: string | null;
+  invite_part: string | null;
+  invite_blurb: string | null;
+  dress: string | null;
 };
 
 export const FUNCTION_STATUS_LABEL = { open: 'Open', in_progress: 'In progress', decided: 'Decided' } as const;
 const STATUS_LEVEL = { open: 1, in_progress: 2, decided: 3 } as const;
-const SLOT_LABEL = { first_half: 'First half', second_half: 'Second half' } as const;
 
 // One soft tint per function so the cards are easy to tell apart at a glance.
 const TINTS = ['rose', 'grape', 'blue', 'teal', 'orange', 'pink'];
@@ -79,6 +88,7 @@ export function FunctionCard({
   detailed = false,
   showRsvp = false,
   rsvp,
+  venue,
   to,
   onEdit,
 }: {
@@ -88,6 +98,7 @@ export function FunctionCard({
   detailed?: boolean;
   showRsvp?: boolean;
   rsvp?: RsvpTotals;
+  venue?: string | null;
   to?: string;
   onEdit?: () => void;
 }) {
@@ -118,7 +129,7 @@ export function FunctionCard({
               {fn.name}
             </Text>
             <Text size="xs" c="dimmed">
-              {SLOT_LABEL[fn.slot]}
+              {[whenLabel(fn), venue].filter(Boolean).join(' · ')}
             </Text>
           </div>
         </Group>
