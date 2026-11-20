@@ -108,6 +108,52 @@ The app can email one of you when the other finishes something. The Supabase hal
   `notify-paridhi`) with each person's email subscribed and confirmed, and a way for a server to sign in (the
   Cognito app client only allows SRP today).
 
+## Budget review
+
+A reviewer for the Budget numbers. It finds problems and asks about them; it never changes a figure.
+
+**1. The checks** (`supabase/functions/budget-review/checks.ts`): plain TypeScript, no network. The Budget page, the
+nightly run and the tests (`web/src/lib/__tests__/budgetReview.test.ts`) all run this same file. Each finding has a
+stable code, a severity (`error`, `warning`, `info`) and a plain message.
+
+| Code | What it catches |
+| --- | --- |
+| `LINE_ARITHMETIC` | quantity x rate + adjustment is not the amount |
+| `PARIDHI_EXCEEDS_AMOUNT`, `PARIDHI_PLAN_EXCEEDS` | her share (or her instalments) above the amount / her share |
+| `PARIDHI_ROUNDED` | a round share (70,000) on a line that is calculated from quantity and rate |
+| `SPLIT_NOTE_MISMATCH` | the note says "Split 1:2" but her share is not a third of the amount |
+| `NOTE_AMOUNT_MISMATCH` | the note states a total or a "still to pay" that the row does not follow |
+| `PAID_NOT_IN_LEDGER`, `PAID_ITEM_NOT_IN_LEDGER` | marked paid (schedule or planner item) with no payments-ledger entry |
+| `PAID_STILL_PENDING`, `DOUBLE_COUNT`, `LEDGER_LINK_BROKEN` | a payment counted twice, or a link to a payment that is gone |
+| `PAYMENT_NOTE_MISMATCH` | a payment's amount differs from the figure in its own note (a typo) |
+| `PAYMENT_PARIDHI_EXCEEDS`, `PAYMENT_UNVERIFIED`, `PAYMENT_NO_REFERENCE` | ledger entry problems: receipt not checked, no reference |
+| `STAY_QUANTITY_MISMATCH` | room-nights on a hotel line differ from `stay_nights` |
+| `DUE_PAST`, `DUE_BEFORE_HANDOVER` | pending past its date; new-home line due before possession |
+| `HEADER_OVER_BUDGET` | gold, wedding, post-wedding (and the buffer, once it has a figure) over budget |
+| `ESTIMATE_NOT_MARKED`, `GST_NOT_STATED`, `UNASSIGNED_AREA` | rough or round figures not marked as estimates; vendor lines silent on GST; lines with no area |
+| `TOTALS_DO_NOT_TIE` | the totals the page shows differ from the rows in the database |
+
+The regression tests are real mistakes from the review of 20 Nov 2026 (Hotel Sai's GST and Paridhi's rounded share,
+the new-home rent share, three payments missing from the ledger, a NEFT of 87,000 recorded as 82,000). When a new
+mistake gets past the checks, add a test for it first, then the check.
+
+**2. The wording** (`budget-review/llm.ts`, `index.ts`): for each new finding the edge function sends Gemini the
+checker's message, the row, its note and up to four recent chat messages that mention the payee, and stores the short
+question it writes in `budget_flags.question`. It reuses the chatbot's secrets (`GEMINI_API_KEY`, `GEMINI_MODEL`); the
+chat and notes are quoted as data, the answer is stored as text and never executed. Without a key the checks still
+run and the page shows the plain message.
+
+**3. On the Budget page** (`BudgetReview.tsx`): the checks run in the browser on every change, so the numbers are
+always reviewed. Stored flags (`budget_flags`, migration `0057`, read-only for browsers) add the question and remember
+your answer. **Fix** opens the normal editor for the row, **It is right** and **Dismiss** record your decision; all
+three ask for the PIN first, and the editors and `decide_budget_flag()` write through the audit trail. A flag stays
+quiet until one of its figures changes. **Review now** runs the edge function on demand; the nightly run is
+`.github/workflows/budget-review.yml` (02:30 India time).
+
+To deploy: apply migration `0057`; deploy the `budget-review` function; set the Edge Function secret
+`BUDGET_REVIEW_TOKEN` (any long random string) and add the same value as a repository secret, next to the existing
+`VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`. `GEMINI_API_KEY` is the one the chatbot already uses.
+
 ## Data model
 - `topics` — fixed planning areas (jewellery, outfits, decor, ...).
 - `planning_items` — the actual plan: decisions, todos, vendors, budget lines.

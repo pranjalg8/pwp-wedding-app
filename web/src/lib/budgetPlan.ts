@@ -42,8 +42,13 @@ export type BudgetSettings = {
 };
 
 export type AreaBudget = { id: string; topic_id: string; allocation: number };
-export type PaidRow = { id: string; paid_on: string; amount: number; topic_id: string | null; paridhi_amount: number; payee?: string | null; vendor_id?: string | null };
-export type ItemMoney = { topic_id: string; status: string; amount: number | null; amount_kind: string | null; slug: string | null };
+export type PaidRow = {
+  id: string; paid_on: string; amount: number; topic_id: string | null; paridhi_amount: number; payee?: string | null; vendor_id?: string | null;
+  // What the budget review reads to check a payment against its receipt.
+  item_id?: string | null; method?: string | null; reference?: string | null; purpose?: string | null;
+  verification?: 'receipt_checked' | 'chat_only' | null; verification_note?: string | null;
+};
+export type ItemMoney = { id?: string; title?: string; topic_id: string; status: string; amount: number | null; amount_kind: string | null; slug: string | null };
 export type TopicRef = { id: string; key: string; label: string; budget_group?: 'wedding' | 'post_wedding' | 'gold' | 'buffer' };
 
 export type Side = 'both' | 'pranjal' | 'paridhi';
