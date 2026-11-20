@@ -3,6 +3,7 @@ import { Alert, Badge, Button, Chip, Group, Paper, Select, SimpleGrid, Stack, Sw
 import { supabase } from '../lib/supabase';
 import { useEditMode } from '../hooks/useEditMode';
 import { useProfile } from '../hooks/useProfile';
+import { confirmDanger } from '../lib/confirm';
 
 type Dropped = {
   id: string;
@@ -76,7 +77,13 @@ export function DroppedGuests({ onChanged }: { onChanged: () => void }) {
   }
 
   async function bringBack(r: Dropped) {
-    if (!window.confirm(`Bring ${r.name} (${r.persons} ${r.persons === 1 ? 'person' : 'people'}) back onto the guest list? Rooms start at 0 and you can set them after. This is recorded in the activity log.`)) return;
+    const ok = await confirmDanger({
+      title: `Bring ${r.name} back?`,
+      message: `${r.name} (${r.persons} ${r.persons === 1 ? 'person' : 'people'}) goes back onto the guest list. Rooms start at 0 and you can set them after. This is recorded in the activity log.`,
+      confirmLabel: 'Bring back',
+      confirmColor: 'teal',
+    });
+    if (!ok) return;
     setBusy(r.id);
     setError(null);
     const { data: last } = await supabase.from('guests').select('sort_order').order('sort_order', { ascending: false }).limit(1);

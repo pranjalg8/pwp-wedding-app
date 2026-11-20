@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
+import { useRealtime } from './useRealtime';
 import { supabase } from '../lib/supabase';
 import type { RoomStay, StayRoom } from '../lib/rooms';
 
@@ -7,29 +8,25 @@ export function useRoomBoard() {
   const [rooms, setRooms] = useState<StayRoom[]>([]);
   const [roomStays, setRoomStays] = useState<RoomStay[]>([]);
   const [loaded, setLoaded] = useState(false);
-  const channelName = useRef(`room_board_${Math.random().toString(36).slice(2)}`);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     const [r, s] = await Promise.all([
       supabase.from('stay_rooms').select('*').order('sort_order'),
       supabase.from('room_stays').select('id, room_id, guest_id, people, extra_nights, check_in, check_out, locked'),
     ]);
+    const failed = r.error ?? s.error;
+    setLoaded(true);
+    if (failed) {
+      setLoadError(failed.message);
+      return;
+    }
+    setLoadError(null);
     setRooms((r.data ?? []) as StayRoom[]);
     setRoomStays((s.data ?? []) as RoomStay[]);
-    setLoaded(true);
   }, []);
 
-  useEffect(() => {
-    reload();
-    const channel = supabase
-      .channel(channelName.current)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'stay_rooms' }, reload)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'room_stays' }, reload)
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [reload]);
+  useRealtime(['stay_rooms', 'room_stays'], reload, { immediate: true });
 
-  return { rooms, roomStays, loaded, reload };
+  return { rooms, roomStays, loaded, loadError, reload };
 }

@@ -144,7 +144,8 @@ export function AskKb() {
             style={{
               position: 'fixed',
               right: 16,
-              bottom: 'calc(16px + env(safe-area-inset-bottom))',
+              // Sits above the phone tab bar (--bottom-nav-height is 0 on desktop).
+              bottom: 'calc(16px + max(var(--bottom-nav-height, 0px), env(safe-area-inset-bottom)))',
               zIndex: 150,
               boxShadow: 'var(--mantine-shadow-md)',
             }}

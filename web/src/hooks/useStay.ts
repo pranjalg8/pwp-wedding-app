@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
+import { useRealtime } from './useRealtime';
 import { supabase } from '../lib/supabase';
+import { firstError } from '../lib/loadState';
 import type { StayNight, StaySite } from '../lib/stay';
 
 // The places guests can stay and their rooms per night. Updates live.
@@ -7,31 +9,24 @@ export function useStay() {
   const [sites, setSites] = useState<StaySite[]>([]);
   const [nights, setNights] = useState<StayNight[]>([]);
   const [loaded, setLoaded] = useState(false);
-  const channelName = useRef(`stay_${Math.random().toString(36).slice(2)}`);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let active = true;
-    async function load() {
-      const [s, n] = await Promise.all([
-        supabase.from('stay_sites').select('*').order('sort_order'),
-        supabase.from('stay_nights').select('*').order('night'),
-      ]);
-      if (!active) return;
-      setSites((s.data ?? []) as StaySite[]);
-      setNights((n.data ?? []) as StayNight[]);
-      setLoaded(true);
-    }
-    load();
-    const channel = supabase
-      .channel(channelName.current)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'stay_sites' }, load)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'stay_nights' }, load)
-      .subscribe();
-    return () => {
-      active = false;
-      supabase.removeChannel(channel);
-    };
+  const load = useCallback(async (isActive: () => boolean) => {
+    const [s, n] = await Promise.all([
+      supabase.from('stay_sites').select('*').order('sort_order'),
+      supabase.from('stay_nights').select('*').order('night'),
+    ]);
+    if (!isActive()) return;
+    const failed = firstError(s, n);
+    setLoadError(failed);
+    setLoaded(true);
+    if (failed) return; // keep what is on screen
+    setSites((s.data ?? []) as StaySite[]);
+    setNights((n.data ?? []) as StayNight[]);
   }, []);
 
-  return { sites, nights, loaded };
+  useRealtime(['stay_sites', 'stay_nights'], load, { immediate: true });
+  const reload = useCallback(() => load(() => true), [load]);
+
+  return { sites, nights, loaded, loadError, reload };
 }

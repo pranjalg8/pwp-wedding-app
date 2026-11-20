@@ -15,6 +15,17 @@ export type Scheduled = {
   paridhi_amount: number; // Paridhi's share of amount; Pranjal pays the rest
   paridhi_due_date: string | null; // when Paridhi pays her share, if not on the vendor's due date
   paridhi_plan: ShareInstalment[]; // dated instalments of her share; the rest falls on the due date
+  vendor_id?: string | null; // who it is paid to
+  quantity?: number | null; // how the amount is worked out: quantity x rate (per unit)
+  unit?: string | null;
+  rate?: number | null;
+  in_budget?: boolean; // false: tracked, but paid by someone else; left out of the budget and the cash plan
+  adjustment?: number | null; // added after quantity x rate; negative for an advance already paid
+  basis?: 'room_nights' | 'meal_people' | null; // where the quantity comes from (see lineBasis.ts)
+  basis_site_id?: string | null;
+  basis_night?: string | null;
+  basis_multiplier?: number | null;
+  basis_extra?: number | null;
   sourceId?: string; // the stored payment a derived line comes from
   inflow?: boolean; // money coming back to Pranjal (Paridhi repaying a payment he covered); amount is negative
 };
@@ -31,8 +42,13 @@ export type BudgetSettings = {
 };
 
 export type AreaBudget = { id: string; topic_id: string; allocation: number };
-export type PaidRow = { id: string; paid_on: string; amount: number; topic_id: string | null; paridhi_amount: number; payee?: string | null };
-export type ItemMoney = { topic_id: string; status: string; amount: number | null; amount_kind: string | null; slug: string | null };
+export type PaidRow = {
+  id: string; paid_on: string; amount: number; topic_id: string | null; paridhi_amount: number; payee?: string | null; vendor_id?: string | null;
+  // What the budget review reads to check a payment against its receipt.
+  item_id?: string | null; method?: string | null; reference?: string | null; purpose?: string | null;
+  verification?: 'receipt_checked' | 'chat_only' | null; verification_note?: string | null;
+};
+export type ItemMoney = { id?: string; title?: string; topic_id: string; status: string; amount: number | null; amount_kind: string | null; slug: string | null };
 export type TopicRef = { id: string; key: string; label: string; budget_group?: 'wedding' | 'post_wedding' | 'gold' | 'buffer' };
 
 export type Side = 'both' | 'pranjal' | 'paridhi';
@@ -60,6 +76,42 @@ export function withFullFunds(scoped: Plan, full: Plan): Plan {
     leftAfterAll: full.leftAfterAll,
     firstShort: full.firstShort,
   };
+}
+
+export type Vendor = { id: string; name: string; kind: string; planning_item_id: string | null; notes: string | null };
+
+// quantity x rate plus any adjustment, rounded to the rupee; null unless quantity and rate are both set.
+export function lineAmount(quantity: number | null | undefined, rate: number | null | undefined, adjustment: number | null = 0) {
+  if (quantity == null || rate == null || !Number.isFinite(quantity) || !Number.isFinite(rate)) return null;
+  return Math.max(0, Math.round(quantity * rate + (adjustment ?? 0)));
+}
+
+// Lines that count in the budget and the cash plan, and the ones tracked outside it (paid by someone else).
+export function splitByBudget<T extends { in_budget?: boolean }>(rows: T[]) {
+  return { inBudget: rows.filter((r) => r.in_budget !== false), outside: rows.filter((r) => r.in_budget === false) };
+}
+
+// What a part payment leaves on a line. The money paid goes into the adjustment, so quantity x rate still describes
+// the whole job and still adds up to what is left.
+export function afterPartPayment(p: Pick<Scheduled, 'amount' | 'paridhi_amount' | 'adjustment'>, paid: number) {
+  const left = Math.round((p.amount - paid) * 100) / 100;
+  return { amount: left, paridhi_amount: Math.round(p.paridhi_amount * (left / p.amount) * 100) / 100, adjustment: (p.adjustment ?? 0) - paid };
+}
+
+// What each vendor has been paid and is still owed. Paid comes from the ledger, plus any line closed without a ledger
+// entry (paid by someone else). Cancelled lines are left out.
+export function vendorTotals(vendors: Vendor[], rows: Pick<Scheduled, 'vendor_id' | 'amount' | 'status' | 'paid_payment_id'>[], ledger: Pick<PaidRow, 'vendor_id' | 'amount'>[] = []) {
+  return vendors
+    .map((v) => {
+      const mine = rows.filter((r) => r.vendor_id === v.id && r.status !== 'cancelled');
+      return {
+        vendor: v,
+        lines: mine.length,
+        paid: sum(ledger.filter((p) => p.vendor_id === v.id).map((p) => p.amount)) + sum(mine.filter((r) => r.status === 'paid' && !r.paid_payment_id).map((r) => r.amount)),
+        pending: sum(mine.filter((r) => r.status === 'pending').map((r) => r.amount)),
+      };
+    })
+    .sort((a, b) => b.paid + b.pending - (a.paid + a.pending) || a.vendor.name.localeCompare(b.vendor.name));
 }
 
 export const SIDE_LABEL: Record<Side, string> = { both: 'Together', pranjal: 'Pranjal', paridhi: 'Paridhi' };

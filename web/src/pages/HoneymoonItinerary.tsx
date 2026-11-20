@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { PageSkeleton } from '../components/PageSkeleton';
 import { Link } from 'react-router-dom';
 import { Anchor, Badge, Box, Button, Group, Image, Paper, Progress, Select, SimpleGrid, Stack, Text, ThemeIcon, Title, UnstyledButton } from '@mantine/core';
 import { OPTIONS, plannedTotal, type TravelOption } from '../data/travelOptions';
@@ -172,7 +173,7 @@ function SamuiView({ flipLabel, onFlip }: { flipLabel?: string; onFlip?: () => v
 // The chosen destination is shared with the Getting there and Swipe tabs.
 export function HoneymoonItinerary() {
   const { plan, ready, hasAlternatives, nextLabel, flip } = useDestination();
-  if (!ready) return null;
+  if (!ready) return <PageSkeleton cards={3} title />;
   if (plan) {
     return (
       <Box key={`alt-${plan.key}`} className="honeymoon-flip">

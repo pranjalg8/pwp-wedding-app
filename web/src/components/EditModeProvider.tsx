@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
 import { EditModeContext } from '../hooks/useEditMode';
+import { PinModal } from './PinGate';
 
 // Edit mode is remembered on this device so a refresh, a new tab or moving between pages does not lock it again.
 // It switches itself off after 30 minutes without any activity (every click or key press pushes that back),
@@ -58,6 +59,21 @@ export function EditModeProvider({ children }: { children: ReactNode }) {
     [lock]
   );
 
+  // One shared PIN dialog. requestUnlock(fn) opens it and runs fn once the PIN is accepted.
+  const [pinOpen, setPinOpen] = useState(false);
+  const pendingAction = useRef<(() => void) | null>(null);
+  const requestUnlock = useCallback(
+    (onUnlocked?: () => void) => {
+      if (isUnlocked) {
+        onUnlocked?.();
+        return;
+      }
+      pendingAction.current = onUnlocked ?? null;
+      setPinOpen(true);
+    },
+    [isUnlocked]
+  );
+
   // Lock at the moment it runs out.
   useEffect(() => {
     if (!until) return;
@@ -111,5 +127,26 @@ export function EditModeProvider({ children }: { children: ReactNode }) {
     return () => data.subscription.unsubscribe();
   }, [lock]);
 
-  return <EditModeContext.Provider value={{ isUnlocked, unlock, lock }}>{children}</EditModeContext.Provider>;
+  // Stable while nothing a consumer reads has changed, so opening the PIN dialog or pushing the idle timer back
+  // does not re-render every edit button in the app.
+  const value = useMemo(() => ({ isUnlocked, unlock, lock, requestUnlock }), [isUnlocked, unlock, lock, requestUnlock]);
+
+  return (
+    <EditModeContext.Provider value={value}>
+      {children}
+      <PinModal
+        opened={pinOpen}
+        onClose={() => {
+          pendingAction.current = null;
+          setPinOpen(false);
+        }}
+        onUnlocked={() => {
+          const run = pendingAction.current;
+          pendingAction.current = null;
+          setPinOpen(false);
+          run?.();
+        }}
+      />
+    </EditModeContext.Provider>
+  );
 }

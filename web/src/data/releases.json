@@ -1,11 +1,105 @@
 [
   {
-    "version": "1.11",
-    "date": "2026-11-18",
+    "version": "1.14",
+    "date": "2026-11-21",
     "title": "Quote reader",
     "items": [
-      { "kind": "new", "text": "Add a quote: on Budget (and in the Ask panel) photograph or upload a vendor quote or contract. Claude reads it and proposes payments, tasks and a note of the terms in Suggestions. Nothing is added until you accept; bank details are ignored and never saved, and each upload asks before it goes to Gemini." },
-      { "kind": "improved", "text": "Suggestions now show proposed payments and tasks, with Edit and accept, and a link to the source file." }
+      {
+        "kind": "new",
+        "text": "Add a quote: on Budget (and in the Ask panel) photograph or upload a vendor quote or contract. Claude reads it and proposes payments, tasks and a note of the terms in Suggestions. Nothing is added until you accept; bank details are ignored and never saved, and each upload asks before it goes to Gemini. Payments with no due date in the document are left out until you add them."
+      },
+      {
+        "kind": "improved",
+        "text": "Suggestions now show proposed payments and tasks, with Edit and accept, and a link to the source file."
+      }
+    ]
+  },
+  {
+    "version": "1.13",
+    "date": "2026-11-20",
+    "title": "A reviewer for the budget",
+    "items": [
+      {
+        "kind": "new",
+        "text": "Budget review: a panel at the top of Budget checks the numbers every time the page loads and every night. It looks for sums that do not add up (quantity times rate), Paridhi's share that does not follow the amount or the split in the note, notes that state a different total, payments missing from or counted twice in the ledger, hotel nights that differ from the room plan, overdue or too-early due dates, headers over budget, rough figures not marked as estimates, GST not stated, and page totals that differ from the database."
+      },
+      {
+        "kind": "new",
+        "text": "Each finding comes as a short question (written by the same Gemini set-up as the chatbot, once it is switched on). Fix opens the normal editor; It is right and Dismiss remember your answer; all three ask for the PIN. The reviewer never changes a figure itself."
+      }
+    ]
+  },
+  {
+    "version": "1.12",
+    "date": "2026-11-20",
+    "title": "A guided tour and a timeline",
+    "items": [
+      {
+        "kind": "new",
+        "text": "Guided tour: twelve short stops that open each page in the order work flows, from deciding in Tasks to paying in Budget and sharing a link. It is offered once on each device, and you can take it again from the menu or from Home."
+      },
+      {
+        "kind": "new",
+        "text": "Timeline on Home: every dated task, payment and function up to the honeymoon, by month, with overdue items on top. Switch between Planning (tasks) and Executing (payments, functions, the trip), and tap any line to open it where it is handled. Payments due on the same day are grouped into one line."
+      }
+    ]
+  },
+  {
+    "version": "1.12",
+    "date": "2026-11-19",
+    "title": "Gift wishlist",
+    "items": [
+      {
+        "kind": "new",
+        "text": "Gift wishlist: collect what we need for the new home. Paste a link from Amazon, Flipkart or any shop and the name, picture and price are filled in where the shop allows it, or add a picture and a price range by hand."
+      },
+      {
+        "kind": "new",
+        "text": "A page for friends (no login) that shows the list by room and budget. A friend taps \"I'll gift this\" and types their name so nobody buys the same thing; the page only says an item is taken, and you see who took what in the planner. It stays closed until you switch it on."
+      }
+    ]
+  },
+  {
+    "version": "1.11",
+    "date": "2026-11-18",
+    "title": "Easier on the phone, faster everywhere",
+    "items": [
+      {
+        "kind": "new",
+        "text": "Phone: a tab bar at the bottom for Home, Tasks, Guests and Budget, with More for everything else, and a lock button in the header to unlock editing."
+      },
+      {
+        "kind": "improved",
+        "text": "Add and edit buttons now show even when locked. Tapping one asks for the PIN, then carries on. The PIN box is ready to type in and checks itself after the fourth digit."
+      },
+      {
+        "kind": "improved",
+        "text": "Forms: Enter saves, they fill the screen on a phone with Save always in reach, a tap outside no longer throws away what you typed, and a short message confirms each save. Payments put the amount first, default to today, and offer UPI, bank transfer, card or cash."
+      },
+      {
+        "kind": "improved",
+        "text": "Deleting something asks in the app's own dialog instead of a browser pop-up."
+      },
+      {
+        "kind": "improved",
+        "text": "Share links: bigger plus and minus buttons for RSVP counts, a clear Saved message, and tap-to-call contacts."
+      },
+      {
+        "kind": "improved",
+        "text": "Pages show a placeholder while they load instead of an empty list, a Retry button if loading fails, and friendlier messages when there is nothing yet."
+      },
+      {
+        "kind": "improved",
+        "text": "A new look for sign-in, page titles and the countdown, and dark mode fixes."
+      },
+      {
+        "kind": "fix",
+        "text": "After an update the app offers a Reload instead of showing a blank page, and live updates no longer get lost when you switch pages quickly."
+      },
+      {
+        "kind": "improved",
+        "text": "Faster: pages load on demand, live updates are batched, and the database answers common questions with less work."
+      }
     ]
   },
   {
@@ -13,7 +107,10 @@
     "date": "2026-11-17",
     "title": "Ask panel, tidier",
     "items": [
-      { "kind": "improved", "text": "Ask: starter questions that match the page you are on, page links under each answer that open that Knowledge page, Copy and Try AI again buttons, a New chat button, and Ctrl/Cmd+K to open it. On a phone it slides up from the bottom, and the chat is remembered until you close the tab." }
+      {
+        "kind": "improved",
+        "text": "Ask: starter questions that match the page you are on, page links under each answer that open that Knowledge page, Copy and Try AI again buttons, a New chat button, and Ctrl/Cmd+K to open it. On a phone it slides up from the bottom, and the chat is remembered until you close the tab."
+      }
     ]
   },
   {
@@ -21,7 +118,10 @@
     "date": "2026-11-17",
     "title": "Ask the knowledge base",
     "items": [
-      { "kind": "new", "text": "Ask button on every page: type a question about the wedding and get a short answer from the Knowledge page, with the page named. Until AI answers are switched on it shows the matching lines instead." }
+      {
+        "kind": "new",
+        "text": "Ask button on every page: type a question about the wedding and get a short answer from the Knowledge page, with the page named. Until AI answers are switched on it shows the matching lines instead."
+      }
     ]
   },
   {
@@ -29,7 +129,10 @@
     "date": "2026-11-14",
     "title": "Guest contacts",
     "items": [
-      { "kind": "new", "text": "Guests: each household shows its saved phone numbers and emails under Contacts, with tap-to-call and tap-to-email. Search also finds a household by number, email or person." }
+      {
+        "kind": "new",
+        "text": "Guests: each household shows its saved phone numbers and emails under Contacts, with tap-to-call and tap-to-email. Search also finds a household by number, email or person."
+      }
     ]
   },
   {
@@ -37,7 +140,10 @@
     "date": "2026-11-12",
     "title": "Knowledge base",
     "items": [
-      { "kind": "new", "text": "Knowledge page: a short reference for the wedding (dates, stay and food, money rules, the home move) with search, kept in step with the planner." }
+      {
+        "kind": "new",
+        "text": "Knowledge page: a short reference for the wedding (dates, stay and food, money rules, the home move) with search, kept in step with the planner."
+      }
     ]
   },
   {
@@ -45,10 +151,22 @@
     "date": "2026-10-09",
     "title": "Function decks, results and this log",
     "items": [
-      { "kind": "new", "text": "Swipe decks for every function: Haldi, wedding-day colours and outfits, mandap, entry and varmala decor, gifts, photography and video, and Sangeet dance." },
-      { "kind": "new", "text": "Functions, Results: for every function, where you both said yes, where you disagree and what is still waiting." },
-      { "kind": "new", "text": "Activity, What's new: this log of every version, with a badge when there is something you have not seen." },
-      { "kind": "improved", "text": "The Swipe page uses a deck dropdown when there are many decks." }
+      {
+        "kind": "new",
+        "text": "Swipe decks for every function: Haldi, wedding-day colours and outfits, mandap, entry and varmala decor, gifts, photography and video, and Sangeet dance."
+      },
+      {
+        "kind": "new",
+        "text": "Functions, Results: for every function, where you both said yes, where you disagree and what is still waiting."
+      },
+      {
+        "kind": "new",
+        "text": "Activity, What's new: this log of every version, with a badge when there is something you have not seen."
+      },
+      {
+        "kind": "improved",
+        "text": "The Swipe page uses a deck dropdown when there are many decks."
+      }
     ]
   },
   {
@@ -56,13 +174,34 @@
     "date": "2026-10-09",
     "title": "Money, functions and installing",
     "items": [
-      { "kind": "new", "text": "Payments ledger on the Budget page: each payment with its receipt reference, a Receipt checked or Not verified badge, and a warning if the totals ever disagree with the planner." },
-      { "kind": "new", "text": "Functions page: Tilak, Mehndi, Sagai, Sangeet, Haldi and the wedding day, by date and half of the day, with theme and colours." },
-      { "kind": "new", "text": "Sangeet and Mehndi swipe decks (colours, combinations and outfit styles)." },
-      { "kind": "new", "text": "Daily due-date reminders are queued for each person's items. Emails stay off until the email setup is finished." },
-      { "kind": "new", "text": "Install the planner on your phone from the browser (Add to Home Screen)." },
-      { "kind": "new", "text": "Task-based planner: tasks with options and details, linked to the messages behind them." },
-      { "kind": "new", "text": "Guest page you can share through expiring links." }
+      {
+        "kind": "new",
+        "text": "Payments ledger on the Budget page: each payment with its receipt reference, a Receipt checked or Not verified badge, and a warning if the totals ever disagree with the planner."
+      },
+      {
+        "kind": "new",
+        "text": "Functions page: Tilak, Mehndi, Sagai, Sangeet, Haldi and the wedding day, by date and half of the day, with theme and colours."
+      },
+      {
+        "kind": "new",
+        "text": "Sangeet and Mehndi swipe decks (colours, combinations and outfit styles)."
+      },
+      {
+        "kind": "new",
+        "text": "Daily due-date reminders are queued for each person's items. Emails stay off until the email setup is finished."
+      },
+      {
+        "kind": "new",
+        "text": "Install the planner on your phone from the browser (Add to Home Screen)."
+      },
+      {
+        "kind": "new",
+        "text": "Task-based planner: tasks with options and details, linked to the messages behind them."
+      },
+      {
+        "kind": "new",
+        "text": "Guest page you can share through expiring links."
+      }
     ]
   },
   {
@@ -70,9 +209,18 @@
     "date": "2026-10-08",
     "title": "Shared dates, owners and vendors",
     "items": [
-      { "kind": "improved", "text": "Shared dates and values live in one place, so every page and the chat reader see the same thing." },
-      { "kind": "new", "text": "Owners and due dates on items, with one shared list called Our due items." },
-      { "kind": "improved", "text": "Vendors are cards grouped by area, with call, email and a WhatsApp chat link." }
+      {
+        "kind": "improved",
+        "text": "Shared dates and values live in one place, so every page and the chat reader see the same thing."
+      },
+      {
+        "kind": "new",
+        "text": "Owners and due dates on items, with one shared list called Our due items."
+      },
+      {
+        "kind": "improved",
+        "text": "Vendors are cards grouped by area, with call, email and a WhatsApp chat link."
+      }
     ]
   },
   {
@@ -80,8 +228,14 @@
     "date": "2026-10-07",
     "title": "Checks and notifications groundwork",
     "items": [
-      { "kind": "improved", "text": "A grounding audit checks every amount against the chat messages it came from." },
-      { "kind": "new", "text": "Notification queue: finished swipe decks and weekly reminders are lined up for each person. Nothing is emailed yet." }
+      {
+        "kind": "improved",
+        "text": "A grounding audit checks every amount against the chat messages it came from."
+      },
+      {
+        "kind": "new",
+        "text": "Notification queue: finished swipe decks and weekly reminders are lined up for each person. Nothing is emailed yet."
+      }
     ]
   },
   {
@@ -89,7 +243,10 @@
     "date": "2026-10-05",
     "title": "Suggestions inbox",
     "items": [
-      { "kind": "new", "text": "Activity, Suggestions: chat messages and bill images become proposed changes, and nothing is applied until one of you accepts it." }
+      {
+        "kind": "new",
+        "text": "Activity, Suggestions: chat messages and bill images become proposed changes, and nothing is applied until one of you accepts it."
+      }
     ]
   },
   {
@@ -97,12 +254,30 @@
     "date": "2026-10-04",
     "title": "Swipe cards and honeymoon planning",
     "items": [
-      { "kind": "new", "text": "Swipe cards: yes or no on options, with real photos, facts and links, and a Results tab for where you agree." },
-      { "kind": "new", "text": "Honeymoon Getting there page with route options and timelines." },
-      { "kind": "improved", "text": "The honeymoon page follows the route you chose and the 4 lakh budget." },
-      { "kind": "improved", "text": "Every number shows where it came from and when." },
-      { "kind": "improved", "text": "The activity log records who changed what and from which device, and save errors are visible." },
-      { "kind": "improved", "text": "Database access is limited to the two signed-in accounts." }
+      {
+        "kind": "new",
+        "text": "Swipe cards: yes or no on options, with real photos, facts and links, and a Results tab for where you agree."
+      },
+      {
+        "kind": "new",
+        "text": "Honeymoon Getting there page with route options and timelines."
+      },
+      {
+        "kind": "improved",
+        "text": "The honeymoon page follows the route you chose and the 4 lakh budget."
+      },
+      {
+        "kind": "improved",
+        "text": "Every number shows where it came from and when."
+      },
+      {
+        "kind": "improved",
+        "text": "The activity log records who changed what and from which device, and save errors are visible."
+      },
+      {
+        "kind": "improved",
+        "text": "Database access is limited to the two signed-in accounts."
+      }
     ]
   },
   {
@@ -110,12 +285,30 @@
     "date": "2026-10-03",
     "title": "First version",
     "items": [
-      { "kind": "new", "text": "A planner by area, with decisions, to-dos, vendors and budget lines." },
-      { "kind": "new", "text": "Countdown home page and a warm design that works on a phone." },
-      { "kind": "new", "text": "Budget page that adds up money across every area." },
-      { "kind": "new", "text": "Vendors page with contact details." },
-      { "kind": "new", "text": "Device nickname, so the activity log says which device made a change." },
-      { "kind": "new", "text": "Changes appear live for both of you." }
+      {
+        "kind": "new",
+        "text": "A planner by area, with decisions, to-dos, vendors and budget lines."
+      },
+      {
+        "kind": "new",
+        "text": "Countdown home page and a warm design that works on a phone."
+      },
+      {
+        "kind": "new",
+        "text": "Budget page that adds up money across every area."
+      },
+      {
+        "kind": "new",
+        "text": "Vendors page with contact details."
+      },
+      {
+        "kind": "new",
+        "text": "Device nickname, so the activity log says which device made a change."
+      },
+      {
+        "kind": "new",
+        "text": "Changes appear live for both of you."
+      }
     ]
   }
 ]

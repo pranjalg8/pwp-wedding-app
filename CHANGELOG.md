@@ -2,15 +2,56 @@
 
 Every version of the planner, newest first. This file is generated from `web/src/data/releases.json`; edit that file and run `npm run changelog`. The same list shows in the app under Activity, What's new.
 
-## 1.11 - 2026-11-18: Quote reader
+## 1.14 - 2026-11-21: Quote reader
 
 **New**
 
-- Add a quote: on Budget (and in the Ask panel) photograph or upload a vendor quote or contract. Claude reads it and proposes payments, tasks and a note of the terms in Suggestions. Nothing is added until you accept; bank details are ignored and never saved, and each upload asks before it goes to Gemini.
+- Add a quote: on Budget (and in the Ask panel) photograph or upload a vendor quote or contract. Claude reads it and proposes payments, tasks and a note of the terms in Suggestions. Nothing is added until you accept; bank details are ignored and never saved, and each upload asks before it goes to Gemini. Payments with no due date in the document are left out until you add them.
 
 **Improved**
 
 - Suggestions now show proposed payments and tasks, with Edit and accept, and a link to the source file.
+
+## 1.13 - 2026-11-20: A reviewer for the budget
+
+**New**
+
+- Budget review: a panel at the top of Budget checks the numbers every time the page loads and every night. It looks for sums that do not add up (quantity times rate), Paridhi's share that does not follow the amount or the split in the note, notes that state a different total, payments missing from or counted twice in the ledger, hotel nights that differ from the room plan, overdue or too-early due dates, headers over budget, rough figures not marked as estimates, GST not stated, and page totals that differ from the database.
+- Each finding comes as a short question (written by the same Gemini set-up as the chatbot, once it is switched on). Fix opens the normal editor; It is right and Dismiss remember your answer; all three ask for the PIN. The reviewer never changes a figure itself.
+
+## 1.12 - 2026-11-20: A guided tour and a timeline
+
+**New**
+
+- Guided tour: twelve short stops that open each page in the order work flows, from deciding in Tasks to paying in Budget and sharing a link. It is offered once on each device, and you can take it again from the menu or from Home.
+- Timeline on Home: every dated task, payment and function up to the honeymoon, by month, with overdue items on top. Switch between Planning (tasks) and Executing (payments, functions, the trip), and tap any line to open it where it is handled. Payments due on the same day are grouped into one line.
+
+## 1.12 - 2026-11-19: Gift wishlist
+
+**New**
+
+- Gift wishlist: collect what we need for the new home. Paste a link from Amazon, Flipkart or any shop and the name, picture and price are filled in where the shop allows it, or add a picture and a price range by hand.
+- A page for friends (no login) that shows the list by room and budget. A friend taps "I'll gift this" and types their name so nobody buys the same thing; the page only says an item is taken, and you see who took what in the planner. It stays closed until you switch it on.
+
+## 1.11 - 2026-11-18: Easier on the phone, faster everywhere
+
+**New**
+
+- Phone: a tab bar at the bottom for Home, Tasks, Guests and Budget, with More for everything else, and a lock button in the header to unlock editing.
+
+**Improved**
+
+- Add and edit buttons now show even when locked. Tapping one asks for the PIN, then carries on. The PIN box is ready to type in and checks itself after the fourth digit.
+- Forms: Enter saves, they fill the screen on a phone with Save always in reach, a tap outside no longer throws away what you typed, and a short message confirms each save. Payments put the amount first, default to today, and offer UPI, bank transfer, card or cash.
+- Deleting something asks in the app's own dialog instead of a browser pop-up.
+- Share links: bigger plus and minus buttons for RSVP counts, a clear Saved message, and tap-to-call contacts.
+- Pages show a placeholder while they load instead of an empty list, a Retry button if loading fails, and friendlier messages when there is nothing yet.
+- A new look for sign-in, page titles and the countdown, and dark mode fixes.
+- Faster: pages load on demand, live updates are batched, and the database answers common questions with less work.
+
+**Fixed**
+
+- After an update the app offers a Reload instead of showing a blank page, and live updates no longer get lost when you switch pages quickly.
 
 ## 1.10 - 2026-11-17: Ask panel, tidier
 

@@ -1,8 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useRealtime } from '../hooks/useRealtime';
 import { Link } from 'react-router-dom';
-import { Anchor, Badge, Button, Card, Group, SimpleGrid, Stack, Text, Title } from '@mantine/core';
+import { Anchor, Badge, Button, Card, Group, SimpleGrid, Stack, Text } from '@mantine/core';
+import { PageHeader } from '../components/PageHeader';
+import { EmptyState } from '../components/EmptyState';
+import { LoadError, PageSkeleton } from '../components/PageSkeleton';
 import { supabase, type PlanningItem, type Topic } from '../lib/supabase';
 import { whatsappUrl } from '../lib/whatsapp';
+import { VendorTotals } from '../components/VendorTotals';
 
 const STATUS_COLOR: Record<string, string> = {
   open: 'orange',
@@ -25,26 +30,23 @@ const KIND_LABEL: Record<string, string> = { quote: 'Quote', planned: 'Planned',
 
 export function Vendors() {
   const [rows, setRows] = useState<VendorRow[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   async function load() {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('planning_items')
       .select('id, title, detail, status, amount, amount_kind, metadata, topic:topics(key, label)')
       .eq('type', 'vendor')
       .order('title');
+    // A failed load must not look like "no vendors": keep what is on screen and say so.
+    setLoadError(error?.message ?? null);
+    if (error) return;
     setRows((data ?? []) as unknown as VendorRow[]);
+    setLoaded(true);
   }
 
-  useEffect(() => {
-    load();
-    const channel = supabase
-      .channel('planning_items_vendors')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'planning_items', filter: 'type=eq.vendor' }, load)
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
+  useRealtime(['planning_items'], load, { immediate: true });
 
   const groups = rows.reduce<Record<string, { label: string; rows: VendorRow[] }>>((acc, r) => {
     (acc[r.topic.key] ??= { label: r.topic.label, rows: [] }).rows.push(r);
@@ -53,7 +55,8 @@ export function Vendors() {
 
   return (
     <Stack gap="xl">
-      <Title order={2}>Vendors</Title>
+      <PageHeader title="Vendors" />
+      <VendorTotals />
       {Object.entries(groups).map(([key, g]) => (
       <Stack key={key} gap="sm">
       <Text fw={700} c="dimmed" tt="uppercase" size="sm">{g.label}</Text>
@@ -122,7 +125,20 @@ export function Vendors() {
       </SimpleGrid>
       </Stack>
       ))}
-      {rows.length === 0 && <Text c="dimmed">No vendors added yet.</Text>}
+      {loadError && <LoadError message={loadError} onRetry={() => void load()} />}
+      {!loaded && !loadError && <PageSkeleton cards={3} />}
+      {loaded && !loadError && rows.length === 0 && (
+        <EmptyState
+          emoji="🤝"
+          title="No vendors added yet"
+          hint="Add a vendor as an item on an area's page and it will show up here with its contact details."
+          action={
+            <Button component={Link} to="/areas" variant="light">
+              Go to areas
+            </Button>
+          }
+        />
+      )}
     </Stack>
   );
 }

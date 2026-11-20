@@ -1,10 +1,20 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useRealtime } from '../hooks/useRealtime';
 import { Link } from 'react-router-dom';
-import { Accordion, Badge, Button, Group, Paper, SegmentedControl, Stack, Table, Text, Title } from '@mantine/core';
+import { Accordion, Alert, Badge, Button, Group, Paper, SegmentedControl, Stack, Table, Text } from '@mantine/core';
+import { PageHeader } from '../components/PageHeader';
 import { notifications } from '@mantine/notifications';
 import { supabase, type PlanningItem, type Topic } from '../lib/supabase';
 import { QuoteUpload } from '../components/QuoteUpload';
 import { PaymentsLedger } from '../components/PaymentsLedger';
+import { PlanCheck } from '../components/PlanCheck';
+import { BudgetReview } from '../components/BudgetReview';
+import { useBudgetFlags } from '../hooks/useBudgetFlags';
+import { useStay } from '../hooks/useStay';
+import type { Flag, ReviewInput } from '../../../supabase/functions/budget-review/checks';
+import type { Payment } from '../components/PaymentEditor';
+import { usePlanCounts } from '../hooks/usePlanCounts';
+import { planChanges } from '../lib/lineBasis';
 import { PaymentEditor } from '../components/PaymentEditor';
 import { ItemEditor } from '../components/ItemEditor';
 import { Section } from '../components/Section';
@@ -17,8 +27,9 @@ import { useBudgetPlan } from '../hooks/useBudgetPlan';
 import { usePlanFacts } from '../hooks/usePlanFacts';
 import { useEditMode } from '../hooks/useEditMode';
 import { SideBySide } from '../components/SideBySide';
-import { SCOPE_LABEL, SIDE_LABEL, buildAreas, buildPlan, filterScope, forSide, scheduleForSide, settingsForSide, sum, withFullFunds, type Plan, type Scheduled, type Scope, type Side } from '../lib/budgetPlan';
+import { afterPartPayment, SCOPE_LABEL, SIDE_LABEL, buildAreas, buildPlan, filterScope, forSide, scheduleForSide, settingsForSide, sum, withFullFunds, type Plan, type Scheduled, type Scope, type Side } from '../lib/budgetPlan';
 import { KIND_LABEL, STATUS_COLOR, STATUS_LABEL, formatAsOf, formatInr } from '../lib/topicMeta';
+import { EmptyState } from '../components/EmptyState';
 
 type BudgetRow = Pick<PlanningItem, 'id' | 'title' | 'type' | 'status' | 'amount' | 'amount_kind' | 'amount_note' | 'as_of'> & {
   topic: Pick<Topic, 'key' | 'label'>;
@@ -47,16 +58,7 @@ function AmountsTable() {
     setRows((data ?? []) as unknown as BudgetRow[]);
   }
 
-  useEffect(() => {
-    load();
-    const channel = supabase
-      .channel('planning_items_budget')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'planning_items' }, load)
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
+  useRealtime(['planning_items'], load, { immediate: true });
 
   return (
     <>
@@ -114,7 +116,7 @@ function AmountsTable() {
             {rows.length === 0 && (
               <Table.Tr>
                 <Table.Td colSpan={isUnlocked ? 6 : 5}>
-                  <Text c="dimmed">No budgeted items yet. Add an amount to an item to see it here.</Text>
+                  <EmptyState compact emoji="💰" title="No budgeted items yet" hint="Add an amount to an item and it will show up here." />
                 </Table.Td>
               </Table.Tr>
             )}
@@ -132,7 +134,13 @@ function AmountsTable() {
 export function Budget() {
   const { isUnlocked } = useEditMode();
   const { dates } = usePlanFacts();
-  const { schedule, settings, areas, paid, items, topics, reload } = useBudgetPlan();
+  const { schedule, outside, vendors, settings, areas, paid, items, topics, loadError, reload } = useBudgetPlan();
+  const planCounts = usePlanCounts();
+  const { sites: staySites, nights: stayNights } = useStay();
+  const { flags: storedFlags } = useBudgetFlags();
+  const [fixPayment, setFixPayment] = useState<Payment | null>(null);
+  const [ledgerDefaults, setLedgerDefaults] = useState<{ payee: string; amount: number; topic_id: string | null } | null>(null);
+  const lineChanges = useMemo(() => planChanges(schedule, planCounts), [schedule, planCounts]);
   const [today] = useState(() => new Date().toLocaleDateString('en-CA'));
   const [scheduleEditing, setScheduleEditing] = useState<Scheduled | 'new' | null>(null);
   const [markPaid, setMarkPaid] = useState<Scheduled | null>(null);
@@ -162,6 +170,40 @@ export function Budget() {
     return { both: make('both'), pranjal: make('pranjal'), paridhi: make('paridhi') } as Record<Side, Plan>;
   }, [schedule, paid, settings, topics, scope, today, throughMonth]);
   const plan = plans[side];
+  // What the review reads: everything in the database, plus the totals this page shows for Everything.
+  const reviewInput: ReviewInput = useMemo(() => {
+    const st = settingsForSide(settings, 'pranjal');
+    const allBoth = buildPlan({ pending: schedule, paid, settings: settingsForSide(settings, 'both'), today, throughMonth });
+    const allPranjal = buildPlan({ pending: scheduleForSide(schedule, 'pranjal'), paid: forSide(paid, 'pranjal'), settings: st, today, throughMonth });
+    return {
+      today,
+      schedule: [...schedule, ...outside],
+      payments: paid,
+      paidItems: items.filter((i) => i.id && i.title).map((i) => ({ id: i.id as string, title: i.title as string, amount: i.amount, amount_kind: i.amount_kind, topic_id: i.topic_id })),
+      settings: settings ? { total_budget: settings.total_budget, gold_budget: settings.gold_budget ?? null, post_wedding_budget: settings.post_wedding_budget ?? null } : null,
+      topics,
+      vendors,
+      stayNights,
+      staySites,
+      displayed: { pendingTogether: allBoth.pendingTotal, paidTogether: allBoth.paidTotal, pendingPranjal: allPranjal.pendingTotal, paidPranjal: allPranjal.paidTotal },
+    } as ReviewInput;
+  }, [schedule, outside, paid, items, settings, topics, vendors, stayNights, staySites, today, throughMonth]);
+
+  // Fix opens the normal editor for whatever the finding is about; the PIN gate and audit trail are the editor's own.
+  async function fix(f: Flag) {
+    if (f.table === 'payment_schedule') {
+      const row = [...schedule, ...outside].find((x) => x.id === f.rowId);
+      if (row) setScheduleEditing(row);
+    } else if (f.table === 'payments') {
+      const { data } = await supabase.from('payments').select('*').eq('id', f.rowId).single();
+      if (data) setFixPayment(data as Payment);
+    } else if (f.table === 'planning_items') {
+      const it = items.find((x) => x.id === f.rowId);
+      if (it) setLedgerDefaults({ payee: it.title ?? f.label, amount: it.amount ?? 0, topic_id: it.topic_id });
+    } else if (f.table === 'budget_settings') {
+      setSettingsOpen(true);
+    }
+  }
   // The budgets are Pranjal's, one for each header; Everything adds up the ones that are set.
   const viewSettings = useMemo(() => {
     const st = settingsForSide(settings, side);
@@ -189,10 +231,7 @@ export function Budget() {
     const remaining = p.amount - (amountPaid ?? p.amount);
     const { error } =
       remaining > 0.005
-        ? await supabase
-            .from('payment_schedule')
-            .update({ amount: Math.round(remaining * 100) / 100, paridhi_amount: Math.round(p.paridhi_amount * (remaining / p.amount) * 100) / 100 })
-            .eq('id', p.id)
+        ? await supabase.from('payment_schedule').update(afterPartPayment(p, amountPaid ?? p.amount)).eq('id', p.id)
         : await supabase.from('payment_schedule').update({ status: 'paid', paid_payment_id: paymentId }).eq('id', p.id);
     if (error) {
       notifications.show({ color: 'red', title: 'Payment saved, schedule not updated', message: error.message });
@@ -202,15 +241,30 @@ export function Budget() {
     await reload();
   }
 
+  // Close a line that needs no payment in the ledger: included at no charge, or paid by someone else.
+  async function settle(p: Scheduled) {
+    const { error } = await supabase.from('payment_schedule').update({ status: 'paid' }).eq('id', p.id);
+    if (error) notifications.show({ color: 'red', title: 'Could not save', message: error.message });
+    else notifications.show({ color: 'teal', message: `${p.payee} is marked done.` });
+    await reload();
+  }
+
   return (
     <Stack gap="xl">
-      <Group justify="space-between" align="flex-end" gap="sm">
-        <div>
-          <Title order={2}>Budget</Title>
-          <Text size="sm" c="dimmed">
-            What is paid, what is still to pay, and whether each month is covered.
-          </Text>
-        </div>
+      {loadError && (
+        <Alert color="red" variant="light" title="The budget could not be loaded">
+          <Group justify="space-between" gap="sm">
+            <Text size="sm">The figures below may be out of date or empty. Check your connection and try again.</Text>
+            <Button size="compact-sm" variant="light" color="red" onClick={() => void reload()}>
+              Try again
+            </Button>
+          </Group>
+        </Alert>
+      )}
+      <PageHeader
+        title="Budget"
+        subtitle="What is paid, what is still to pay, and whether each month is covered."
+        action={
         <Stack gap={6} align="flex-end">
           <QuoteUpload topics={topics} />
           <SegmentedControl
@@ -227,7 +281,10 @@ export function Budget() {
             aria-label="Whose share to show"
           />
         </Stack>
-      </Group>
+        }
+      />
+
+      <BudgetReview input={reviewInput} stored={storedFlags} onFix={(f) => void fix(f)} />
 
       <Section step={1} title="Where the money stands" hint="Paid, still to pay, and the funds you have to cover it.">
         <Stack gap="md">
@@ -238,11 +295,12 @@ export function Budget() {
           </Text>
         )}
         <SideBySide plans={plans} side={side} onPick={setSide} />
-        <BudgetSummary side={side} plan={plan} settings={viewSettings} notScheduled={notScheduled} outsideBudget={outsideBudget} today={today} isUnlocked={isUnlocked} onEditSettings={() => setSettingsOpen(true)} />
+        <BudgetSummary side={side} plan={plan} settings={viewSettings} notScheduled={notScheduled} outsideBudget={outsideBudget} today={today} onEditSettings={() => setSettingsOpen(true)} />
         </Stack>
       </Section>
 
       <Section step={2} title="Month by month" hint="What falls due each month and the funds left after paying it. Overdue payments are counted from today.">
+        <PlanCheck changes={lineChanges} isUnlocked={isUnlocked} onSaved={reload} />
         <MonthPlan
           plan={plan}
           side={side}
@@ -252,6 +310,7 @@ export function Budget() {
           isUnlocked={isUnlocked}
           onAdd={() => setScheduleEditing('new')}
           onPaid={(p) => setMarkPaid(schedule.find((x) => x.id === (p.sourceId ?? p.id)) ?? p)}
+          onSettle={(p) => void settle(schedule.find((x) => x.id === (p.sourceId ?? p.id)) ?? p)}
           onEdit={(p) => setScheduleEditing(schedule.find((x) => x.id === (p.sourceId ?? p.id)) ?? p)}
         />
       </Section>
@@ -277,7 +336,7 @@ export function Budget() {
               budgets={treeBudgets}
             />
           ) : (
-            <AreaBudget rows={areaRows} isUnlocked={isUnlocked} onEditBudgets={() => setAreasOpen(true)} />
+            <AreaBudget rows={areaRows} onEditBudgets={() => setAreasOpen(true)} />
           )}
         </Stack>
       </Section>
@@ -291,9 +350,51 @@ export function Budget() {
               </Text>
             </Accordion.Control>
             <Accordion.Panel>
-              <PaymentsLedger topics={topics} />
+              <PaymentsLedger topics={topics} vendors={vendors} />
             </Accordion.Panel>
           </Accordion.Item>
+          {outside.filter((p) => p.status !== 'cancelled').length > 0 && (
+            <Accordion.Item value="outside">
+              <Accordion.Control>
+                <Text fw={600} size="sm">
+                  Outside the budget ({outside.filter((p) => p.status !== 'cancelled').length}), {formatInr(outside.filter((p) => p.status !== 'cancelled').reduce((a, p) => a + p.amount, 0))}
+                </Text>
+              </Accordion.Control>
+              <Accordion.Panel>
+                <Stack gap={6}>
+                  <Text size="xs" c="dimmed">
+                    Tracked here but paid by someone else, so not counted in the budget or the month-by-month plan.
+                  </Text>
+                  {outside
+                    .filter((p) => p.status !== 'cancelled')
+                    .map((p) => (
+                      <Group key={p.id} justify="space-between" wrap="nowrap" gap="xs">
+                        <Text size="sm" style={{ minWidth: 0 }} truncate>
+                          {p.payee}
+                          <Text span size="xs" c="dimmed">
+                            {' '}
+                            · {p.status === 'paid' ? 'paid' : `due ${p.due_date}`}
+                          </Text>
+                        </Text>
+                        <Group gap={6} wrap="nowrap">
+                          <Text size="sm">{formatInr(p.amount)}</Text>
+                          {isUnlocked && p.status === 'pending' && (
+                            <Button size="sm" variant="light" onClick={() => void settle(p)}>
+                              Mark done
+                            </Button>
+                          )}
+                          {isUnlocked && (
+                            <Button size="sm" variant="subtle" onClick={() => setScheduleEditing(p)}>
+                              Edit
+                            </Button>
+                          )}
+                        </Group>
+                      </Group>
+                    ))}
+                </Stack>
+              </Accordion.Panel>
+            </Accordion.Item>
+          )}
           <Accordion.Item value="items">
             <Accordion.Control>
               <Text fw={600} size="sm">
@@ -314,6 +415,7 @@ export function Budget() {
           key={scheduleEditing === 'new' ? 'new' : scheduleEditing.id}
           payment={scheduleEditing === 'new' ? null : scheduleEditing}
           topics={topics}
+          vendors={vendors}
           opened
           onClose={() => setScheduleEditing(null)}
           onSaved={reload}
@@ -324,11 +426,18 @@ export function Budget() {
           key={markPaid.id}
           payment={null}
           topics={topics}
-          defaults={{ payee: markPaid.payee, amount: markPaid.amount, purpose: markPaid.note, topic_id: markPaid.topic_id, paridhi_amount: markPaid.paridhi_amount }}
+          vendors={vendors}
+          defaults={{ payee: markPaid.payee, amount: markPaid.amount, purpose: markPaid.note, topic_id: markPaid.topic_id, paridhi_amount: markPaid.paridhi_amount, vendor_id: markPaid.vendor_id }}
           opened
           onClose={() => setMarkPaid(null)}
           onSaved={(id, amount) => afterPaid(markPaid, id, amount)}
         />
+      )}
+      {isUnlocked && fixPayment && (
+        <PaymentEditor key={fixPayment.id} payment={fixPayment} topics={topics} vendors={vendors} opened onClose={() => setFixPayment(null)} onSaved={() => void reload()} />
+      )}
+      {isUnlocked && ledgerDefaults && (
+        <PaymentEditor key={`new-${ledgerDefaults.payee}`} payment={null} topics={topics} vendors={vendors} defaults={{ payee: ledgerDefaults.payee, amount: ledgerDefaults.amount, topic_id: ledgerDefaults.topic_id }} opened onClose={() => setLedgerDefaults(null)} onSaved={() => void reload()} />
       )}
       {isUnlocked && settingsOpen && <SettingsEditor settings={settings} opened onClose={() => setSettingsOpen(false)} onSaved={reload} />}
       {isUnlocked && areasOpen && <AreaBudgetEditor topics={topics} areas={areas} opened onClose={() => setAreasOpen(false)} onSaved={reload} />}

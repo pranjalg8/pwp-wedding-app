@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Accordion, Anchor, Badge, Button, Group, Paper, Stack, Text, Title } from '@mantine/core';
+import { Accordion, Anchor, Badge, Group, Paper, Stack, Text } from '@mantine/core';
+import { PageHeader } from '../components/PageHeader';
 import { supabase, type ChatMessage, type PlanningItem, type Task, type TaskOption, type Topic } from '../lib/supabase';
 import {
   KIND_LABEL,
@@ -13,10 +14,16 @@ import {
   formatInr,
 } from '../lib/topicMeta';
 import { useEditMode } from '../hooks/useEditMode';
+import { EditButton } from '../components/EditButton';
+import { EmptyState } from '../components/EmptyState';
 import { OptionCard } from '../components/OptionCard';
 import { OptionEditor } from '../components/OptionEditor';
 import { TaskEditor } from '../components/TaskEditor';
 import { MessageThread } from '../components/MessageThread';
+import { useRealtime } from '../hooks/useRealtime';
+import { getTopics } from '../lib/topics';
+import { firstError } from '../lib/loadState';
+import { LoadError, PageSkeleton } from '../components/PageSkeleton';
 
 export function TaskDetail() {
   const { taskId } = useParams();
@@ -27,21 +34,28 @@ export function TaskDetail() {
   const [items, setItems] = useState<PlanningItem[]>([]);
   const [messages, setMessages] = useState<Record<string, ChatMessage>>({});
   const [notFound, setNotFound] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [editingTask, setEditingTask] = useState(false);
   const [editingOption, setEditingOption] = useState<TaskOption | null | 'new'>(null);
 
-  async function load() {
+  async function loadTask(isActive: () => boolean = () => true) {
     if (!taskId) return;
     const [t, tp, o, i] = await Promise.all([
       supabase.from('tasks').select('*').eq('id', taskId).maybeSingle(),
-      supabase.from('topics').select('*').order('sort_order'),
+      getTopics(),
       supabase.from('task_options').select('*').eq('task_id', taskId).order('sort_order'),
       supabase.from('planning_items').select('*').eq('task_id', taskId).order('created_at'),
     ]);
+    if (!isActive()) return;
+    // A failed load is not "that task doesn't exist".
+    const failed = firstError(t, tp, o, i);
+    setLoadError(failed);
+    if (failed) return;
     if (!t.data) {
       setNotFound(true);
       return;
     }
+    setNotFound(false);
     const taskRow = t.data as Task;
     const optionRows = (o.data ?? []) as TaskOption[];
     const itemRows = (i.data ?? []) as PlanningItem[];
@@ -59,25 +73,25 @@ export function TaskDetail() {
     );
     if (ids.length) {
       const { data } = await supabase.from('messages').select('*').in('msg_id', ids).eq('is_noise', false);
-      setMessages(Object.fromEntries((data ?? []).map((m) => [m.msg_id, m as ChatMessage])));
+      if (isActive()) setMessages(Object.fromEntries((data ?? []).map((m) => [m.msg_id, m as ChatMessage])));
     } else {
       setMessages({});
     }
   }
 
-  useEffect(() => {
-    load();
-    const channel = supabase
-      .channel(`task_${taskId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks', filter: `id=eq.${taskId}` }, load)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'task_options', filter: `task_id=eq.${taskId}` }, load)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'planning_items', filter: `task_id=eq.${taskId}` }, load)
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [taskId]);
+  useRealtime(
+    taskId
+      ? [
+          { table: 'tasks', filter: `id=eq.${taskId}` },
+          { table: 'task_options', filter: `task_id=eq.${taskId}` },
+          { table: 'planning_items', filter: `task_id=eq.${taskId}` },
+        ]
+      : [],
+    loadTask,
+    { immediate: true }
+  );
+  // Editors call back with their own arguments; reload ignores them.
+  const load = () => loadTask();
 
   if (notFound) {
     return (
@@ -85,11 +99,12 @@ export function TaskDetail() {
         <Anchor component={Link} to="/tasks" size="sm" c="dimmed">
           ← All tasks
         </Anchor>
-        <Text c="dimmed">That task doesn't exist.</Text>
+        <EmptyState emoji="🔍" title="That task doesn't exist" hint="It may have been removed. Head back to all tasks." />
       </Stack>
     );
   }
-  if (!task) return null;
+  if (loadError && !task) return <LoadError message={loadError} onRetry={() => load()} />;
+  if (!task) return <PageSkeleton cards={3} title />;
 
   const topic = topics.find((t) => t.id === task.topic_id);
   const done = task.status === 'done' || task.status === 'decided';
@@ -120,21 +135,15 @@ export function TaskDetail() {
         ← All tasks
       </Anchor>
 
-      <Group justify="space-between" align="flex-start" wrap="nowrap">
-        <Group gap="sm" wrap="nowrap" align="flex-start" style={{ minWidth: 0 }}>
-          <Text fz={32} lh={1}>
-            {(topic && TOPIC_EMOJI[topic.key]) ?? '✨'}
-          </Text>
-          <Title order={2} style={{ overflowWrap: 'anywhere' }}>
-            {task.title}
-          </Title>
-        </Group>
-        {isUnlocked && (
-          <Button variant="light" size="xs" onClick={() => setEditingTask(true)} style={{ flexShrink: 0 }}>
+      <PageHeader
+        icon={(topic && TOPIC_EMOJI[topic.key]) ?? '✨'}
+        title={task.title}
+        action={
+          <EditButton variant="light" size="xs" onClick={() => setEditingTask(true)} style={{ flexShrink: 0 }}>
             Edit task
-          </Button>
-        )}
-      </Group>
+          </EditButton>
+        }
+      />
 
       <Group gap={6}>
         <Badge color={STATUS_COLOR[task.status]} variant="light">
@@ -200,17 +209,18 @@ export function TaskDetail() {
         <Text fw={700} c="dimmed" tt="uppercase" size="sm">
           Options ({options.length})
         </Text>
-        {isUnlocked && (
-          <Button size="xs" variant="light" onClick={() => setEditingOption('new')}>
-            Add option
-          </Button>
-        )}
+        <EditButton size="xs" variant="light" onClick={() => setEditingOption('new')}>
+          Add option
+        </EditButton>
       </Group>
 
       {options.length === 0 && (
-        <Paper withBorder p="lg" ta="center">
-          <Text c="dimmed">No options yet. Add the vendors or candidates being compared.</Text>
-        </Paper>
+        <EmptyState
+          compact
+          emoji="🧾"
+          title="No options yet"
+          hint="Add the vendors or candidates you're comparing for this task."
+        />
       )}
 
       <Stack gap="sm">{live.map(card)}</Stack>

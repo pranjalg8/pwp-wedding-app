@@ -1,0 +1,54 @@
+name: Nightly database backup
+
+# Keeps an encrypted copy of the planner database for 30 days. See docs/backup-and-restore.md for the two secrets
+# this needs and how to restore. The dump is encrypted before it leaves the runner, because workflow artifacts can be
+# downloaded by anyone with read access to the repository.
+on:
+  schedule:
+    - cron: '30 20 * * *' # 02:00 in India
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+    steps:
+      - name: Check the secrets are set
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ] || [ -z "$BACKUP_PASSPHRASE" ]; then
+            echo "::error::Add SUPABASE_DB_URL and BACKUP_PASSPHRASE as repository secrets (docs/backup-and-restore.md)."
+            exit 1
+          fi
+      - name: Dump the database
+        run: |
+          mkdir -p backup
+          docker run --rm -e SUPABASE_DB_URL -v "$PWD/backup:/backup" postgres:17 \
+            sh -c 'pg_dump "$SUPABASE_DB_URL" --format=custom --no-owner --no-privileges --schema=public --schema=auth --file=/backup/planner.dump'
+      - name: Check the dump can be read and holds the planner tables
+        run: |
+          docker run --rm -v "$PWD/backup:/backup" postgres:17 pg_restore --list /backup/planner.dump > backup/contents.txt
+          for table in guests guest_rsvps payments payment_schedule tasks room_stays; do
+            grep -q "TABLE DATA public $table " backup/contents.txt || { echo "::error::The dump has no data for $table."; exit 1; }
+          done
+          rm backup/contents.txt
+      - name: Encrypt the dump
+        run: |
+          gpg --batch --yes --pinentry-mode loopback --passphrase-fd 3 --symmetric --cipher-algo AES256 \
+            --output "backup/planner-$(date -u +%F).dump.gpg" backup/planner.dump 3<<<"$BACKUP_PASSPHRASE"
+          rm backup/planner.dump
+      - uses: actions/upload-artifact@v4
+        with:
+          name: planner-backup-${{ github.run_id }}
+          path: backup/*.gpg
+          retention-days: 30
+          if-no-files-found: error

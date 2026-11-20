@@ -30,8 +30,27 @@ const must = (res, what) => {
   return res.data;
 };
 
+// Supabase returns at most 1000 rows per request and says nothing when it cuts a list short, so long lists are
+// read in pages. `build` makes a fresh query for each page and must have a stable order.
+async function selectAll(build, what) {
+  const out = [];
+  for (let from = 0; ; from += 1000) {
+    const rows = must(await build().range(from, from + 999), what);
+    out.push(...rows);
+    if (rows.length < 1000) return out;
+  }
+}
+
+// One row per chat (its latest name), from the message_chats view (0053). Before that migration is applied the view
+// does not exist, so fall back to reading every message's chat, in pages.
+async function loadChats() {
+  const res = await supabase.from('message_chats').select('chat_jid, chat_name');
+  if (!res.error) return res.data;
+  return selectAll(() => supabase.from('messages').select('chat_jid, chat_name').order('timestamp').order('id'), 'messages');
+}
+
 const topics = must(await supabase.from('topics').select('id, key, label, chat_match, sort_order').order('sort_order'), 'topics');
-const topicChats = must(await supabase.from('messages').select('chat_jid, chat_name'), 'messages').reduce((m, r) => m.set(r.chat_jid, r.chat_name), new Map());
+const topicChats = (await loadChats()).reduce((m, r) => m.set(r.chat_jid, r.chat_name), new Map());
 
 // topic <-> chat: a chat belongs to a topic when its name contains the topic's chat_match
 const chatsByTopic = new Map();

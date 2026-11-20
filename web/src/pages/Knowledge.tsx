@@ -1,5 +1,9 @@
-import { Fragment, useEffect, useMemo, useState, type ReactElement } from 'react';
+import { Fragment, useMemo, useState, type ReactElement } from 'react';
+import { useRealtime } from '../hooks/useRealtime';
+import { LoadError } from '../components/PageSkeleton';
 import { Card, Stack, Tabs, Text, TextInput, Title } from '@mantine/core';
+import { PageHeader } from '../components/PageHeader';
+import { EmptyState } from '../components/EmptyState';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
@@ -61,40 +65,38 @@ export function Knowledge() {
   const [entries, setEntries] = useState<KbEntry[]>([]);
   const [query, setQuery] = useState('');
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const openPage = useSearchParams()[0].get('page'); // set by the Ask panel's source links
 
   async function load() {
-    const { data } = await supabase.from('kb_entries').select('slug, title, body, sort_order, updated_at').order('sort_order');
-    setEntries((data ?? []) as KbEntry[]);
+    const { data, error } = await supabase.from('kb_entries').select('slug, title, body, sort_order, updated_at').order('sort_order');
+    // A failed load must not look like an empty knowledge base: keep what is on screen and say so.
+    setLoadError(error?.message ?? null);
     setLoaded(true);
+    if (!error) setEntries((data ?? []) as KbEntry[]);
   }
 
-  useEffect(() => {
-    load();
-    const channel = supabase
-      .channel('kb_entries_page')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'kb_entries' }, load)
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
+  useRealtime(['kb_entries'], load, { immediate: true });
 
   const q = query.trim().toLowerCase();
   const hits = useMemo(() => (q ? entries.filter((e) => (e.title + '\n' + e.body).toLowerCase().includes(q)) : []), [entries, q]);
 
   return (
     <Stack gap="md" maw={820} mx="auto">
-      <Title order={2}>Knowledge</Title>
-      <Text size="sm" c="dimmed">
-        A short reference for the wedding: dates, stay and food, money rules and the home move. The planner is the source of
-        truth; if a page here disagrees with it, trust the planner.
-      </Text>
+      <PageHeader
+        title="Knowledge"
+        subtitle="A short reference for the wedding: dates, stay and food, money rules and the home move. The planner is the source of truth; if a page here disagrees with it, trust the planner."
+      />
       <TextInput placeholder="Search the knowledge base" value={query} onChange={(e) => setQuery(e.currentTarget.value)} />
-      {loaded && entries.length === 0 && <Text c="dimmed">Nothing here yet.</Text>}
+      {loadError && <LoadError message={loadError} onRetry={() => void load()} />}
+      {loaded && !loadError && !q && entries.length === 0 && (
+        <EmptyState emoji="📚" title="Nothing here yet" hint="Reference pages for the wedding will show up here once they're written." />
+      )}
       {q ? (
         <Stack gap="sm">
-          {hits.length === 0 && <Text c="dimmed">No page mentions that.</Text>}
+          {loaded && !loadError && hits.length === 0 && (
+            <EmptyState compact emoji="🔍" title="No page mentions that" hint="Try a shorter word, or check the spelling." />
+          )}
           {hits.map((e) => (
             <Card key={e.slug} withBorder p="md">
               <Text fw={700} mb={6}>{e.title}</Text>

@@ -8,6 +8,7 @@ import type { InviteSettings } from '../hooks/useInviteReplies';
 import type { Invite } from '../lib/rsvp';
 import type { RoomStay } from '../lib/rooms';
 import { inviteLink, latestNew, linksCsv, makeCode, replyPlan, type InviteCode, type InviteReply } from '../lib/replies';
+import { confirmDanger } from '../lib/confirm';
 
 type G = { id: string; name: string; persons: number };
 
@@ -67,10 +68,21 @@ export function InviteReplies({
   const siteOk = /^https:\/\/\S+$/.test(settings.site_url ?? '');
 
   async function setOpen(open: boolean) {
-    const text = open
-      ? 'Open replies? Anyone with a personal link can then send an answer for that household. Replies still wait here for you to apply them.'
-      : 'Close replies? Personal links will say replies are closed. Replies already in stay here.';
-    if (!window.confirm(text)) return;
+    const ok = await confirmDanger(
+      open
+        ? {
+            title: 'Open replies?',
+            message: 'Anyone with a personal link can then send an answer for that household. Replies still wait here for you to apply them.',
+            confirmLabel: 'Open replies',
+            confirmColor: 'teal',
+          }
+        : {
+            title: 'Close replies?',
+            message: 'Personal links will say replies are closed. Replies already in stay here.',
+            confirmLabel: 'Close replies',
+          },
+    );
+    if (!ok) return;
     const { error } = await supabase.from('invite_settings').update({ open }).eq('id', true);
     if (error) return fail('Could not change', error.message);
     await reload();
@@ -103,7 +115,12 @@ export function InviteReplies({
   }
 
   async function revoke(g: G) {
-    if (!window.confirm(`Stop ${g.name}'s personal link working? Make codes again to give them a new one.`)) return;
+    const ok = await confirmDanger({
+      title: `Turn off ${g.name}'s link?`,
+      message: 'Their personal link stops working straight away. Make codes again to give them a new one.',
+      confirmLabel: 'Turn off link',
+    });
+    if (!ok) return;
     const { error } = await supabase.from('invite_codes').update({ revoked_at: nowIso() }).eq('guest_id', g.id);
     if (error) return fail('Could not revoke', error.message);
     await reload();
@@ -142,15 +159,32 @@ export function InviteReplies({
         if (error) throw new Error(error.message);
       }
       const mine = roomStays.filter((s) => s.guest_id === r.guest_id);
-      if (r.arrive_on && r.leave_on && mine.length > 0) {
-        const { error } = await supabase
-          .from('room_stays')
-          .update({ check_in: r.arrive_on, check_out: r.leave_on, extra_nights: [] })
-          .in('id', mine.map((s) => s.id));
+      if (r.arrive_on && r.leave_on) {
+        // Kept on the household, so the dates apply whenever it is placed. Stays with their own dates follow them.
+        const { error } = await supabase.from('guests').update({ arrive_on: r.arrive_on, leave_on: r.leave_on }).eq('id', r.guest_id);
+        if (error) throw new Error(error.message);
+        const dated = mine.filter((s) => s.check_in);
+        if (dated.length > 0) {
+          const { error: e2 } = await supabase.from('room_stays').update({ check_in: r.arrive_on, check_out: r.leave_on }).in('id', dated.map((s) => s.id));
+          if (e2) throw new Error(e2.message);
+        }
+      }
+      const nobodyComing = plan.rows.length > 0 && plan.rows.every((x) => x.coming + x.maybe === 0);
+      if (
+        nobodyComing &&
+        mine.length > 0 &&
+        (await confirmDanger({
+          title: `Free ${g.name}'s ${mine.length === 1 ? 'room' : 'rooms'}?`,
+          message: `${g.name} can't come. Free the ${mine.length === 1 ? 'room' : `${mine.length} rooms`} held for them so others can use ${mine.length === 1 ? 'it' : 'them'}?`,
+          confirmLabel: mine.length === 1 ? 'Free room' : 'Free rooms',
+          cancelLabel: 'Keep held',
+        }))
+      ) {
+        const { error } = await supabase.from('room_stays').delete().in('id', mine.map((s) => s.id));
         if (error) throw new Error(error.message);
       }
       await review(r, 'applied');
-      notifications.show({ color: 'teal', title: 'Reply applied', message: `${g.name}: answers updated${r.arrive_on && r.leave_on && mine.length > 0 ? ', room dates set' : ''}.` });
+      notifications.show({ color: 'teal', title: 'Reply applied', message: `${g.name}: answers updated${r.arrive_on && r.leave_on ? ', stay dates saved' : ''}.` });
       onApplied();
     } catch (e) {
       fail('Could not apply', (e as Error).message);
@@ -265,7 +299,7 @@ export function InviteReplies({
                     {r.travel ? `${r.arrive_on || r.leave_on ? ' · ' : ''}${r.travel}` : ''}
                     {r.arrive_on && r.leave_on ? (
                       <Text span size="xs" c="dimmed">
-                        {placed ? ' (Apply sets these dates on their rooms)' : ' (not in a room yet; dates stay on this reply)'}
+                        {placed ? ' (Apply updates their room dates)' : ' (Apply saves these for when they get a room)'}
                       </Text>
                     ) : null}
                   </Text>

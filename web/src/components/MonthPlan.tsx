@@ -1,6 +1,7 @@
 import { Badge, Button, Divider, Group, Paper, Stack, Text } from '@mantine/core';
 import { daysBetween, shortDate, type MonthRow, type Plan, type Scheduled, type Side, type TopicRef } from '../lib/budgetPlan';
 import { formatInr } from '../lib/topicMeta';
+import { EditButton } from './EditButton';
 
 function PaymentLine({
   p,
@@ -9,6 +10,7 @@ function PaymentLine({
   whole,
   isUnlocked,
   onPaid,
+  onSettle,
   onEdit,
 }: {
   p: Scheduled;
@@ -17,6 +19,7 @@ function PaymentLine({
   late?: number;
   isUnlocked: boolean;
   onPaid: (p: Scheduled) => void;
+  onSettle: (p: Scheduled) => void;
   onEdit: (p: Scheduled) => void;
 }) {
   const area = topics.find((t) => t.id === p.topic_id)?.label;
@@ -31,10 +34,16 @@ function PaymentLine({
             <Text size="sm" fw={500} style={{ overflowWrap: 'anywhere' }}>
               {p.payee}
             </Text>
-            {p.is_estimate && (
-              <Badge size="xs" variant="light" color="orange" tt="none">
-                Estimate
+            {p.amount === 0 ? (
+              <Badge size="xs" variant="light" color="teal" tt="none">
+                Included
               </Badge>
+            ) : (
+              p.is_estimate && (
+                <Badge size="xs" variant="light" color="orange" tt="none">
+                  Estimate
+                </Badge>
+              )
             )}
             {late ? (
               <Badge size="xs" variant="light" color="red" tt="none">
@@ -45,6 +54,13 @@ function PaymentLine({
           {area && (
             <Text size="xs" c="rose.6">
               {area}
+            </Text>
+          )}
+          {p.quantity != null && p.rate != null && (
+            <Text size="xs" c="dimmed">
+              {p.quantity} {p.unit || 'x'} at ₹{p.rate.toLocaleString('en-IN')}
+              {p.adjustment ? `, ${p.adjustment < 0 ? 'less' : 'plus'} ₹${Math.abs(p.adjustment).toLocaleString('en-IN')}` : ''}
+              {p.basis ? ' · follows the plan' : ''}
             </Text>
           )}
           {p.note && (
@@ -67,9 +83,15 @@ function PaymentLine({
         </div>
         {isUnlocked && !p.inflow && (
           <>
-            <Button size="compact-xs" variant="light" onClick={() => onPaid(p)}>
-              Mark paid
-            </Button>
+            {p.amount === 0 ? (
+              <Button size="compact-xs" variant="light" onClick={() => onSettle(p)}>
+                Mark done
+              </Button>
+            ) : (
+              <Button size="compact-xs" variant="light" onClick={() => onPaid(p)}>
+                Mark paid
+              </Button>
+            )}
             <Button size="compact-xs" variant="subtle" onClick={() => onEdit(p)}>
               Edit
             </Button>
@@ -104,6 +126,7 @@ export function MonthPlan({
   isUnlocked,
   onAdd,
   onPaid,
+  onSettle,
   onEdit,
 }: {
   plan: Plan;
@@ -112,6 +135,7 @@ export function MonthPlan({
   topics: TopicRef[];
   today: string;
   isUnlocked: boolean;
+  onSettle: (p: Scheduled) => void;
   onAdd: () => void;
   onPaid: (p: Scheduled) => void;
   onEdit: (p: Scheduled) => void;
@@ -119,13 +143,11 @@ export function MonthPlan({
   return (
     <Paper withBorder p="lg">
       <Stack gap="md">
-        {isUnlocked && (
-          <Group justify="flex-end">
-            <Button size="compact-md" onClick={onAdd}>
-              Add a payment due
-            </Button>
-          </Group>
-        )}
+        <Group justify="flex-end">
+          <EditButton size="compact-md" onClick={onAdd}>
+            Add a payment due
+          </EditButton>
+        </Group>
 
         {plan.overdue.length > 0 && (
           <>
@@ -139,7 +161,7 @@ export function MonthPlan({
                 </Text>
               </Group>
               {plan.overdue.map((p) => (
-                <PaymentLine key={p.id} p={p} whole={side === 'both' ? undefined : schedule.find((x) => x.id === (p.sourceId ?? p.id))?.amount} topics={topics} late={daysBetween(p.due_date, today)} isUnlocked={isUnlocked} onPaid={onPaid} onEdit={onEdit} />
+                <PaymentLine key={p.id} p={p} whole={side === 'both' ? undefined : schedule.find((x) => x.id === (p.sourceId ?? p.id))?.amount} topics={topics} late={daysBetween(p.due_date, today)} isUnlocked={isUnlocked} onPaid={onPaid} onSettle={onSettle} onEdit={onEdit} />
               ))}
             </Stack>
             <Divider />
@@ -180,7 +202,7 @@ export function MonthPlan({
             {m.items.length > 0 && (
               <Stack gap="xs">
                 {m.items.map((p) => (
-                  <PaymentLine key={p.id} p={p} whole={side === 'both' ? undefined : schedule.find((x) => x.id === (p.sourceId ?? p.id))?.amount} topics={topics} isUnlocked={isUnlocked} onPaid={onPaid} onEdit={onEdit} />
+                  <PaymentLine key={p.id} p={p} whole={side === 'both' ? undefined : schedule.find((x) => x.id === (p.sourceId ?? p.id))?.amount} topics={topics} isUnlocked={isUnlocked} onPaid={onPaid} onSettle={onSettle} onEdit={onEdit} />
                 ))}
               </Stack>
             )}

@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Accordion, Badge, Button, Card, Group, Loader, Progress, Stack, Text, Title } from '@mantine/core';
+import { Accordion, Badge, Button, Card, Group, Loader, Progress, Stack, Text } from '@mantine/core';
+import { PageHeader } from '../components/PageHeader';
 import { CardDetails } from '../components/CardDetails';
+import { LoadError } from '../components/PageSkeleton';
+import { firstError } from '../lib/loadState';
 import { useProfile } from '../hooks/useProfile';
 import { supabase, type Swipe, type SwipeCard, type SwipeChoice, type SwipeDeck } from '../lib/supabase';
 
@@ -40,31 +43,53 @@ export function FunctionResults() {
   const [partner, setPartner] = useState<Person | null>(null);
   const [loading, setLoading] = useState(true);
   const [detail, setDetail] = useState<SwipeCard | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     if (!profile) return;
+    let active = true;
     (async () => {
-      const [{ data: deckRows }, { data: people }] = await Promise.all([
+      const [deckResult, peopleResult] = await Promise.all([
         supabase.from('swipe_decks').select('*').eq('destination', 'wedding').order('sort_order'),
         supabase.from('profiles').select('id, display_name'),
       ]);
-      const deckList = (deckRows ?? []) as SwipeDeck[];
-      setDecks(deckList);
-      setPartner(((people ?? []) as Person[]).find((p) => p.id !== profile.id) ?? null);
+      if (!active) return;
+      // A failed load must not look like "no results yet": keep what is on screen and say so.
+      const fail = (message: string) => {
+        setLoadError(message);
+        setLoading(false);
+      };
+      const failed = firstError(deckResult, peopleResult);
+      if (failed) return fail(failed);
+      const deckList = (deckResult.data ?? []) as SwipeDeck[];
       const ids = deckList.map((d) => d.id);
+      let cardList: SwipeCard[] = [];
+      let swipeList: Swipe[] = [];
       if (ids.length) {
-        const { data: cardRows } = await supabase.from('swipe_cards').select('*').in('deck_id', ids).order('sort_order');
-        const cardList = (cardRows ?? []) as SwipeCard[];
-        setCards(cardList);
-        const { data: swipeRows } = await supabase
+        const cardResult = await supabase.from('swipe_cards').select('*').in('deck_id', ids).order('sort_order');
+        if (!active) return;
+        if (cardResult.error) return fail(cardResult.error.message);
+        cardList = (cardResult.data ?? []) as SwipeCard[];
+        const swipeResult = await supabase
           .from('swipes')
           .select('id, card_id, profile_id, choice')
           .in('card_id', cardList.map((c) => c.id));
-        setSwipes((swipeRows ?? []) as Swipe[]);
+        if (!active) return;
+        if (swipeResult.error) return fail(swipeResult.error.message);
+        swipeList = (swipeResult.data ?? []) as Swipe[];
       }
+      setDecks(deckList);
+      setPartner(((peopleResult.data ?? []) as Person[]).find((p) => p.id !== profile.id) ?? null);
+      setCards(cardList);
+      setSwipes(swipeList);
+      setLoadError(null);
       setLoading(false);
     })();
-  }, [profile]);
+    return () => {
+      active = false;
+    };
+  }, [profile, attempt]);
 
   const view = useMemo(() => {
     const mine = new Map<string, SwipeChoice>();
@@ -104,13 +129,12 @@ export function FunctionResults() {
 
   return (
     <Stack gap="md" maw={820} mx="auto">
-      <Group justify="space-between" align="center">
-        <Title order={2}>Results</Title>
-        <Button component={Link} to="/functions/swipe" color="rose" size="sm">Keep swiping</Button>
-      </Group>
-      <Text c="dimmed" size="sm">
-        Where you both said yes, where you disagree, and what is still waiting, for every function.
-      </Text>
+      {loadError && <LoadError message={loadError} onRetry={() => setAttempt((n) => n + 1)} />}
+      <PageHeader
+        title="Results"
+        subtitle="Where you both said yes, where you disagree, and what is still waiting, for every function."
+        action={<Button component={Link} to="/functions/swipe" color="rose" size="sm">Keep swiping</Button>}
+      />
 
       <Card withBorder p="md">
         <Group justify="space-between" wrap="wrap" gap="md">

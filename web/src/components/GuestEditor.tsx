@@ -1,8 +1,18 @@
 import { useState } from 'react';
-import { Button, Checkbox, Group, Modal, NumberInput, Select, Stack, Text, Textarea, TextInput } from '@mantine/core';
+import { Checkbox, Group, NumberInput, Select, TagsInput, Textarea, TextInput } from '@mantine/core';
 import { supabase } from '../lib/supabase';
 import { useProfile } from '../hooks/useProfile';
+import { useDirty } from '../hooks/useDirty';
+import { FormModal } from './FormModal';
 import { KIND_LABEL, type GuestKind } from '../lib/guestKind';
+
+// The functions column is free text as written in the list ("All", "2", "Mehendi, Sangeet"). It is edited as tags
+// split on commas; if the tags are left as they were, the original text is saved back untouched.
+const toTags = (v: string | null | undefined) =>
+  (v ?? '')
+    .split(',')
+    .map((t) => t.trim())
+    .filter(Boolean);
 
 export type Guest = {
   id: string;
@@ -18,6 +28,8 @@ export type Guest = {
   priority: 1 | 2 | null;
   functions: string | null;
   needs_lift?: boolean;
+  arrive_on?: string | null;
+  leave_on?: string | null;
   kind?: GuestKind;
   sort_order: number;
 };
@@ -27,6 +39,7 @@ export function GuestEditor({
   guest,
   side,
   nextOrder,
+  functionNames = [],
   opened,
   onClose,
   onSaved,
@@ -34,6 +47,8 @@ export function GuestEditor({
   guest: Guest | null;
   side: 'groom' | 'bride';
   nextOrder: number;
+  // Names of the wedding functions, offered as suggestions for the Functions field.
+  functionNames?: string[];
   opened: boolean;
   onClose: () => void;
   onSaved: () => void;
@@ -48,16 +63,22 @@ export function GuestEditor({
   const [roomsIn, setRoomsIn] = useState<number | string>(Number(guest?.rooms_inside ?? 0));
   const [roomsOut, setRoomsOut] = useState<number | string>(Number(guest?.rooms_outside ?? 0));
   const [priority, setPriority] = useState<string | null>(guest?.priority ? String(guest.priority) : null);
-  const [functions, setFunctions] = useState(guest?.functions ?? '');
+  const [functionTags, setFunctionTags] = useState<string[]>(() => toTags(guest?.functions));
   const [kind, setKind] = useState<GuestKind>(guest?.kind ?? 'guest');
   const [needsLift, setNeedsLift] = useState(!!guest?.needs_lift);
+  const [arriveOn, setArriveOn] = useState(guest?.arrive_on ?? '');
+  const [leaveOn, setLeaveOn] = useState(guest?.leave_on ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const dirty = useDirty([name, members, group, relation, location, persons, roomsIn, roomsOut, priority, functionTags, kind, needsLift, arriveOn, leaveOn]);
+  const functionsUnchanged = functionTags.join('\u0000') === toTags(guest?.functions).join('\u0000');
+  const functionOptions = [...new Set(['All', ...functionNames, ...functionTags])];
 
   const personsNum = Number(persons);
-  const valid = name.trim() !== '' && Number.isInteger(personsNum) && personsNum >= 0;
+  const datesOk = (arriveOn === '' && leaveOn === '') || (arriveOn !== '' && leaveOn !== '' && leaveOn > arriveOn);
+  const valid = name.trim() !== '' && Number.isInteger(personsNum) && personsNum >= 0 && datesOk;
 
-  async function save() {
+  async function save(): Promise<boolean> {
     setSaving(true);
     setError(null);
     const fields = {
@@ -70,9 +91,11 @@ export function GuestEditor({
       rooms_inside: Number(roomsIn) || 0,
       rooms_outside: Number(roomsOut) || 0,
       priority: priority ? Number(priority) : null,
-      functions: functions.trim() || null,
+      functions: functionsUnchanged ? (guest?.functions ?? null) : functionTags.join(', ') || null,
       kind,
       needs_lift: needsLift,
+      arrive_on: arriveOn || null,
+      leave_on: leaveOn || null,
     };
     const res = guest
       ? await supabase.from('guests').update(fields).eq('id', guest.id)
@@ -80,71 +103,91 @@ export function GuestEditor({
     setSaving(false);
     if (res.error) {
       setError(res.error.message);
-      return;
+      return false;
     }
     onSaved();
     onClose();
+    return true;
   }
 
   return (
-    <Modal opened={opened} onClose={onClose} title={guest ? 'Edit household' : 'Add household'} centered>
-      <Stack>
-        <TextInput label="Name (head of household)" value={name} onChange={(e) => setName(e.currentTarget.value)} required />
-        <Textarea
-          label="Family members coming"
-          value={members}
-          onChange={(e) => setMembers(e.currentTarget.value)}
-          autosize
-          minRows={1}
+    <FormModal
+      opened={opened}
+      onClose={onClose}
+      title={guest ? 'Edit household' : 'Add household'}
+      onSubmit={save}
+      canSubmit={valid}
+      submitting={saving}
+      dirty={dirty}
+      error={error}
+      successMessage={() => `${name.trim()} saved`}
+    >
+      <TextInput label="Name (head of household)" value={name} onChange={(e) => setName(e.currentTarget.value)} required />
+      <Textarea
+        label="Family members coming"
+        value={members}
+        onChange={(e) => setMembers(e.currentTarget.value)}
+        autosize
+        minRows={1}
+      />
+      <Group grow align="flex-start">
+        <TextInput label="Group" placeholder="e.g. Relatives" value={group} onChange={(e) => setGroup(e.currentTarget.value)} />
+        <TextInput label="Relation" value={relation} onChange={(e) => setRelation(e.currentTarget.value)} />
+      </Group>
+      <Group grow align="flex-start">
+        <TextInput label="Where they live" value={location} onChange={(e) => setLocation(e.currentTarget.value)} />
+        <Select
+          label="Kind"
+          allowDeselect={false}
+          data={(Object.keys(KIND_LABEL) as GuestKind[]).map((v) => ({ value: v, label: KIND_LABEL[v] }))}
+          value={kind}
+          onChange={(v) => v && setKind(v as GuestKind)}
         />
-        <Group grow align="flex-start">
-          <TextInput label="Group" placeholder="e.g. Relatives" value={group} onChange={(e) => setGroup(e.currentTarget.value)} />
-          <TextInput label="Relation" value={relation} onChange={(e) => setRelation(e.currentTarget.value)} />
-        </Group>
-        <Group grow align="flex-start">
-          <TextInput label="Where they live" value={location} onChange={(e) => setLocation(e.currentTarget.value)} />
-          <Select
-            label="Kind"
-            allowDeselect={false}
-            data={(Object.keys(KIND_LABEL) as GuestKind[]).map((v) => ({ value: v, label: KIND_LABEL[v] }))}
-            value={kind}
-            onChange={(v) => v && setKind(v as GuestKind)}
-          />
-        </Group>
-        <Group grow align="flex-start">
-          <NumberInput label="People" min={0} allowDecimal={false} value={persons} onChange={setPersons} required />
-          <NumberInput label="Rooms at the main stay" min={0} step={0.5} decimalScale={1} value={roomsIn} onChange={setRoomsIn} />
-          <NumberInput label="Rooms elsewhere" min={0} step={0.5} decimalScale={1} value={roomsOut} onChange={setRoomsOut} />
-        </Group>
-        <Group grow align="flex-start">
-          <Select
-            label="Priority"
-            placeholder="Not set"
-            clearable
-            data={[
-              { value: '1', label: 'Priority 1' },
-              { value: '2', label: 'Priority 2' },
-            ]}
-            value={priority}
-            onChange={setPriority}
-          />
-          <TextInput label="Functions" description='As in the list, e.g. "All"' value={functions} onChange={(e) => setFunctions(e.currentTarget.value)} />
-        </Group>
-        <Checkbox
-          label="Needs a lift (cannot manage stairs)"
-          description="Fill rooms only puts them at a place with a lift, and the room board flags it otherwise."
-          checked={needsLift}
-          onChange={(e) => setNeedsLift(e.currentTarget.checked)}
+      </Group>
+      <Group grow align="flex-start">
+        <NumberInput label="People" min={0} allowDecimal={false} value={persons} onChange={setPersons} required />
+        <NumberInput label="Rooms at the main stay" min={0} step={0.5} decimalScale={1} value={roomsIn} onChange={setRoomsIn} />
+        <NumberInput label="Rooms elsewhere" min={0} step={0.5} decimalScale={1} value={roomsOut} onChange={setRoomsOut} />
+      </Group>
+      <Group grow align="flex-start">
+        <Select
+          label="Priority"
+          placeholder="Not set"
+          clearable
+          data={[
+            { value: '1', label: 'Priority 1' },
+            { value: '2', label: 'Priority 2' },
+          ]}
+          value={priority}
+          onChange={setPriority}
         />
-        {error && (
-          <Text c="red" size="sm">
-            {error}
-          </Text>
-        )}
-        <Button onClick={save} loading={saving} disabled={!valid}>
-          Save
-        </Button>
-      </Stack>
-    </Modal>
+        <TagsInput
+          label="Functions"
+          description='Pick functions, or "All"'
+          placeholder={functionTags.length === 0 ? 'Not set' : undefined}
+          data={functionOptions}
+          value={functionTags}
+          onChange={setFunctionTags}
+          clearable
+          acceptValueOnBlur
+        />
+      </Group>
+      <Group grow align="flex-start">
+        <TextInput label="Arrives (first night)" type="date" value={arriveOn} onChange={(e) => setArriveOn(e.currentTarget.value)} />
+        <TextInput
+          label="Leaves (check-out)"
+          type="date"
+          value={leaveOn}
+          onChange={(e) => setLeaveOn(e.currentTarget.value)}
+          error={!datesOk ? 'Fill in both, with leaving after arriving' : undefined}
+        />
+      </Group>
+      <Checkbox
+        label="Needs a lift (cannot manage stairs)"
+        description="Fill rooms only puts them at a place with a lift, and the room board flags it otherwise."
+        checked={needsLift}
+        onChange={(e) => setNeedsLift(e.currentTarget.checked)}
+      />
+    </FormModal>
   );
 }

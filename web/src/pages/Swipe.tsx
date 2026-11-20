@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Avatar, Badge, Card, Group, Loader, Progress, SegmentedControl, Select, Stack, Tabs, Text, Title } from '@mantine/core';
+import { PageHeader } from '../components/PageHeader';
 import { notifications } from '@mantine/notifications';
 import { CardDetails } from '../components/CardDetails';
 import { SwipeDeck } from '../components/SwipeDeck';
@@ -14,6 +15,7 @@ import {
   type SwipeChoice,
   type SwipeDeck as Deck,
 } from '../lib/supabase';
+import { EmptyState } from '../components/EmptyState';
 
 type Person = { id: string; display_name: string };
 
@@ -182,7 +184,7 @@ export function Swipe({ scope = 'honeymoon' }: { scope?: 'honeymoon' | 'wedding'
   }
 
   if (visibleDecks.length === 0) {
-    return <Text c="dimmed">No swipe decks yet.</Text>;
+    return <EmptyState emoji="💞" title="No swipe decks yet" hint="Once there are looks to compare, you can swipe through them together here." />;
   }
 
   const section = (title: string, rows: SwipeCard[], hint?: string) =>
@@ -205,7 +207,7 @@ export function Swipe({ scope = 'honeymoon' }: { scope?: 'honeymoon' | 'wedding'
 
   return (
     <Stack gap="md" maw={720} mx="auto">
-      <Title order={2}>{scope === 'wedding' ? 'Pick looks' : 'Swipe'}</Title>
+      <PageHeader title={scope === 'wedding' ? 'Pick looks' : 'Swipe'} />
       {visibleDecks.length > 1 &&
         (visibleDecks.length > 4 ? (
           <Select
@@ -275,7 +277,7 @@ export function Swipe({ scope = 'honeymoon' }: { scope?: 'honeymoon' | 'wedding'
             {section('Worth a chat', buckets.mixed, 'One yes, one no.')}
             {section('Both said no', buckets.bothNo)}
             {section(`Waiting on ${partnerName}`, buckets.waiting, 'Not both answered yet.')}
-            {cards.length === 0 && <Text c="dimmed">This deck has no cards.</Text>}
+            {cards.length === 0 && <EmptyState compact emoji="🃏" title="This deck has no cards" hint="Cards added to this deck will show up here." />}
           </Stack>
         </Tabs.Panel>
       </Tabs>
