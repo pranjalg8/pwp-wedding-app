@@ -2,6 +2,13 @@
 
 Every version of the planner, newest first. This file is generated from `web/src/data/releases.json`; edit that file and run `npm run changelog`. The same list shows in the app under Activity, What's new.
 
+## 1.13 - 2026-11-20: A reviewer for the budget
+
+**New**
+
+- Budget review: a panel at the top of Budget checks the numbers every time the page loads and every night. It looks for sums that do not add up (quantity times rate), Paridhi's share that does not follow the amount or the split in the note, notes that state a different total, payments missing from or counted twice in the ledger, hotel nights that differ from the room plan, overdue or too-early due dates, headers over budget, rough figures not marked as estimates, GST not stated, and page totals that differ from the database.
+- Each finding comes as a short question (written by the same Gemini set-up as the chatbot, once it is switched on). Fix opens the normal editor; It is right and Dismiss remember your answer; all three ask for the PIN. The reviewer never changes a figure itself.
+
 ## 1.12 - 2026-11-20: A guided tour and a timeline
 
 **New**

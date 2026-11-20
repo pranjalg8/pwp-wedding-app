@@ -1,0 +1,47 @@
+name: Nightly budget review
+
+# Runs the budget review agent (supabase/functions/budget-review) every night so the numbers are reviewed even when
+# nobody opens the app. It only records findings in budget_flags; it never changes a payment, a ledger entry or a
+# setting. Needs three repository secrets: VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY (already used by the deploy,
+# the anon key only gets the request past the function gateway) and BUDGET_REVIEW_TOKEN (the same value as the
+# Edge Function secret of that name; it is what actually authorises the run).
+on:
+  schedule:
+    - cron: '0 21 * * *' # 02:30 in India, after the 02:00 backup
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: budget-review
+  cancel-in-progress: false
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+      BUDGET_REVIEW_TOKEN: ${{ secrets.BUDGET_REVIEW_TOKEN }}
+    steps:
+      - name: Check the secrets are set
+        run: |
+          for v in SUPABASE_URL SUPABASE_ANON_KEY BUDGET_REVIEW_TOKEN; do
+            if [ -z "${!v}" ]; then echo "::error::Add $v as a repository secret (README, Budget review)."; exit 1; fi
+          done
+      - name: Run the review
+        run: |
+          status=$(curl -sS -o response.json -w '%{http_code}' -X POST "$SUPABASE_URL/functions/v1/budget-review" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY" -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "x-review-token: $BUDGET_REVIEW_TOKEN" -H 'Content-Type: application/json' -d '{}')
+          echo "HTTP $status"; cat response.json; echo
+          [ "$status" = "200" ] || { echo "::error::The budget review failed (HTTP $status)."; exit 1; }
+      - name: Summarise
+        run: |
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          r = json.load(open('response.json'))
+          print(f"Budget review: {r.get('count')} findings, {r.get('new')} new, {r.get('resolved')} resolved, {r.get('asked')} questions written (AI: {r.get('ai')}).")
+          PY

@@ -7,6 +7,11 @@ import { notifications } from '@mantine/notifications';
 import { supabase, type PlanningItem, type Topic } from '../lib/supabase';
 import { PaymentsLedger } from '../components/PaymentsLedger';
 import { PlanCheck } from '../components/PlanCheck';
+import { BudgetReview } from '../components/BudgetReview';
+import { useBudgetFlags } from '../hooks/useBudgetFlags';
+import { useStay } from '../hooks/useStay';
+import type { Flag, ReviewInput } from '../../../supabase/functions/budget-review/checks';
+import type { Payment } from '../components/PaymentEditor';
 import { usePlanCounts } from '../hooks/usePlanCounts';
 import { planChanges } from '../lib/lineBasis';
 import { PaymentEditor } from '../components/PaymentEditor';
@@ -130,6 +135,10 @@ export function Budget() {
   const { dates } = usePlanFacts();
   const { schedule, outside, vendors, settings, areas, paid, items, topics, loadError, reload } = useBudgetPlan();
   const planCounts = usePlanCounts();
+  const { sites: staySites, nights: stayNights } = useStay();
+  const { flags: storedFlags } = useBudgetFlags();
+  const [fixPayment, setFixPayment] = useState<Payment | null>(null);
+  const [ledgerDefaults, setLedgerDefaults] = useState<{ payee: string; amount: number; topic_id: string | null } | null>(null);
   const lineChanges = useMemo(() => planChanges(schedule, planCounts), [schedule, planCounts]);
   const [today] = useState(() => new Date().toLocaleDateString('en-CA'));
   const [scheduleEditing, setScheduleEditing] = useState<Scheduled | 'new' | null>(null);
@@ -160,6 +169,40 @@ export function Budget() {
     return { both: make('both'), pranjal: make('pranjal'), paridhi: make('paridhi') } as Record<Side, Plan>;
   }, [schedule, paid, settings, topics, scope, today, throughMonth]);
   const plan = plans[side];
+  // What the review reads: everything in the database, plus the totals this page shows for Everything.
+  const reviewInput: ReviewInput = useMemo(() => {
+    const st = settingsForSide(settings, 'pranjal');
+    const allBoth = buildPlan({ pending: schedule, paid, settings: settingsForSide(settings, 'both'), today, throughMonth });
+    const allPranjal = buildPlan({ pending: scheduleForSide(schedule, 'pranjal'), paid: forSide(paid, 'pranjal'), settings: st, today, throughMonth });
+    return {
+      today,
+      schedule: [...schedule, ...outside],
+      payments: paid,
+      paidItems: items.filter((i) => i.id && i.title).map((i) => ({ id: i.id as string, title: i.title as string, amount: i.amount, amount_kind: i.amount_kind, topic_id: i.topic_id })),
+      settings: settings ? { total_budget: settings.total_budget, gold_budget: settings.gold_budget ?? null, post_wedding_budget: settings.post_wedding_budget ?? null } : null,
+      topics,
+      vendors,
+      stayNights,
+      staySites,
+      displayed: { pendingTogether: allBoth.pendingTotal, paidTogether: allBoth.paidTotal, pendingPranjal: allPranjal.pendingTotal, paidPranjal: allPranjal.paidTotal },
+    } as ReviewInput;
+  }, [schedule, outside, paid, items, settings, topics, vendors, stayNights, staySites, today, throughMonth]);
+
+  // Fix opens the normal editor for whatever the finding is about; the PIN gate and audit trail are the editor's own.
+  async function fix(f: Flag) {
+    if (f.table === 'payment_schedule') {
+      const row = [...schedule, ...outside].find((x) => x.id === f.rowId);
+      if (row) setScheduleEditing(row);
+    } else if (f.table === 'payments') {
+      const { data } = await supabase.from('payments').select('*').eq('id', f.rowId).single();
+      if (data) setFixPayment(data as Payment);
+    } else if (f.table === 'planning_items') {
+      const it = items.find((x) => x.id === f.rowId);
+      if (it) setLedgerDefaults({ payee: it.title ?? f.label, amount: it.amount ?? 0, topic_id: it.topic_id });
+    } else if (f.table === 'budget_settings') {
+      setSettingsOpen(true);
+    }
+  }
   // The budgets are Pranjal's, one for each header; Everything adds up the ones that are set.
   const viewSettings = useMemo(() => {
     const st = settingsForSide(settings, side);
@@ -238,6 +281,8 @@ export function Budget() {
         </Stack>
         }
       />
+
+      <BudgetReview input={reviewInput} stored={storedFlags} onFix={(f) => void fix(f)} />
 
       <Section step={1} title="Where the money stands" hint="Paid, still to pay, and the funds you have to cover it.">
         <Stack gap="md">
@@ -385,6 +430,12 @@ export function Budget() {
           onClose={() => setMarkPaid(null)}
           onSaved={(id, amount) => afterPaid(markPaid, id, amount)}
         />
+      )}
+      {isUnlocked && fixPayment && (
+        <PaymentEditor key={fixPayment.id} payment={fixPayment} topics={topics} vendors={vendors} opened onClose={() => setFixPayment(null)} onSaved={() => void reload()} />
+      )}
+      {isUnlocked && ledgerDefaults && (
+        <PaymentEditor key={`new-${ledgerDefaults.payee}`} payment={null} topics={topics} vendors={vendors} defaults={{ payee: ledgerDefaults.payee, amount: ledgerDefaults.amount, topic_id: ledgerDefaults.topic_id }} opened onClose={() => setLedgerDefaults(null)} onSaved={() => void reload()} />
       )}
       {isUnlocked && settingsOpen && <SettingsEditor settings={settings} opened onClose={() => setSettingsOpen(false)} onSaved={reload} />}
       {isUnlocked && areasOpen && <AreaBudgetEditor topics={topics} areas={areas} opened onClose={() => setAreasOpen(false)} onSaved={reload} />}
