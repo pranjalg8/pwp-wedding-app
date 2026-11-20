@@ -43,10 +43,19 @@ Still open:
 
 The Anvaya link is dropped from this phase: it adds risk and nothing depends on it before the wedding.
 
-## January: one schedule
+## Phase 3: one schedule
 
-- Function times and venues, and a meals table for 12 to 16 February.
-- The invite site's schedule built from the database.
+Done (21 Nov):
+
+- Function times and venues, and the invite's words (name, part of the day, short line, dress code), edited under Functions.
+- A meals table for 12 to 16 February under Functions, checked against the meal budget lines.
+- The invite site's schedule built from the database (`invite-schedule`), with config.js kept as the fallback copy.
+
+Still open:
+
+- Times for each function, once fixed, with Show the time on the invite switched on.
+- Meals for 14 and 15 February at Royal Pepper, and the staff and driver meals (people, days, thali rate).
+- Exact map pins for the venues (`stay_sites.maps_url`).
 
 ## Last: housekeeping
 
