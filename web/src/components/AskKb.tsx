@@ -8,19 +8,20 @@ import { Body } from '../pages/Knowledge';
 import { QuoteUpload } from './QuoteUpload';
 
 type Source = { slug: string; title: string };
-type Message = { role: 'user' | 'assistant'; text: string; note?: string; sources?: Source[] };
+type Proposed = { kind: string; label: string };
+type Message = { role: 'user' | 'assistant'; text: string; note?: string; sources?: Source[]; proposed?: Proposed[] };
 
 const STORE_KEY = 'pwp-ask-kb';
 
 // A few starting questions that fit the page you are on.
-const GENERAL = ['When is the photographer advance due?', 'Who pays for Royal Pepper?', 'How many rooms at Shri Kanth?', 'What is still open for the home move?'];
+const GENERAL = ['What is due this week?', 'When is the photographer advance due?', 'How many rooms at Shri Kanth?', 'Add a task: confirm the dhol wala by Friday'];
 const BY_PAGE: Record<string, string[]> = {
-  '/budget': ['Which payments are due next?', 'How is the photographer paid?', 'What is already paid?', 'What is not in our budget and why?'],
+  '/budget': ['Which payments are due next?', 'How much do we still have to pay in total?', 'How is the photographer paid?', 'What is already paid?', 'What is not in our budget and why?'],
   '/guests': ['How many guests are invited?', 'Which families may skip because of exams?', 'How do the rooms work?'],
   '/functions': ['What happens on 13 Feb?', 'What is the plan for 15 Feb?', 'Which decor themes are chosen?'],
   '/vendors': ['Which photographers are shortlisted?', 'What is the status of the jewellery?', 'What do the Shri Kanth meals cost?'],
   '/honeymoon': ['Where are we going on the honeymoon?', 'What is the honeymoon budget?'],
-  '/tasks': ['What are the top priorities right now?', 'What deadlines are coming up?'],
+  '/tasks': ['What is due this week?', 'What deadlines are coming up?', 'Add a task: call the caterer next Monday'],
 };
 function startersFor(path: string): string[] {
   const key = Object.keys(BY_PAGE).find((k) => path.startsWith(k));
@@ -106,7 +107,8 @@ export function AskKb() {
       if (error || !data?.answer) throw error ?? new Error('empty');
       const answer = data.answer as string;
       const sources = sourcesIn(await knowledge(), answer);
-      setMessages((m) => [...m, { role: 'assistant', text: answer, sources }]);
+      const proposed = (data.proposed ?? []) as Proposed[];
+      setMessages((m) => [...m, { role: 'assistant', text: answer, sources, proposed }]);
     } catch (e) {
       const note = await failureNote(e);
       const hits = searchKb(await knowledge(), q);
@@ -172,7 +174,7 @@ export function AskKb() {
         <Group justify="space-between" wrap="nowrap" px="md" py="sm" style={{ borderBottom: '1px solid var(--mantine-color-default-border)' }}>
           <div>
             <Text fw={700} lh={1.2}>Ask about the wedding</Text>
-            <Text size="xs" c="dimmed">Answers come from the Knowledge page</Text>
+            <Text size="xs" c="dimmed">Answers use the Knowledge page and live planner numbers</Text>
           </div>
           <Group gap={4} wrap="nowrap">
             <QuoteUpload label="Quote" variant="subtle" />
@@ -195,7 +197,7 @@ export function AskKb() {
               <Stack gap="sm" align="stretch" pt="sm">
                 <Text size="xl" ta="center" aria-hidden>💬</Text>
                 <Text size="sm" ta="center" c="dimmed">
-                  Ask about dates, stay and food, money rules, the home move or vendors. The planner stays the source of truth.
+                  Ask about dates, money, rooms or what is due. You can also say “add a task: …” and it will be proposed for you to accept. The planner stays the source of truth.
                 </Text>
                 <Stack gap={6}>
                   {starters.map((ex) => (
@@ -224,6 +226,17 @@ export function AskKb() {
                     )}
                     <Body text={m.sources?.length ? m.text.replace(/\s*\[[^\]]+\]\s*$/, '') : m.text} />
                   </Box>
+                  {(m.proposed ?? []).length > 0 && (
+                    <Box mt={6} p="xs" style={{ border: '1px solid var(--mantine-color-rose-3)', borderRadius: 10 }}>
+                      <Text size="xs" fw={700} c="rose.7" tt="uppercase" style={{ letterSpacing: 0.4 }}>Proposed, waiting for your OK</Text>
+                      {m.proposed!.map((p, k) => (
+                        <Text key={k} size="sm" style={{ overflowWrap: 'anywhere' }}>• {p.label}</Text>
+                      ))}
+                      <Button component={Link} to="/activity/suggestions" onClick={() => setOpened(false)} size="compact-sm" variant="light" color="rose" mt={6}>
+                        Review in Suggestions
+                      </Button>
+                    </Box>
+                  )}
                   <Group gap={6} mt={6} px={4} wrap="wrap">
                     {(m.sources ?? []).map((s) => (
                       <Badge key={s.slug} component={Link} to={`/knowledge?page=${s.slug}`} onClick={() => setOpened(false)} variant="outline" color="rose" size="md" tt="none" fw={600} style={{ cursor: 'pointer' }}>

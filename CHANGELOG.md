@@ -2,6 +2,13 @@
 
 Every version of the planner, newest first. This file is generated from `web/src/data/releases.json`; edit that file and run `npm run changelog`. The same list shows in the app under Activity, What's new.
 
+## 1.15 - 2026-11-21: Ask can propose
+
+**New**
+
+- Ask now knows the live planner (open tasks and due dates, payments still to make, RSVP counts per day, rooms) as well as the Knowledge pages, so you can ask what is due this week.
+- Ask can propose a task, a payment or a note when you ask it to (for example: add a task, confirm the dhol wala by Friday). It only adds a suggestion; nothing changes until you accept it in Suggestions. Payments need the payee, amount and due date.
+
 ## 1.14 - 2026-11-21: Quote reader
 
 **New**

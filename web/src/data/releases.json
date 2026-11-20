@@ -1,5 +1,20 @@
 [
   {
+    "version": "1.15",
+    "date": "2026-11-21",
+    "title": "Ask can propose",
+    "items": [
+      {
+        "kind": "new",
+        "text": "Ask now knows the live planner (open tasks and due dates, payments still to make, RSVP counts per day, rooms) as well as the Knowledge pages, so you can ask what is due this week."
+      },
+      {
+        "kind": "new",
+        "text": "Ask can propose a task, a payment or a note when you ask it to (for example: add a task, confirm the dhol wala by Friday). It only adds a suggestion; nothing changes until you accept it in Suggestions. Payments need the payee, amount and due date."
+      }
+    ]
+  },
+  {
     "version": "1.14",
     "date": "2026-11-21",
     "title": "Quote reader",
