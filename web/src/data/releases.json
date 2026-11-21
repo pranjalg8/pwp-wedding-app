@@ -1,5 +1,20 @@
 [
   {
+    "version": "1.17",
+    "date": "2026-11-21",
+    "title": "Payments due",
+    "items": [
+      {
+        "kind": "new",
+        "text": "Home: a Payments due card lists pending payments that are late or due in the next two weeks, with the amount and how many days; tap one to open Budget."
+      },
+      {
+        "kind": "new",
+        "text": "Reminders for payments: each morning a reminder is queued for both of you for any pending payment due within 3 days (once) or overdue (weekly). They are emailed only once email sending is switched on."
+      }
+    ]
+  },
+  {
     "version": "1.16",
     "date": "2026-11-21",
     "title": "Ask can propose",
