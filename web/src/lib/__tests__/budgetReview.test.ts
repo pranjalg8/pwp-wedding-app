@@ -223,10 +223,14 @@ describe('ledger against schedule', () => {
     const p = pay({ id: 'k', amount: 160880, verification_note: 'Paid on the card; quote before discount about 1,68,527' });
     expect(codes(review({ payments: [p] }))).not.toContain(CODES.PAYMENT_NOTE_MISMATCH);
   });
-  it('flags unverified payments and missing references, but not cash', () => {
-    const f = review({ payments: [pay({ id: 'a', amount: 10, verification: 'chat_only', reference: null }), pay({ id: 'b', amount: 10, method: 'cash', reference: null })] });
+  it('flags unverified payments and missing references, but not cash, when receipt checks are on', () => {
+    const payments = [pay({ id: 'a', amount: 10, verification: 'chat_only', reference: null }), pay({ id: 'b', amount: 10, method: 'cash', reference: null })];
+    const f = review({ payments, checkReceipts: true });
     expect(about(f, 'a').map((x) => x.code).sort()).toEqual([CODES.PAYMENT_NO_REFERENCE, CODES.PAYMENT_UNVERIFIED]);
     expect(about(f, 'b')).toEqual([]);
+  });
+  it('stays quiet about receipts by default', () => {
+    expect(review({ payments: [pay({ id: 'a', amount: 10, verification: 'chat_only', reference: null })] })).toEqual([]);
   });
   it("flags a payment where Paridhi's part exceeds the payment", () => {
     expect(codes(review({ payments: [pay({ id: 'a', amount: 100, paridhi_amount: 200 })] }))).toContain(CODES.PAYMENT_PARIDHI_EXCEEDS);

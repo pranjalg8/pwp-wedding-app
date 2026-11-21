@@ -78,6 +78,9 @@ export type ReviewInput = {
   staySites?: StaySiteRow[];
   possessionDate?: string | null; // when the new home is handed over; falls back to what the notes say
   displayed?: DisplayedTotals;
+  // Off by default: nudges about payments recorded from chat only or without a transaction reference. Switch on
+  // when you want the ledger tightened up.
+  checkReceipts?: boolean;
 };
 
 export type FlagTable = 'payment_schedule' | 'payments' | 'planning_items' | 'budget_settings' | 'budget';
@@ -420,7 +423,7 @@ function ledger(input: ReviewInput): Flag[] {
   return out;
 }
 
-function payment(p: PaymentRow): Flag[] {
+function payment(p: PaymentRow, checkReceipts: boolean): Flag[] {
   const out: Flag[] = [];
   const base = { table: 'payments' as const, rowId: p.id, label: p.payee };
   if (p.paridhi_amount > p.amount + 0.005) {
@@ -437,10 +440,10 @@ function payment(p: PaymentRow): Flag[] {
       out.push(flag({ ...base, code: CODES.PAYMENT_NOTE_MISMATCH, severity: 'error', message: `${p.payee} (${p.paid_on}): recorded as ${inr(p.amount)}, but its note mentions ${inr(near)}. One of them is probably a typo.`, details: { amount: p.amount, note_figure: near } }));
     }
   }
-  if (p.verification !== 'receipt_checked') {
+  if (checkReceipts && p.verification !== 'receipt_checked') {
     out.push(flag({ ...base, code: CODES.PAYMENT_UNVERIFIED, severity: 'info', message: `${p.payee} (${p.paid_on}, ${inr(p.amount)}) is recorded from chat only; the receipt has not been checked.`, details: { amount: p.amount } }));
   }
-  if (!p.reference?.trim() && !/cash/i.test(p.method ?? '')) {
+  if (checkReceipts && !p.reference?.trim() && !/cash/i.test(p.method ?? '')) {
     out.push(flag({ ...base, code: CODES.PAYMENT_NO_REFERENCE, severity: 'info', message: `${p.payee} (${p.paid_on}, ${inr(p.amount)}) has no transaction reference.`, details: { amount: p.amount } }));
   }
   return out;
@@ -544,7 +547,7 @@ export function reviewBudget(input: ReviewInput): Flag[] {
   for (const r of input.schedule) {
     flags.push(...arithmetic(r), ...paridhiShare(r), ...noteMatchesAmount(r), ...dueDates(r, input.today, possession), ...estimates(r), ...gst(r, vendors), ...stayQuantity(r, nights, sites, vendors));
   }
-  for (const p of input.payments) flags.push(...payment(p));
+  for (const p of input.payments) flags.push(...payment(p, input.checkReceipts === true));
   flags.push(...ledger(input), ...headers(input), ...unassigned(input), ...ties(input));
   return flags.sort((a, b) => ORDER[a.severity] - ORDER[b.severity] || a.label.localeCompare(b.label) || a.code.localeCompare(b.code));
 }
