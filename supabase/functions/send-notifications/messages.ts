@@ -3,7 +3,7 @@
 
 export type OutboxRow = {
   id: string;
-  kind: 'deck_completed' | 'weekly_nudge' | 'due_reminder';
+  kind: 'deck_completed' | 'weekly_nudge' | 'due_reminder' | 'payment_reminder';
   recipient_profile_id: string;
   payload: Record<string, unknown>;
 };
@@ -14,6 +14,15 @@ export function buildMessage(row: OutboxRow, appUrl: string): { subject: string;
   const p = row.payload;
   const label = String(p.deck_label ?? 'a deck');
   const homeUrl = `${appUrl.replace(/\/$/, '')}/#/`;
+  if (row.kind === 'payment_reminder') {
+    const payee = String(p.payee ?? 'A payment');
+    const days = Number(p.days_left ?? 0);
+    const when = days < 0 ? `${-days} day${days === -1 ? '' : 's'} overdue` : days === 0 ? 'due today' : `due in ${days} day${days === 1 ? '' : 's'}`;
+    const amount = Number(p.amount ?? 0).toLocaleString('en-IN');
+    const subject = ascii(`Payment ${when}: ${payee}`).slice(0, 100);
+    const message = `Rs ${amount} to ${payee} is ${when}, on ${String(p.due_date ?? '')}. Mark it paid in Budget: ${appUrl.replace(/\/$/, '')}/#/budget`;
+    return { subject, message: message.slice(0, 2000) };
+  }
   if (row.kind === 'due_reminder') {
     const title = String(p.title ?? 'An item');
     const days = Number(p.days_left ?? 0);

@@ -19,11 +19,13 @@ import { tintFor } from '../lib/schedule';
 import { EmptyState } from '../components/EmptyState';
 import { PlanTimeline } from '../components/PlanTimeline';
 import { useTour } from '../hooks/useTour';
+import { dueLabel, dueSoon, type DuePayment } from '../lib/duePayments';
 
 type TaskRow = Pick<Task, 'id' | 'title' | 'topic_id' | 'owner' | 'priority' | 'due_date' | 'status' | 'sort_order'>;
 type OptionRow = { task_id: string; name: string; status: string };
 type MoneyRow = Pick<PlanningItem, 'status' | 'amount' | 'amount_kind'>;
 type PaymentRow = { amount: number | string; verification: string };
+type ScheduledRow = DuePayment;
 
 const isDone = (t: TaskRow) => t.status === 'done' || t.status === 'decided';
 const STALE_SYNC_DAYS = 3;
@@ -79,6 +81,7 @@ export function Home() {
   const [options, setOptions] = useState<OptionRow[]>([]);
   const [items, setItems] = useState<MoneyRow[]>([]);
   const [payments, setPayments] = useState<PaymentRow[]>([]);
+  const [scheduled, setScheduled] = useState<ScheduledRow[]>([]);
   const [functions, setFunctions] = useState<WeddingFunction[]>([]);
   const [unsorted, setUnsorted] = useState(0);
   const [lastSynced, setLastSynced] = useState<string | null>(null);
@@ -87,7 +90,7 @@ export function Home() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   async function load(isActive: () => boolean = () => true) {
-    const [t, tp, o, i, p, f, u, s] = await Promise.all([
+    const [t, tp, o, i, p, f, u, s, sc] = await Promise.all([
       supabase.from('tasks').select('id, title, topic_id, owner, priority, due_date, status, sort_order'),
       getTopics(),
       supabase.from('task_options').select('task_id, name, status'),
@@ -97,11 +100,12 @@ export function Home() {
       supabase.from('wedding_functions').select('*').order('sort_order'),
       supabase.from('unmapped_messages').select('msg_id', { count: 'exact', head: true }),
       supabase.from('sync_status').select('last_run_at').limit(1),
+      supabase.from('payment_schedule').select('id, payee, amount, due_date, status').eq('status', 'pending').not('due_date', 'is', null),
     ]);
     if (!isActive()) return;
     // A failed reload keeps what is on screen rather than showing an empty home page. A failed first load stays
     // "not loaded", so it does not claim everything is decided.
-    const failed = firstError(t, tp, o, i, p, f);
+    const failed = firstError(t, tp, o, i, p, f, sc);
     setLoadError(failed);
     if (failed) return;
     setLoaded(true);
@@ -110,12 +114,13 @@ export function Home() {
     setOptions((o.data ?? []) as OptionRow[]);
     setItems((i.data ?? []) as MoneyRow[]);
     setPayments((p.data ?? []) as PaymentRow[]);
+    setScheduled((sc.data ?? []) as ScheduledRow[]);
     setFunctions((f.data ?? []) as WeddingFunction[]);
     setUnsorted(u.count ?? 0);
     setLastSynced(s.data?.[0]?.last_run_at ?? null);
   }
 
-  useRealtime(['tasks', 'task_options', 'planning_items', 'wedding_functions', 'payments'], load, { immediate: true });
+  useRealtime(['tasks', 'task_options', 'planning_items', 'wedding_functions', 'payments', 'payment_schedule'], load, { immediate: true });
 
   const emoji = (t: TaskRow) => (t.topic_id && TOPIC_EMOJI[topicKeyById[t.topic_id]]) || '✨';
   const byDue = (a: TaskRow, b: TaskRow) => (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999') || a.sort_order - b.sort_order;
@@ -134,6 +139,8 @@ export function Home() {
   const money = summarizeMoney(items);
   const unverified = payments.filter((p) => p.verification !== 'receipt_checked');
   const unverifiedTotal = unverified.reduce((s, p) => s + Math.round(Number(p.amount) * 100), 0) / 100;
+
+  const dueNow = dueSoon(scheduled, new Date(now).toLocaleDateString('en-CA'));
 
   const alerts: Alert[] = [];
   for (const t of open) {
@@ -246,6 +253,29 @@ export function Home() {
                   />
                 );
               })}
+            </Stack>
+          )}
+        </Panel>
+
+        <Panel title="Payments due" to="/budget" linkLabel="Budget">
+          {dueNow.length === 0 ? (
+            <EmptyState compact emoji="💸" title="No payment due soon" hint="Pending payments due in the next two weeks, or late, show here." />
+          ) : (
+            <Stack gap="sm">
+              {dueNow.slice(0, 5).map((p) => (
+                <Link key={p.id} to="/budget" style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
+                  <Group justify="space-between" wrap="nowrap" align="flex-start" gap="sm">
+                    <div style={{ minWidth: 0 }}>
+                      <Text size="sm" fw={600} style={{ overflowWrap: 'anywhere' }}>{p.payee}</Text>
+                      <Text size="xs" c="dimmed">{formatInr(Number(p.amount))}</Text>
+                    </div>
+                    <Badge color={p.days < 0 ? 'red' : 'orange'} variant="light" tt="none" style={{ flexShrink: 0 }}>
+                      {dueLabel(p.days)}
+                    </Badge>
+                  </Group>
+                </Link>
+              ))}
+              {dueNow.length > 5 && <Text size="xs" c="dimmed">and {dueNow.length - 5} more in Budget</Text>}
             </Stack>
           )}
         </Panel>

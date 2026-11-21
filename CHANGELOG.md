@@ -2,6 +2,13 @@
 
 Every version of the planner, newest first. This file is generated from `web/src/data/releases.json`; edit that file and run `npm run changelog`. The same list shows in the app under Activity, What's new.
 
+## 1.17 - 2026-11-21: Payments due
+
+**New**
+
+- Home: a Payments due card lists pending payments that are late or due in the next two weeks, with the amount and how many days; tap one to open Budget.
+- Reminders for payments: each morning a reminder is queued for both of you for any pending payment due within 3 days (once) or overdue (weekly). They are emailed only once email sending is switched on.
+
 ## 1.16 - 2026-11-21: Ask can propose
 
 **New**
