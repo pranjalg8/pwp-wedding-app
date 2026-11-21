@@ -2,6 +2,14 @@
 
 Every version of the planner, newest first. This file is generated from `web/src/data/releases.json`; edit that file and run `npm run changelog`. The same list shows in the app under Activity, What's new.
 
+## 1.18 - 2026-11-21: Wedding week
+
+**New**
+
+- Wedding week (under Plan): Transport lists who arrives each day, who needs a lift and a rough vehicle count from the people per vehicle you set. Arrival days and travel notes come from invite replies you have applied.
+- Check-in: pick a function and tick each household as it arrives, with the number of people. It keeps working with no signal: ticks are saved on the phone and sent when you are back online.
+- Photos: paste the link of one shared Google Photos or Drive album and get a QR code to print or show at the venue.
+
 ## 1.17 - 2026-11-21: Payments due
 
 **New**

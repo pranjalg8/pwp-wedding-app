@@ -1,5 +1,24 @@
 [
   {
+    "version": "1.18",
+    "date": "2026-11-21",
+    "title": "Wedding week",
+    "items": [
+      {
+        "kind": "new",
+        "text": "Wedding week (under Plan): Transport lists who arrives each day, who needs a lift and a rough vehicle count from the people per vehicle you set. Arrival days and travel notes come from invite replies you have applied."
+      },
+      {
+        "kind": "new",
+        "text": "Check-in: pick a function and tick each household as it arrives, with the number of people. It keeps working with no signal: ticks are saved on the phone and sent when you are back online."
+      },
+      {
+        "kind": "new",
+        "text": "Photos: paste the link of one shared Google Photos or Drive album and get a QR code to print or show at the venue."
+      }
+    ]
+  },
+  {
     "version": "1.17",
     "date": "2026-11-21",
     "title": "Payments due",
