@@ -1,5 +1,16 @@
 [
   {
+    "version": "1.19",
+    "date": "2026-11-23",
+    "title": "My feed",
+    "items": [
+      {
+        "kind": "new",
+        "text": "My feed (for accounts that have it): a private, swipeable list of your own to-dos from WhatsApp, most urgent first. Swipe right for done, left for later, up for focus time, down for waiting on someone."
+      }
+    ]
+  },
+  {
     "version": "1.18",
     "date": "2026-11-21",
     "title": "Wedding week",

@@ -2,6 +2,12 @@
 
 Every version of the planner, newest first. This file is generated from `web/src/data/releases.json`; edit that file and run `npm run changelog`. The same list shows in the app under Activity, What's new.
 
+## 1.19 - 2026-11-23: My feed
+
+**New**
+
+- My feed (for accounts that have it): a private, swipeable list of your own to-dos from WhatsApp, most urgent first. Swipe right for done, left for later, up for focus time, down for waiting on someone.
+
 ## 1.18 - 2026-11-21: Wedding week
 
 **New**

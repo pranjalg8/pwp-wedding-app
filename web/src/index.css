@@ -256,3 +256,51 @@ body {
 .honeymoon-flip { animation: honeymoon-flip 520ms cubic-bezier(.2,.8,.2,1) both; transform-origin: center top; overflow-x: clip; }
 @keyframes honeymoon-flip { from { opacity: 0; transform: perspective(1400px) rotateY(-70deg) scale(.96); } to { opacity: 1; transform: perspective(1400px) rotateY(0) scale(1); } }
 @media (prefers-reduced-motion: reduce) { .honeymoon-flip { animation: none; } }
+
+/* My feed: four-way swipe cards */
+.feed-stage {
+  position: relative;
+  width: min(380px, 100%);
+  height: min(400px, 52vh);
+  margin: 0 auto;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+.feed-card {
+  position: absolute;
+  inset: 0;
+  padding: 22px;
+  border-radius: 20px;
+  background: var(--mantine-color-body);
+  border: 1px solid var(--mantine-color-default-border);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.1);
+  cursor: grab;
+  overflow: hidden;
+}
+
+.feed-card:active {
+  cursor: grabbing;
+}
+
+.feed-stamp {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  padding: 2px 10px;
+  border: 3px solid currentColor;
+  border-radius: 8px;
+  font-weight: 800;
+  font-size: 22px;
+  letter-spacing: 2px;
+  transform: rotate(10deg);
+  pointer-events: none;
+  z-index: 2;
+  background: var(--mantine-color-body);
+}
+
+.feed-stamp-done { color: var(--mantine-color-teal-6); }
+.feed-stamp-later { color: var(--mantine-color-yellow-7); }
+.feed-stamp-focus { color: var(--mantine-color-blue-6); }
+.feed-stamp-waiting { color: var(--mantine-color-gray-6); }

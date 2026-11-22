@@ -9,10 +9,22 @@ const TABS = [
 ];
 
 // Tab bar along the bottom on phones and tablets (below the lg breakpoint). "More" opens the full menu drawer.
-export function BottomNav({ onMore, moreActive, pending = 0 }: { onMore: () => void; moreActive?: boolean; pending?: number }) {
+export function BottomNav({
+  onMore,
+  moreActive,
+  pending = 0,
+  showFeed = false,
+}: {
+  onMore: () => void;
+  moreActive?: boolean;
+  pending?: number;
+  showFeed?: boolean;
+}) {
+  // My feed takes the Guests slot for whoever has it; Guests stays in the More drawer.
+  const tabs = showFeed ? [TABS[0], { to: '/feed', label: 'Feed', icon: '⚡' }, ...TABS.filter((t) => t.to !== '/' && t.to !== '/guests')] : TABS;
   return (
     <Box component="nav" className="bottom-nav app-chrome" hiddenFrom="lg" aria-label="Main">
-      {TABS.map((t) => (
+      {tabs.map((t) => (
         // NavLink marks the current tab with aria-current="page", which the CSS styles.
         <NavLink key={t.to} to={t.to} end={t.end} className="bottom-nav-item">
           <span className="bottom-nav-icon" aria-hidden>

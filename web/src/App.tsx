@@ -16,6 +16,7 @@ import { getDeviceNickname } from './lib/device';
 import { reloadOnceForNewVersion } from './lib/chunkReload';
 import { usePendingSuggestions } from './hooks/usePendingSuggestions';
 import { useUnseenUpdates } from './hooks/useUpdates';
+import { useFeature } from './hooks/useFeature';
 
 // Every page is its own file, loaded the first time it is opened, so the first screen arrives quickly.
 type PageOf<M, K extends keyof M> = M[K] extends ComponentType<infer P> ? ComponentType<P> : never;
@@ -50,6 +51,7 @@ const SharedView = lazyPage(() => import('./pages/SharedView'), 'SharedView');
 const Wishlist = lazyPage(() => import('./pages/Wishlist'), 'Wishlist');
 const GiftWishlist = lazyPage(() => import('./pages/GiftWishlist'), 'GiftWishlist');
 const AskKb = lazyPage(() => import('./components/AskKb'), 'AskKb');
+const MyFeed = lazyPage(() => import('./pages/MyFeed'), 'MyFeed');
 
 // Vite reports a page file that failed to preload, usually because a new version was deployed while this tab was
 // open. Reload once to pick up the new files (the guard in reloadOnceForNewVersion stops a reload loop).
@@ -101,13 +103,18 @@ const NAV_GROUPS = [
 ];
 
 // Pages that have their own tab in the phone tab bar; anything else lights up "More".
-const TAB_PATHS = ['/tasks', '/guests', '/budget'];
+const TAB_PATHS = ['/feed', '/tasks', '/guests', '/budget'];
 
 // The same grouped list is used in the desktop sidebar and in the phone drawer.
+// Shown only to profiles granted the 'my_feed' feature.
+const FEED_GROUP = { label: 'Mine', items: [{ to: '/feed', label: 'My feed', icon: '⚡', end: false }] };
+
 function NavLinks({ onNavigate, pending = 0 }: { onNavigate?: () => void; pending?: number }) {
+  const hasFeed = useFeature('my_feed');
+  const groups = hasFeed ? [FEED_GROUP, ...NAV_GROUPS] : NAV_GROUPS;
   return (
     <Stack gap="md">
-      {NAV_GROUPS.map((group) => (
+      {groups.map((group) => (
         <Stack key={group.label} gap={4}>
           <Text size="xs" fw={700} tt="uppercase" c="dimmed" px="sm" style={{ letterSpacing: 0.6 }}>
             {group.label}
@@ -144,6 +151,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   const [nameOpened, nameHandlers] = useDisclosure(false);
   const [nickname, setNickname] = useState(getDeviceNickname());
   const pending = usePendingSuggestions() + useUnseenUpdates();
+  const hasFeed = useFeature('my_feed');
   const tour = useTour();
   const { pathname } = useLocation();
   const onTab = pathname === '/' || TAB_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'));
@@ -223,7 +231,7 @@ function Shell({ children }: { children: React.ReactNode }) {
       <DeviceNicknameModal opened={nameOpened} onClose={nameHandlers.close} onSaved={setNickname} />
 
       <AppShell.Main className="app-main">{children}</AppShell.Main>
-      <BottomNav onMore={toggle} moreActive={drawerOpened || !onTab} pending={pending} />
+      <BottomNav onMore={toggle} moreActive={drawerOpened || !onTab} pending={pending} showFeed={hasFeed} />
       <Suspense fallback={null}>
         <AskKb />
       </Suspense>
@@ -266,6 +274,7 @@ function AuthedApp() {
           <Suspense fallback={pageLoader}>
             <Routes>
               <Route path="/" element={<Home />} />
+              <Route path="/feed" element={<MyFeed />} />
               <Route path="/tasks" element={<Tasks />} />
               <Route path="/tasks/:taskId" element={<TaskDetail />} />
               <Route path="/areas" element={<Dashboard />} />
