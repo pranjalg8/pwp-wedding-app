@@ -1,4 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+// feed.ts imports the Supabase client, which needs env vars CI doesn't have; these tests are pure helpers.
+vi.mock('../supabase', () => ({ supabase: {} }));
 import { daysUntil, dueLabel, isLive, nextQuietSlot, type FeedCard } from '../feed';
 
 const at = (h: number, m = 0) => new Date(2026, 10, 23, h, m);
