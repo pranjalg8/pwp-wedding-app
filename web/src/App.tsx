@@ -37,6 +37,7 @@ const Functions = lazyPage(() => import('./pages/Functions'), 'Functions');
 const FunctionResults = lazyPage(() => import('./pages/FunctionResults'), 'FunctionResults');
 const Swipe = lazyPage(() => import('./pages/Swipe'), 'Swipe');
 const Guests = lazyPage(() => import('./pages/Guests'), 'Guests');
+const WeddingWeek = lazyPage(() => import('./pages/WeddingWeek'), 'WeddingWeek');
 const HoneymoonLayout = lazyPage(() => import('./components/HoneymoonLayout'), 'HoneymoonLayout');
 const HoneymoonItinerary = lazyPage(() => import('./pages/HoneymoonItinerary'), 'HoneymoonItinerary');
 const Travel = lazyPage(() => import('./pages/Travel'), 'Travel');
@@ -77,6 +78,7 @@ const NAV_GROUPS = [
       { to: '/areas', label: 'Areas', icon: '🗂️' },
       { to: '/functions', label: 'Functions', icon: '🎉' },
       { to: '/guests', label: 'Guests', icon: '👥' },
+      { to: '/week', label: 'Wedding week', icon: '🧳' },
     ],
   },
   {
@@ -275,6 +277,7 @@ function AuthedApp() {
               <Route path="/knowledge" element={<Knowledge />} />
               <Route path="/functions" element={<Functions />} />
               <Route path="/guests" element={<Guests />} />
+              <Route path="/week" element={<WeddingWeek />} />
               <Route path="/functions/swipe" element={<Swipe scope="wedding" />} />
               <Route path="/functions/results" element={<FunctionResults />} />
               <Route path="/honeymoon" element={<HoneymoonLayout />}>
