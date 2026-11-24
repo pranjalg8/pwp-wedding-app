@@ -7,7 +7,7 @@ import { useProfile } from '../hooks/useProfile';
 import type { InviteSettings } from '../hooks/useInviteReplies';
 import type { Invite } from '../lib/rsvp';
 import type { RoomStay } from '../lib/rooms';
-import { inviteLink, latestNew, linksCsv, makeCode, replyPlan, roomTally, type InviteCode, type InviteReply } from '../lib/replies';
+import { inviteLink, latestNew, linksCsv, nameCode, nameStem, replyPlan, roomTally, type InviteCode, type InviteReply } from '../lib/replies';
 import { confirmDanger } from '../lib/confirm';
 
 type G = { id: string; name: string; persons: number };
@@ -102,8 +102,7 @@ export function InviteReplies({
     setBusy(true);
     const taken = new Set(codes.map((c) => c.code));
     const rows = withoutCode.map((g) => {
-      let code = makeCode();
-      while (taken.has(code)) code = makeCode();
+      const code = nameCode(nameStem(g.name), taken);
       taken.add(code);
       return { code, guest_id: g.id };
     });

@@ -1,5 +1,20 @@
 [
   {
+    "version": "1.24",
+    "date": "2026-11-24",
+    "title": "Invite codes from names",
+    "items": [
+      {
+        "kind": "new",
+        "text": "New personal links get a code made from the guest's name and three digits, like ASHA472, so it is easy to say on a call or type from a card. The digits stop someone who only knows the name from opening that RSVP."
+      },
+      {
+        "kind": "new",
+        "text": "Send invite: before making a link you can change the name part, for example to the nickname everyone uses. Make codes for everyone without a link uses names too. Links already sent keep their old codes and keep working."
+      }
+    ]
+  },
+  {
     "version": "1.23",
     "date": "2026-11-24",
     "title": "Three kinds of invite",

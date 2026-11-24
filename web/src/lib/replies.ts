@@ -2,12 +2,43 @@
 
 // No 0/O, 1/I: a code read out over the phone or typed from a card should not be mistaken.
 export const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-export const CODE_PATTERN = /^[A-HJ-NP-Z2-9]{6,10}$/;
+export const CODE_PATTERN = /^[A-Z2-9]{6,12}$/;
 
 export function makeCode(length = 8, random: (n: number) => Uint8Array = (n) => crypto.getRandomValues(new Uint8Array(n))) {
   const bytes = random(length);
   // 256 is a multiple of 32, so taking the low 5 bits keeps every letter equally likely.
   return [...bytes].map((b) => CODE_ALPHABET[b & 31]).join('');
+}
+
+// Codes made from the guest's name, easy to say and remember: the name people call them, up to 9 letters, then 3
+// digits from 2-9 (no 0 or 1, so nothing is mistaken for O or I). The digits keep strangers who know the name from
+// guessing it. "Asha Verma" -> ASHA472, "Meera (Mini) - Pune" -> MEERA385, "Dr Ravi Rao" -> RAVI629.
+const TITLES = new Set(['DR', 'SRI', 'SHRI', 'SMT', 'MR', 'MRS', 'MS', 'GURU', 'JI', 'TEST']);
+const DIGITS = '23456789';
+
+export function nameStem(name: string) {
+  const wordsOf = (t: string) => t.toUpperCase().replace(/[^A-Z ]/g, ' ').split(/\s+/).filter((w) => w && !TITLES.has(w));
+  // The part before " - place" or a bracket; if that is only a title ("Guru Ji - Anand Ji"), the whole name.
+  let words = wordsOf(name.split(/\s+-\s+|\s*\(|\//)[0]);
+  if (words.length === 0) words = wordsOf(name);
+  let stem = words[0] ?? '';
+  if (stem.length < 3 && words[1]) stem += words[1];
+  return (stem || 'GUEST').slice(0, 9).padEnd(3, 'X');
+}
+
+export const cleanStem = (s: string) => s.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 9);
+
+export function nameCode(
+  stem: string,
+  taken: Set<string>,
+  random: (n: number) => Uint8Array = (n) => crypto.getRandomValues(new Uint8Array(n)),
+) {
+  const base = cleanStem(stem).padEnd(3, 'X');
+  for (let i = 0; i < 500; i++) {
+    const code = base + [...random(3)].map((b) => DIGITS[b & 7]).join('');
+    if (!taken.has(code)) return code;
+  }
+  return makeCode(); // every three-digit ending for this name is taken: fall back to a random code
 }
 
 // The personal link: the invite site's address (invite_settings.site_url) with the code.
