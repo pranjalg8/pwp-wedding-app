@@ -19,7 +19,7 @@ const send = (over: Partial<InviteSend>): InviteSend => ({
 const inv = (guest_id: string, event_date: string, coming = 0, maybe = 0, declined = 0) => ({ guest_id, event_date, coming, maybe, declined });
 const reply = (over: Partial<InviteReply>): InviteReply => ({
   id: 'r1', guest_id: 'a', code: 'K7M2QXAB', responder_name: 'Asha', answers: {}, arrive_on: null, leave_on: null,
-  travel: null, note: null, status: 'new', reviewed_at: null, submitted_at: '2026-12-05T10:00:00Z', ...over,
+  travel: null, note: null, needs_room: null, room_share: null, status: 'new', reviewed_at: null, submitted_at: '2026-12-05T10:00:00Z', ...over,
 });
 const A = { id: 'a', persons: 3 };
 

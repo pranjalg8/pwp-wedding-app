@@ -7,7 +7,7 @@ import { useProfile } from '../hooks/useProfile';
 import type { InviteSettings } from '../hooks/useInviteReplies';
 import type { Invite } from '../lib/rsvp';
 import type { RoomStay } from '../lib/rooms';
-import { inviteLink, latestNew, linksCsv, makeCode, replyPlan, type InviteCode, type InviteReply } from '../lib/replies';
+import { inviteLink, latestNew, linksCsv, makeCode, replyPlan, roomTally, type InviteCode, type InviteReply } from '../lib/replies';
 import { confirmDanger } from '../lib/confirm';
 
 type G = { id: string; name: string; persons: number };
@@ -56,6 +56,7 @@ export function InviteReplies({
   const [busy, setBusy] = useState(false);
 
   const guestById = useMemo(() => new Map(guests.map((g) => [g.id, g])), [guests]);
+  const rooms = useMemo(() => roomTally(replies), [replies]);
   const daysOf = useMemo(() => {
     const m = new Map<string, string[]>();
     for (const i of invites) m.set(i.guest_id, [...(m.get(i.guest_id) ?? []), i.event_date].sort());
@@ -237,6 +238,25 @@ export function InviteReplies({
         </Stack>
       </Paper>
 
+      {rooms.asked > 0 && (
+        <Paper withBorder p="md" radius="md">
+          <Stack gap={6}>
+            <Text fw={600}>Rooms for your friends</Text>
+            <Text size="sm" c="dimmed">
+              From {rooms.asked} {rooms.asked === 1 ? 'reply' : 'replies'} to the room question (latest per household, applied or not).{' '}
+              {rooms.no} heading home after.
+            </Text>
+            {rooms.nights.map((n) => (
+              <Text key={n.night} size="sm">
+                <b>Night of {dayLabel(n.night)}:</b> {n.households} {n.households === 1 ? 'household' : 'households'}, {n.people}{' '}
+                {n.people === 1 ? 'person' : 'people'}, about {n.rooms} {n.rooms === 1 ? 'room' : 'rooms'}
+                {n.sharers > 0 ? ` (${n.sharers} coming alone will share)` : ''}
+              </Text>
+            ))}
+          </Stack>
+        </Paper>
+      )}
+
       <Stack gap="sm">
         <Title order={4}>To review {toReview.length > 0 && <Badge ml={4}>{toReview.length}</Badge>}</Title>
         {toReview.length === 0 && (
@@ -291,7 +311,21 @@ export function InviteReplies({
                       </Text>
                     );
                   })}
-                {(r.arrive_on || r.leave_on || r.travel) && (
+                {r.needs_room !== null && (
+                  <Text size="sm">
+                    <b>Room:</b>{' '}
+                    {r.needs_room && r.arrive_on && r.leave_on
+                      ? `needed from ${dayLabel(r.arrive_on)}, leaving ${dayLabel(r.leave_on)}${r.room_share === true ? ' · happy to share' : r.room_share === false ? ' · wants own room' : ''}`
+                      : 'not needed, heading home after'}
+                    {r.travel ? ` · ${r.travel}` : ''}
+                    {r.needs_room && r.arrive_on && r.leave_on ? (
+                      <Text span size="xs" c="dimmed">
+                        {placed ? ' (Apply updates their room dates)' : ' (Apply saves these for when they get a room)'}
+                      </Text>
+                    ) : null}
+                  </Text>
+                )}
+                {(r.arrive_on || r.leave_on || r.travel) && r.needs_room === null && (
                   <Text size="sm">
                     <b>Stay:</b> {r.arrive_on ? `arriving ${dayLabel(r.arrive_on)}` : ''}
                     {r.arrive_on && r.leave_on ? ', ' : ''}

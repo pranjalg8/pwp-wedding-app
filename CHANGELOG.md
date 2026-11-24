@@ -2,6 +2,13 @@
 
 Every version of the planner, newest first. This file is generated from `web/src/data/releases.json`; edit that file and run `npm run changelog`. The same list shows in the app under Activity, What's new.
 
+## 1.22 - 2026-11-24: Room question for friends
+
+**New**
+
+- The RSVP for your own guests (the households you handle) now asks plainly whether they need a room and for which nights, 14 and 15 Feb. Someone coming alone can say they are happy to share. Everyone else still sees the arriving and leaving dates.
+- Guests, Replies: a Rooms for your friends card adds up the answers per night (households, people and about how many rooms, pairing up those happy to share), and each reply shows its room answer. Apply saves the nights as the household's stay dates, as before.
+
 ## 1.21 - 2026-11-24: Family accounts
 
 **New**

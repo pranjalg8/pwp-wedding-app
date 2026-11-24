@@ -1,6 +1,8 @@
 // Public endpoint behind the invite site's reply form. A household sends the code from its personal link.
-//   GET  ?code=K7M2QX  -> { open, days: ["2027-02-14", ...], max }   the days it is invited to and its size
-//   POST { code, name, days, arrive_on, leave_on, travel, note }  -> { ok: true }
+//   GET  ?code=K7M2QX  -> { open, days: ["2027-02-14", ...], max, room }   its days, its size, and whether to ask about a room
+//   POST { code, name, days, arrive_on, leave_on, travel, note, room? }  -> { ok: true }
+// room is asked of Pranjal's own guests (handled_by = 'pranjal'): { need: 'yes' | 'no', nights: [days], share }. For them
+// the nights replace arrive_on / leave_on; everyone else answers with arrive_on / leave_on as before.
 // Replies are only stored (append only) for the couple to review in the planner; nothing here changes the guest list.
 // While replies are closed (invite_settings.open = false) both calls answer { open: false } and nothing at all is
 // written. An unknown or revoked code looks the same as a closed form: no hint about which codes exist. The answer
@@ -67,16 +69,17 @@ Deno.serve(async (req) => {
   if (Number(codeHits.data) > PER_CODE) return tooMany();
 
   const [{ data: guest }, { data: rsvps }] = await Promise.all([
-    sb.from('guests').select('persons').eq('id', link.guest_id).maybeSingle(),
+    sb.from('guests').select('persons, handled_by').eq('id', link.guest_id).maybeSingle(),
     sb.from('guest_rsvps').select('event_date').eq('guest_id', link.guest_id).order('event_date'),
   ]);
   if (!guest) return closed();
   const days = (rsvps ?? []).map((r: { event_date: string }) => r.event_date);
 
-  if (req.method === 'GET') return json({ open: true, days, max: Math.max(1, Number(guest.persons) || 1) });
+  const askRoom = guest.handled_by === 'pranjal';
+  if (req.method === 'GET') return json({ open: true, days, max: Math.max(1, Number(guest.persons) || 1), room: askRoom });
 
   if (typeof body.website === 'string' && body.website !== '') return json({ ok: true }); // honeypot: pretend it worked
-  const checked = checkReply(body, days);
+  const checked = checkReply(body, days, { askRoom });
   if ('error' in checked) return json({ error: checked.error }, 400);
 
   const { error } = await sb.from('invite_responses').insert({ guest_id: link.guest_id, code, ...checked.reply });
