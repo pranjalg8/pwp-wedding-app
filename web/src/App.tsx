@@ -239,6 +239,50 @@ function Shell({ children }: { children: React.ReactNode }) {
   );
 }
 
+// Papa and Puru: a family account sees Guests only (Invites first), with no budget, tasks or Ask. The database
+// refuses everything else anyway (migration 0066); this just keeps the screen simple.
+function FamilyApp() {
+  const { profile } = useProfile();
+  return (
+    <EditModeProvider>
+      <AppShell header={{ height: 60 }} padding={{ base: 'sm', sm: 'md' }}>
+        <AppShell.Header className="app-chrome">
+          <Group h="100%" px="md" justify="space-between" wrap="nowrap">
+            <Title order={4} style={{ whiteSpace: 'nowrap' }}>
+              Pranjal <Text span inherit c="rose.6">&amp;</Text> Paridhi
+            </Title>
+            <Group gap="xs" wrap="nowrap">
+              <PinGateIcon />
+              <Menu position="bottom-end">
+                <Menu.Target>
+                  <Button variant="subtle" color="gray" size="sm" rightSection={<Text span size="xs">▾</Text>}>
+                    {profile?.display_name}
+                  </Button>
+                </Menu.Target>
+                <Menu.Dropdown>
+                  <Menu.Item color="red" onClick={() => supabase.auth.signOut()}>
+                    Sign out
+                  </Menu.Item>
+                </Menu.Dropdown>
+              </Menu>
+            </Group>
+          </Group>
+        </AppShell.Header>
+        <AppShell.Main className="app-main">
+          <RouteBoundary>
+            <Suspense fallback={pageLoader}>
+              <Routes>
+                <Route path="/guests" element={<Guests />} />
+                <Route path="*" element={<Navigate to="/guests?tab=invites" replace />} />
+              </Routes>
+            </Suspense>
+          </RouteBoundary>
+        </AppShell.Main>
+      </AppShell>
+    </EditModeProvider>
+  );
+}
+
 // Shown when someone signs in with an email that is not on the list.
 function NotAllowed() {
   return (
@@ -265,6 +309,7 @@ function AuthedApp() {
 
   if (loading) return pageLoader;
   if (!profile) return <NotAllowed />;
+  if (profile.role === 'family') return <FamilyApp />;
 
   return (
     <EditModeProvider>
