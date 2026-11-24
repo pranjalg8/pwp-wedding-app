@@ -1,5 +1,20 @@
 [
   {
+    "version": "1.21",
+    "date": "2026-11-24",
+    "title": "Family accounts",
+    "items": [
+      {
+        "kind": "new",
+        "text": "Family accounts for Papa and Puru: they sign in with an email link and see only Guests, opening on Invites, so they can send invites and record replies from their own phones. The budget, payments, tasks and everything else stay just yours, and the database enforces it."
+      },
+      {
+        "kind": "improved",
+        "text": "Payment, task and swipe reminders go only to the two of you, never to a family account."
+      }
+    ]
+  },
+  {
     "version": "1.20",
     "date": "2026-11-24",
     "title": "Invite tracker",
