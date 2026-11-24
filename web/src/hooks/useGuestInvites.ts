@@ -6,7 +6,7 @@ import { fetchAll } from '../lib/fetchAll';
 
 // One row per household per day, so this passes the 1000-row response cap with a few hundred households.
 const fetchInvites = () =>
-  fetchAll((from, to) => supabase.from('guest_rsvps').select('id, guest_id, event_date, coming, maybe, declined, guests(persons)').order('id').range(from, to));
+  fetchAll((from, to) => supabase.from('guest_rsvps').select('id, guest_id, event_date, coming, maybe, declined, part, guests(persons)').order('id').range(from, to));
 
 // All RSVP rows (ids and statuses only, no names) plus per-day headcounts. Updates live.
 export function useGuestInvites() {

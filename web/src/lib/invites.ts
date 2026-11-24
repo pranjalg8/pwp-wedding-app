@@ -1,7 +1,7 @@
 // Invite tracker: who handles each household, what has been sent, and who still needs a nudge. Pure functions, so
 // the screen, the counters and the tests agree. Nothing here sends anything: WhatsApp opens with the text filled in
 // and a person presses send.
-import { splitOf, type Invite, type RsvpDay } from './rsvp';
+import { inviteKind, splitOf, type Invite, type InviteKind, type RsvpDay } from './rsvp';
 import type { InviteReply } from './replies';
 
 export type Owner = 'pranjal' | 'papa' | 'puru';
@@ -92,6 +92,7 @@ export function inviteMessage({
   days,
   link,
   sender,
+  weddingOnly = false,
 }: {
   lang: Lang;
   kind: 'invite' | 'reminder';
@@ -99,11 +100,12 @@ export function inviteMessage({
   days: string[];
   link: string | null;
   sender: Owner;
+  weddingOnly?: boolean; // invited to 15 Feb from the Baraat onwards
 }) {
   const greet = greetingName(name);
   const sorted = [...days].sort();
   if (lang === 'hi') {
-    const when = sorted.length ? `${hiJoin(sorted.map(hiDay))} ${yearOf(sorted)}` : '14–15 फ़रवरी 2027';
+    const when = (sorted.length ? `${hiJoin(sorted.map(hiDay))} ${yearOf(sorted)}` : '14–15 फ़रवरी 2027') + (weddingOnly ? ' (बारात से)' : '');
     const ask = link ? `कृपया इस लिंक पर बताएं कि कौन-कौन आ रहा है:\n${link}` : 'कृपया बताएं कि कौन-कौन आ रहा है।';
     const lines =
       kind === 'invite'
@@ -111,7 +113,7 @@ export function inviteMessage({
         : [`नमस्ते ${greet} जी 🙏`, `प्रांजल संग परिधि के विवाह (${when}) के निमंत्रण का उत्तर अभी नहीं मिला है।`, ask];
     return [...lines, `— ${SIGN_OFF.hi[sender]}`, '#TwoPsInaPod'].join('\n\n');
   }
-  const when = sorted.length ? `${enJoin(sorted.map(enDay))} ${yearOf(sorted)}` : '14–15 Feb 2027';
+  const when = (sorted.length ? `${enJoin(sorted.map(enDay))} ${yearOf(sorted)}` : '14–15 Feb 2027') + (weddingOnly ? ' (the wedding, from the Baraat in the evening)' : '');
   const ask = link ? `Please let us know who is coming, here:\n${link}` : 'Please let us know who is coming.';
   const lines =
     kind === 'invite'
@@ -138,6 +140,7 @@ export type HouseholdTrack = {
   lastAny: InviteSend | null;
   sends: InviteSend[]; // newest first
   days: DayCounts[]; // the days the household is invited to
+  kind: InviteKind; // both days, 15 Feb whole day, or wedding only
   pendingReply: InviteReply | null; // a reply from the site still waiting for review
   needsReminder: boolean;
   daysSinceInvite: number | null;
@@ -151,7 +154,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export function trackHousehold(
   guest: { id: string; persons: number },
   sends: InviteSend[],
-  invites: Pick<Invite, 'guest_id' | 'event_date' | 'coming' | 'maybe' | 'declined'>[],
+  invites: Pick<Invite, 'guest_id' | 'event_date' | 'coming' | 'maybe' | 'declined' | 'part'>[],
   replies: InviteReply[],
   now: Date = new Date()
 ): HouseholdTrack {
@@ -171,6 +174,7 @@ export function trackHousehold(
     lastAny: mine[0] ?? null,
     sends: mine,
     days,
+    kind: inviteKind(rows),
     pendingReply,
     needsReminder: stage === 'sent' && daysSinceInvite !== null && daysSinceInvite >= REMIND_AFTER_DAYS,
     daysSinceInvite,
@@ -185,6 +189,7 @@ export type OwnerCounts = {
   needsReminder: number;
   notSent: number;
   byDay: Record<string, { invited: number; coming: number; maybe: number; declined: number }>;
+  cards: Record<'both' | 'day2' | 'wedding', number>; // households per printed card
 };
 
 const emptyCounts = (days: RsvpDay[]): OwnerCounts => ({
@@ -195,6 +200,7 @@ const emptyCounts = (days: RsvpDay[]): OwnerCounts => ({
   needsReminder: 0,
   notSent: 0,
   byDay: Object.fromEntries(days.map((d) => [d.date, { invited: 0, coming: 0, maybe: 0, declined: 0 }])),
+  cards: { both: 0, day2: 0, wedding: 0 },
 });
 
 // Counters for each owner: households, invites sent, replies, reminders due, and people per day.
@@ -214,6 +220,7 @@ export function countByOwner(
     if (t.stage === 'replied') c.replied += 1;
     if (t.stage === 'not_sent') c.notSent += 1;
     if (t.needsReminder) c.needsReminder += 1;
+    if (t.kind === 'both' || t.kind === 'day2' || t.kind === 'wedding') c.cards[t.kind] += 1;
     for (const d of t.days) {
       const b = c.byDay[d.date];
       if (!b) continue;

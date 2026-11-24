@@ -3,7 +3,7 @@ import { supabase } from './supabase';
 // Kept apart from lib/rsvp.ts so that file stays free of the database client and testable on its own.
 
 // What the households' invites looked like before a bulk change, so the change can be undone.
-export type InviteSnapshot = { guestIds: string[]; rows: { guest_id: string; event_date: string; coming: number; maybe: number; declined: number }[] };
+export type InviteSnapshot = { guestIds: string[]; rows: { guest_id: string; event_date: string; coming: number; maybe: number; declined: number; part?: 'full' | 'wedding' }[] };
 
 // Put the selected households' invites back exactly as they were: clear what is there now, then restore the snapshot.
 export async function restoreInvites(snapshot: InviteSnapshot): Promise<string | null> {

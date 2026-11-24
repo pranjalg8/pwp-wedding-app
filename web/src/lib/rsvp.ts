@@ -10,7 +10,31 @@ export type Invite = {
   coming: number;
   maybe: number;
   declined: number;
+  part?: InvitePart; // 15 Feb only: the whole day, or from the Baraat onwards
 };
+
+export type InvitePart = 'full' | 'wedding';
+export const DAY1 = '2027-02-14';
+export const WEDDING_DAY = '2027-02-15';
+
+// The three printed cards: both days, the whole of 15 Feb, or the wedding only (Baraat onwards). 'day1' (14 Feb alone)
+// and 'none' are not cards but can happen while a list is being edited.
+export type InviteKind = 'both' | 'day2' | 'wedding' | 'day1' | 'none';
+export const INVITE_KIND_LABEL: Record<InviteKind, string> = {
+  both: 'Both days',
+  day2: '15 Feb, whole day',
+  wedding: 'Wedding only (Baraat onwards)',
+  day1: '14 Feb only',
+  none: 'Not invited',
+};
+
+export function inviteKind(rows: Pick<Invite, 'event_date' | 'part'>[]): InviteKind {
+  const d1 = rows.some((r) => r.event_date === DAY1);
+  const d2 = rows.find((r) => r.event_date === WEDDING_DAY);
+  if (d1 && d2) return 'both';
+  if (d2) return d2.part === 'wedding' ? 'wedding' : 'day2';
+  return d1 ? 'day1' : 'none';
+}
 
 // An invite row joined with the household's size, so headcounts need no second query.
 export type InviteWithSize = Invite & { guests: { persons: number } | null };

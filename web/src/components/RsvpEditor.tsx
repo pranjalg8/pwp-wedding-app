@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ActionIcon, Box, Button, Checkbox, Drawer, Group, Modal, Paper, SegmentedControl, SimpleGrid, Stack, Text } from '@mantine/core';
 import { supabase } from '../lib/supabase';
-import type { Invite, RsvpDay } from '../lib/rsvp';
+import { WEDDING_DAY, type Invite, type InvitePart, type RsvpDay } from '../lib/rsvp';
 import type { InviteSnapshot } from '../lib/rsvpRestore';
 
 export type { RsvpDay } from '../lib/rsvp';
@@ -10,7 +10,7 @@ export type { InviteSnapshot } from '../lib/rsvpRestore';
 
 type GuestRef = { id: string; name: string; persons: number };
 type Mode = 'all' | 'some' | 'none' | 'noreply';
-type Row = { invited: boolean; coming: number | string; maybe: number | string; declined: number | string; mode: Mode };
+type Row = { invited: boolean; coming: number | string; maybe: number | string; declined: number | string; mode: Mode; part: InvitePart };
 
 const n = (v: number | string) => Number(v) || 0;
 const used = (r: Row) => n(r.coming) + n(r.maybe) + n(r.declined);
@@ -159,7 +159,7 @@ export function RsvpEditor({
         const m = e?.maybe ?? 0;
         const x = e?.declined ?? 0;
         const mode: Mode = c + m + x === 0 ? 'noreply' : c === guest.persons ? 'all' : x === guest.persons ? 'none' : 'some';
-        return [d.date, { invited: !!e, coming: c, maybe: m, declined: x, mode }];
+        return [d.date, { invited: !!e, coming: c, maybe: m, declined: x, mode, part: e?.part ?? 'full' }];
       })
     )
   );
@@ -180,6 +180,7 @@ export function RsvpEditor({
           d.date,
           {
             invited: true,
+            part: rows[d.date]?.part ?? 'full',
             mode: mode === 'maybe' ? 'some' : mode,
             coming: mode === 'all' ? guest.persons : 0,
             maybe: mode === 'maybe' ? guest.persons : 0,
@@ -202,6 +203,7 @@ export function RsvpEditor({
         coming: n(rows[d.date].coming),
         maybe: n(rows[d.date].maybe),
         declined: n(rows[d.date].declined),
+        part: d.date === WEDDING_DAY ? rows[d.date].part : 'full',
       }));
     const drop = days.filter((d) => !rows[d.date].invited && invites.some((i) => i.event_date === d.date)).map((d) => d.date);
 
@@ -294,6 +296,18 @@ export function RsvpEditor({
               />
               {r.invited && (
                 <Stack gap="sm" mt="md">
+                  {d.date === WEDDING_DAY && (
+                    <SegmentedControl
+                      fullWidth
+                      value={r.part}
+                      onChange={(v) => set(d.date, { part: v as InvitePart })}
+                      data={[
+                        { value: 'full', label: 'Whole day (Haldi onwards)' },
+                        { value: 'wedding', label: 'Wedding only (Baraat onwards)' },
+                      ]}
+                      aria-label="Which part of 15 February"
+                    />
+                  )}
                   <SimpleGrid cols={2} spacing="xs">
                     {CHOICES.map((c) => {
                       const on = r.mode === c.mode;
@@ -377,6 +391,8 @@ export function BulkInviteModal({
 }) {
   const [mode, setMode] = useState<BulkMode>('add');
   const [chosen, setChosen] = useState<string[]>([]);
+  const [part, setPart] = useState<InvitePart | 'keep'>('keep');
+  const askPart = mode !== 'remove' && chosen.includes(WEDDING_DAY);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -397,11 +413,19 @@ export function BulkInviteModal({
     setError(null);
     const snapshot: InviteSnapshot = {
       guestIds,
-      rows: mine.map((i) => ({ guest_id: i.guest_id, event_date: i.event_date, coming: i.coming, maybe: i.maybe, declined: i.declined })),
+      rows: mine.map((i) => ({ guest_id: i.guest_id, event_date: i.event_date, coming: i.coming, maybe: i.maybe, declined: i.declined, part: i.part ?? 'full' })),
     };
     if (mode !== 'remove') {
       const rows = guestIds.flatMap((guest_id) => chosen.map((event_date) => ({ guest_id, event_date })));
       const { error: err } = await supabase.from('guest_rsvps').upsert(rows, { onConflict: 'guest_id,event_date', ignoreDuplicates: true });
+      if (err) {
+        setSaving(false);
+        setError(err.message);
+        return;
+      }
+    }
+    if (askPart && part !== 'keep') {
+      const { error: err } = await supabase.from('guest_rsvps').update({ part }).in('guest_id', guestIds).eq('event_date', WEDDING_DAY);
       if (err) {
         setSaving(false);
         setError(err.message);
@@ -456,6 +480,27 @@ export function BulkInviteModal({
           </Stack>
         </Checkbox.Group>
 
+        {askPart && (
+          <Stack gap={4}>
+            <Text size="sm" fw={600}>
+              15 February
+            </Text>
+            <SegmentedControl
+              fullWidth
+              value={part}
+              onChange={(v) => setPart(v as InvitePart | 'keep')}
+              data={[
+                { value: 'keep', label: 'Keep as is' },
+                { value: 'full', label: 'Whole day' },
+                { value: 'wedding', label: 'Wedding only' },
+              ]}
+              aria-label="Which part of 15 February"
+            />
+            <Text size="xs" c="dimmed">
+              Wedding only means from the Baraat onwards. New invites start as the whole day unless you pick here.
+            </Text>
+          </Stack>
+        )}
         {chosen.length > 0 && (
           <Text size="sm">
             {mode !== 'remove' && `${newInvites} new invite${newInvites === 1 ? '' : 's'} will be added. `}
@@ -542,7 +587,7 @@ export function BulkAnswerModal({
     setError(null);
     const snapshot: InviteSnapshot = {
       guestIds,
-      rows: mine.map((i) => ({ guest_id: i.guest_id, event_date: i.event_date, coming: i.coming, maybe: i.maybe, declined: i.declined })),
+      rows: mine.map((i) => ({ guest_id: i.guest_id, event_date: i.event_date, coming: i.coming, maybe: i.maybe, declined: i.declined, part: i.part ?? 'full' })),
     };
     if (answer === 'reset') {
       const { error: err } = await supabase.from('guest_rsvps').delete().in('guest_id', guestIds).in('event_date', chosen);

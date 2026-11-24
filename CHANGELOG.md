@@ -2,6 +2,14 @@
 
 Every version of the planner, newest first. This file is generated from `web/src/data/releases.json`; edit that file and run `npm run changelog`. The same list shows in the app under Activity, What's new.
 
+## 1.23 - 2026-11-24: Three kinds of invite
+
+**New**
+
+- Invites now come in the three kinds of the printed cards: both days (14 and 15 Feb), 15 Feb whole day (Haldi onwards), and wedding only (15 Feb from the Baraat). In Set the answer, a 15 Feb invite has a Whole day / Wedding only switch; Change invites can set it for many households at once.
+- Invites: each person's card shows how many of each card to print, households marked wedding only say so, and the WhatsApp invite for them says the wedding is from the Baraat in the evening.
+- Invite site: a personal link shows only that household's card. 15 Feb guests see just that day; wedding-only guests see just the Baraat, Varmala and Mandap. The room question follows the card: both days can ask for the nights of 14 and 15 Feb, and anyone invited to 15 Feb only is asked about the night of 15 Feb, whoever handles them.
+
 ## 1.22 - 2026-11-24: Room question for friends
 
 **New**
