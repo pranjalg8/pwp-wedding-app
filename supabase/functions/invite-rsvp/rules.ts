@@ -75,7 +75,8 @@ export function checkReply(
   }
 
   const base = { responder_name: name, answers, travel: text(body.travel, 120) || null, note: text(body.note, 300) || null };
-  if (opts.askRoom) {
+  // A form without the room question (an older copy of the site) answers with dates, as everyone else does.
+  if (opts.askRoom && body.room !== undefined) {
     const room = roomAnswer(body.room, answers);
     if ('error' in room) return { error: room.error as string };
     return { reply: { ...base, ...room } };

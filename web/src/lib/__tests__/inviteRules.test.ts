@@ -67,8 +67,13 @@ describe('checkReply with the room question (Pranjal\'s friends)', () => {
     expect(out).toMatchObject({ reply: { needs_room: false, room_share: null, arrive_on: null, leave_on: null } });
   });
 
+  it('falls back to the dates when the form has no room question (an older copy of the site)', () => {
+    expect(ask({ arrive_on: '2027-02-14', leave_on: '2027-02-16' })).toMatchObject({ reply: { needs_room: null, arrive_on: '2027-02-14', leave_on: '2027-02-16' } });
+  });
+
   it('insists on an answer and at least one night', () => {
-    expect(ask({})).toHaveProperty('error');
+    expect(ask({ room: {} })).toHaveProperty('error');
+    expect(ask({ room: null })).toHaveProperty('error');
     expect(ask({ room: { need: 'maybe' } })).toHaveProperty('error');
     expect(ask({ room: { need: 'yes', nights: [] } })).toHaveProperty('error');
   });
