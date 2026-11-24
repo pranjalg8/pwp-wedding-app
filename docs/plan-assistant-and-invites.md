@@ -32,6 +32,7 @@ Goal: photograph or upload a vendor quote or contract; get proposed payment rows
 - Done when: a real quote photo produces correct proposals, accepting one lands a `payment_schedule` row with the right split, rejecting leaves nothing behind.
 
 ## Phase 2: WhatsApp send links (about 1 day)
+Built in 1.20 as the invite tracker (Guests, Invites): see `invite-tracker.md`.
 Depends on: the invite site going live (it is built locally, not published).
 - Message templates (English, Hindi, Hinglish) for invite and reminder, filled with the household's personal link code (`invite_codes`).
 - Guests page "Send queue": households with a phone number, one tap opens `wa.me` with the message filled in (uses `whatsappUrl`), then marks it sent in a new `invite_sends` log (household, template, sent_at, by). Reminder queue = invited households with no reply in `invite_responses`.

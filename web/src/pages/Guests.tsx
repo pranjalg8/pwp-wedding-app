@@ -31,9 +31,12 @@ import { confirmDanger } from '../lib/confirm';
 import { useRealtime } from '../hooks/useRealtime';
 import { fetchAll } from '../lib/fetchAll';
 import { contactTextByGuest, guestMatches } from '../lib/guestSearch';
+import { InviteTracker } from '../components/InviteTracker';
+import { useInviteSends } from '../hooks/useInviteSends';
+import { defaultOwner } from '../lib/invites';
 
 type FunctionRef = { name: string; event_date: string; family_only: boolean };
-type Tab = 'overview' | 'households' | 'rooms' | 'replies' | 'dropped';
+type Tab = 'overview' | 'households' | 'invites' | 'rooms' | 'replies' | 'dropped';
 type ListView = 'all' | 'not_invited' | 'waiting' | 'answered';
 
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
@@ -44,7 +47,7 @@ const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
 export function Guests() {
   const { isUnlocked } = useEditMode();
   const [params, setParams] = useSearchParams();
-  const tab: Tab = (['overview', 'households', 'rooms', 'replies', 'dropped'] as const).find((t) => t === params.get('tab')) ?? 'overview';
+  const tab: Tab = (['overview', 'households', 'invites', 'rooms', 'replies', 'dropped'] as const).find((t) => t === params.get('tab')) ?? 'overview';
   const setTab = (t: Tab) => setParams(t === 'overview' ? {} : { tab: t });
 
   const [guests, setGuests] = useState<Guest[]>([]);
@@ -66,6 +69,7 @@ export function Guests() {
   const { sites, nights, loadError: stayError, reload: reloadStay } = useStay();
   const { rooms: stayRooms, roomStays, loadError: roomsError, reload: reloadRoomBoard } = useRoomBoard();
   const inviteReplies = useInviteReplies();
+  const inviteSends = useInviteSends();
   const repliesToReview = useMemo(() => latestNew(inviteReplies.replies).length, [inviteReplies.replies]);
   const roomsView = (['plan', 'board', 'list'] as const).find((v) => v === params.get('view')) ?? 'plan';
   const days = useMemo(() => daysFromFunctions(fnRows), [fnRows]);
@@ -201,6 +205,7 @@ export function Guests() {
   const tabs: { value: Tab; label: string; badge?: string; hot?: boolean }[] = [
     { value: 'overview', label: 'Overview' },
     { value: 'households', label: 'Households', badge: String(guests.length) },
+    { value: 'invites', label: 'Invites' },
     { value: 'rooms', label: 'Rooms', badge: toPlace > 0 ? `${toPlace} to place` : undefined, hot: toPlace > 0 },
     { value: 'replies', label: 'Replies', badge: repliesToReview > 0 ? `${repliesToReview} new` : undefined, hot: repliesToReview > 0 },
   ];
@@ -241,13 +246,14 @@ export function Guests() {
         </Group>
       </Group>
 
-      {(invitesError || stayError || inviteReplies.loadError) && (
+      {(invitesError || stayError || inviteReplies.loadError || inviteSends.loadError) && (
         <LoadError
-          message={(invitesError ?? stayError ?? inviteReplies.loadError) as string}
+          message={(invitesError ?? stayError ?? inviteReplies.loadError ?? inviteSends.loadError) as string}
           onRetry={() => {
             void reloadInvites();
             void reloadStay();
             void inviteReplies.reload();
+            void inviteSends.reload();
           }}
         />
       )}
@@ -268,7 +274,8 @@ export function Guests() {
         </Stack>
       ) : (
         <>
-          <SegmentedControl hiddenFrom="sm" fullWidth value={tab} onChange={(v) => setTab(v as Tab)} data={tabs.map((t) => ({ value: t.value, label: t.label }))} />
+          {/* Five tabs fit a 375px phone only with the short name for Households. */}
+          <SegmentedControl hiddenFrom="sm" fullWidth value={tab} onChange={(v) => setTab(v as Tab)} data={tabs.map((t) => ({ value: t.value, label: t.value === 'households' ? 'List' : t.label }))} />
           <Group visibleFrom="sm" gap="xl" style={{ borderBottom: '1px solid var(--mantine-color-default-border)' }}>
             {tabs.map((t) => {
               const on = tab === t.value;
@@ -437,6 +444,24 @@ export function Guests() {
                 </Box>
               )}
             </Stack>
+          )}
+
+          {tab === 'invites' && (
+            <InviteTracker
+              guests={guests.map((g) => ({ ...g, handled_by: g.handled_by ?? defaultOwner(g.list_group) }))}
+              invites={invites}
+              days={days}
+              sends={inviteSends.sends}
+              replies={inviteReplies.replies}
+              codes={inviteReplies.codes}
+              siteUrl={inviteReplies.settings.site_url}
+              contacts={contacts}
+              isUnlocked={isUnlocked}
+              onAnswer={(id) => setRsvpFor(guests.find((g) => g.id === id) ?? null)}
+              reloadSends={inviteSends.reload}
+              reloadCodes={inviteReplies.reload}
+              reloadGuests={() => load()}
+            />
           )}
 
           {tab === 'replies' && (

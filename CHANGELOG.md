@@ -2,6 +2,19 @@
 
 Every version of the planner, newest first. This file is generated from `web/src/data/releases.json`; edit that file and run `npm run changelog`. The same list shows in the app under Activity, What's new.
 
+## 1.20 - 2026-11-24: Invite tracker
+
+**New**
+
+- Guests, Invites: every household now has someone who handles it (Pranjal, Papa or Puru). Each person opens on their own households and sees how many they have sent, how many have replied, whose reminder is due, and how many people are coming each day.
+- Send on WhatsApp: one tap opens WhatsApp with the invite or reminder already written (English or Hindi), with the household's personal RSVP link. You press send in WhatsApp; the app records who sent it and when, with Undo straight after.
+- Mark sent: record an invite given by phone call, in person, on a printed card or another way, with the date and an optional note.
+- A household shows a reminder as due a week after its invite if someone has still not replied. Save-the-dates already sent are in each household's history.
+
+**Improved**
+
+- Edit household: choose who handles it. New households go by their group: Friends-Anjul to Pranjal, Friends-Puru to Puru, everyone else to Papa.
+
 ## 1.19 - 2026-11-23: My feed
 
 **New**
