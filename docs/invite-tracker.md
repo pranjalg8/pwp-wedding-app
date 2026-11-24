@@ -20,34 +20,26 @@ Built on Phase 2 of `plan-assistant-and-invites.md` (send links and the `invite_
 
 ## Adding Papa and Puru
 
-Nobody creates these accounts but you. No passwords are involved: the app signs in with a one-time email link. Do step 0 first, because **as soon as someone has a row in `profiles`, the database lets them read and change everything**, the budget included.
+Nobody creates these accounts but you. No passwords are involved: the app signs in with a one-time email link.
 
-0. **Decide their access** (see the proposal below) and apply it first if you want it limited.
-1. **Create the sign-in.** In the Supabase dashboard: Authentication, Users, **Invite user**, and enter their email. Supabase emails them a link. (Or they can type their email on the app's sign-in page and press "Send magic link"; that creates the sign-in too.)
-2. **Let them in.** After the sign-in exists, add their profile in the Supabase SQL editor (replace the email):
+Their access is limited by the database (migration `0066_family_access.sql`): a profile with role `family` can read and change guests, RSVPs, contacts, personal links, invite replies, the send log and check-in, and read the functions and invite settings. It sees nothing else: no budget, payments, tasks, documents, knowledge base, honeymoon, feed or audit log, and it gets none of the couple's reminder emails. The app shows family accounts only Guests, opening on Invites.
+
+1. **Create the sign-in.** In the Supabase dashboard: Authentication, Users, **Invite user**, and enter their email. Supabase emails them a link. (Or they type their email on the planner's sign-in page and press "Send magic link"; that creates the sign-in too.) Until step 2 they see "Your account isn't on the allowed list yet".
+2. **Let them in as family.** In the Supabase SQL editor (replace the email; use `'Puru'` for Puru):
 
    ```sql
-   insert into profiles (id, email, display_name)
-   select id, email, 'Papa' from auth.users where email = 'papa@example.com';
+   insert into profiles (id, email, display_name, role)
+   select id, email, 'Papa', 'family' from auth.users where email = 'papa@example.com';
    ```
 
-   Use the display name **Papa** for Papa and **Puru** for Puru: the Invites screen opens on "Mine" by that name, and the activity log shows it.
-3. **First sign-in.** On their phone, open the planner, enter the email, tap the link in the email. Add the planner to the home screen. Show them Guests, Invites, and set "I am" once.
-4. **Check.** In Activity, their first send should show their name.
+   **Always include `'family'`.** Without it the role defaults to `couple`, which is full access. The display name **Papa** or **Puru** makes the Invites screen open on their own households and shows their name in the activity log.
+3. **First sign-in.** On their phone, open the planner, enter the email and tap the link in the email. Add the planner to the home screen. Show them Guests, Invites. "I am" is already set from their name.
+4. **Check.** Their first send shows their name in the household's history and in Activity.
 
-To remove someone later: delete their `profiles` row (they lose access at once), then the user in Authentication.
+To change someone's access: `update profiles set role = 'couple' where display_name = 'Puru';` (or back to `'family'`). To remove someone: delete their `profiles` row (they lose access at once), then delete the user in Authentication.
 
-## Proposed access rule for Papa and Puru (not applied)
+## How access works
 
-Today every policy uses `is_allowed_user()`, which only asks "has a profile". Papa and Puru need guests, RSVPs, invite codes, replies, sends and contacts, and do not need the budget, payments, documents, honeymoon or the feed.
-
-Proposal:
-
-1. Add `profiles.role text not null default 'couple' check (role in ('couple', 'family'))`. Pranjal and Paridhi stay `couple`; Papa and Puru are `family`.
-2. Add `is_couple()` (has a profile with role `couple`). Switch the policies on money and private tables to it: `budget_areas`, `budget_settings`, `payments`, `payment_schedule`, `vendors`, `documents` and its storage bucket, `suggestions`, `trip_alternatives`, `messages`, `planning_items`, `tasks`, `task_options`, `topics`, `kb_entries`, `share_links`, `swipe_*`, `wishlist_*` (admin side), `notification_outbox`, `feature_access` and `audit_log` (the log holds budget changes too). `feed_*` already belongs to its owner only.
-3. Keep `is_allowed_user()` (any profile) on what the guest work needs: `guests`, `guest_rsvps`, `guest_contacts`, `invite_codes`, `invite_responses`, `invite_sends`, `guest_checkins`, `invite_settings` (read), `wedding_functions` (read), `stay_sites`, `stay_nights`, `stay_rooms`, `room_stays`, `meals` (read), `profiles` (read).
-4. In the app, a `family` profile gets a short menu: Home, Guests (Invites first), Functions, What's new. Budget and the rest are hidden, and the database refuses them anyway.
-
-`feature_access` alone is not enough: it only hides pages in the app; the database would still let them read the budget. The role column makes the database enforce it.
-
-This is a policy change across about 25 tables, so it should be its own migration and PR, tested by signing in as a `family` test profile before Papa's account is added.
+- `is_allowed_user()` now means "a couple profile". Every older rule already calls it, so anything not listed above stays the couple's, and **a new table is couple-only unless its rules use `is_guest_helper()`**.
+- `is_guest_helper()` means any profile, couple or family. Only the guest and invite tables use it.
+- The edit PIN still works for family accounts (it checks for a profile). Give Papa the PIN only if he should set answers and reassign households himself; sending and Mark sent work without it.

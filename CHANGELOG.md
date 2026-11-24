@@ -2,6 +2,16 @@
 
 Every version of the planner, newest first. This file is generated from `web/src/data/releases.json`; edit that file and run `npm run changelog`. The same list shows in the app under Activity, What's new.
 
+## 1.21 - 2026-11-24: Family accounts
+
+**New**
+
+- Family accounts for Papa and Puru: they sign in with an email link and see only Guests, opening on Invites, so they can send invites and record replies from their own phones. The budget, payments, tasks and everything else stay just yours, and the database enforces it.
+
+**Improved**
+
+- Payment, task and swipe reminders go only to the two of you, never to a family account.
+
 ## 1.20 - 2026-11-24: Invite tracker
 
 **New**
