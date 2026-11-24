@@ -52,8 +52,29 @@ export function greetingName(householdName: string) {
 
 export type Lang = 'en' | 'hi';
 
-const EN_DAY: Record<string, string> = { '2027-02-14': 'Sunday 14 Feb', '2027-02-15': 'Monday 15 Feb' };
-const HI_DAY: Record<string, string> = { '2027-02-14': 'रविवार 14 फ़रवरी', '2027-02-15': 'सोमवार 15 फ़रवरी' };
+// Any invited day reads as words ("Saturday 13 Feb", "शनिवार 13 फ़रवरी"), never as a raw date. The weekday comes
+// from the date itself, so 2027's weekdays are always right.
+const EN_WEEKDAY = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const HI_WEEKDAY = ['रविवार', 'सोमवार', 'मंगलवार', 'बुधवार', 'गुरुवार', 'शुक्रवार', 'शनिवार'];
+const EN_MONTH = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const HI_MONTH = ['जनवरी', 'फ़रवरी', 'मार्च', 'अप्रैल', 'मई', 'जून', 'जुलाई', 'अगस्त', 'सितंबर', 'अक्टूबर', 'नवंबर', 'दिसंबर'];
+const parts = (iso: string) => {
+  const [y, m, d] = iso.split('-').map(Number);
+  return { y, m, d, wd: new Date(Date.UTC(y, m - 1, d)).getUTCDay() };
+};
+const enDay = (iso: string) => {
+  const p = parts(iso);
+  return `${EN_WEEKDAY[p.wd]} ${p.d} ${EN_MONTH[p.m - 1]}`;
+};
+const hiDay = (iso: string) => {
+  const p = parts(iso);
+  return `${HI_WEEKDAY[p.wd]} ${p.d} ${HI_MONTH[p.m - 1]}`;
+};
+const yearOf = (days: string[]) => parts(days[days.length - 1]).y;
+
+// The invite and reminder texts below are our own wording, not yet approved by Papa. Until he approves them, the
+// send screen says so; set this to true once he has.
+export const MESSAGE_APPROVED = false;
 const enJoin = (xs: string[]) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
 const hiJoin = (xs: string[]) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} और ${xs[xs.length - 1]}`);
 
@@ -82,7 +103,7 @@ export function inviteMessage({
   const greet = greetingName(name);
   const sorted = [...days].sort();
   if (lang === 'hi') {
-    const when = sorted.length ? `${hiJoin(sorted.map((d) => HI_DAY[d] ?? d))} 2027` : '14–15 फ़रवरी 2027';
+    const when = sorted.length ? `${hiJoin(sorted.map(hiDay))} ${yearOf(sorted)}` : '14–15 फ़रवरी 2027';
     const ask = link ? `कृपया इस लिंक पर बताएं कि कौन-कौन आ रहा है:\n${link}` : 'कृपया बताएं कि कौन-कौन आ रहा है।';
     const lines =
       kind === 'invite'
@@ -90,7 +111,7 @@ export function inviteMessage({
         : [`नमस्ते ${greet} जी 🙏`, `प्रांजल संग परिधि के विवाह (${when}) के निमंत्रण का उत्तर अभी नहीं मिला है।`, ask];
     return [...lines, `— ${SIGN_OFF.hi[sender]}`, '#TwoPsInaPod'].join('\n\n');
   }
-  const when = sorted.length ? `${enJoin(sorted.map((d) => EN_DAY[d] ?? d))} 2027` : '14–15 Feb 2027';
+  const when = sorted.length ? `${enJoin(sorted.map(enDay))} ${yearOf(sorted)}` : '14–15 Feb 2027';
   const ask = link ? `Please let us know who is coming, here:\n${link}` : 'Please let us know who is coming.';
   const lines =
     kind === 'invite'
