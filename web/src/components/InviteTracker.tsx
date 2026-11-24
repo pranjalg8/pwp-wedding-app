@@ -16,6 +16,7 @@ import {
   OWNERS,
   OWNER_LABEL,
   countByOwner,
+  MESSAGE_APPROVED,
   inviteMessage,
   ownerForProfile,
   shortDate,
@@ -590,6 +591,11 @@ function SendModal({
                 </Button>
               )}
             </Group>
+          </Alert>
+        )}
+        {!MESSAGE_APPROVED && (
+          <Alert color="orange" variant="light" title="Wording not approved yet">
+            <Text size="sm">Papa has not approved this message yet. Don't send it until he has, or change the text first.</Text>
           </Alert>
         )}
         <Textarea size="md" autosize minRows={8} value={text} onChange={(e) => setText(e.currentTarget.value)} aria-label="Message" />

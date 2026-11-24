@@ -82,6 +82,14 @@ describe('inviteMessage', () => {
     expect(r).not.toContain('http');
   });
 
+  it('names 13 and 16 Feb in words too, never as a raw date', () => {
+    const en = inviteMessage({ ...base, lang: 'en', kind: 'invite', days: ['2027-02-16', '2027-02-13'] });
+    expect(en).toContain('Saturday 13 Feb and Tuesday 16 Feb 2027');
+    expect(en).not.toMatch(/2027-02/);
+    const hi = inviteMessage({ ...base, lang: 'hi', kind: 'invite', days: ['2027-02-13', '2027-02-16'] });
+    expect(hi).toContain('शनिवार 13 फ़रवरी और मंगलवार 16 फ़रवरी 2027');
+  });
+
   it('never contains a time', () => {
     for (const lang of ['en', 'hi'] as const) expect(inviteMessage({ ...base, lang, kind: 'invite', days: [DAY1, DAY2] })).not.toMatch(/\d\s?(am|pm)|बजे/i);
   });
