@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Checkbox, Group, NumberInput, Select, TagsInput, Textarea, TextInput } from '@mantine/core';
+import { OWNERS, OWNER_LABEL, type Owner } from '../lib/invites';
 import { supabase } from '../lib/supabase';
 import { useProfile } from '../hooks/useProfile';
 import { useDirty } from '../hooks/useDirty';
@@ -31,6 +32,7 @@ export type Guest = {
   arrive_on?: string | null;
   leave_on?: string | null;
   kind?: GuestKind;
+  handled_by?: Owner;
   sort_order: number;
 };
 
@@ -65,12 +67,14 @@ export function GuestEditor({
   const [priority, setPriority] = useState<string | null>(guest?.priority ? String(guest.priority) : null);
   const [functionTags, setFunctionTags] = useState<string[]>(() => toTags(guest?.functions));
   const [kind, setKind] = useState<GuestKind>(guest?.kind ?? 'guest');
+  // Empty for a new household: the database picks the owner from the group (Friends-Anjul is Pranjal's, and so on).
+  const [owner, setOwner] = useState<Owner | null>(guest?.handled_by ?? null);
   const [needsLift, setNeedsLift] = useState(!!guest?.needs_lift);
   const [arriveOn, setArriveOn] = useState(guest?.arrive_on ?? '');
   const [leaveOn, setLeaveOn] = useState(guest?.leave_on ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const dirty = useDirty([name, members, group, relation, location, persons, roomsIn, roomsOut, priority, functionTags, kind, needsLift, arriveOn, leaveOn]);
+  const dirty = useDirty([name, members, group, relation, location, persons, roomsIn, roomsOut, priority, functionTags, kind, needsLift, arriveOn, leaveOn, owner]);
   const functionsUnchanged = functionTags.join('\u0000') === toTags(guest?.functions).join('\u0000');
   const functionOptions = [...new Set(['All', ...functionNames, ...functionTags])];
 
@@ -96,6 +100,7 @@ export function GuestEditor({
       needs_lift: needsLift,
       arrive_on: arriveOn || null,
       leave_on: leaveOn || null,
+      ...(owner ? { handled_by: owner } : {}),
     };
     const res = guest
       ? await supabase.from('guests').update(fields).eq('id', guest.id)
@@ -134,6 +139,15 @@ export function GuestEditor({
         <TextInput label="Group" placeholder="e.g. Relatives" value={group} onChange={(e) => setGroup(e.currentTarget.value)} />
         <TextInput label="Relation" value={relation} onChange={(e) => setRelation(e.currentTarget.value)} />
       </Group>
+      <Select
+        label="Handled by"
+        description={owner ? 'Who sends their invite and follows up' : 'Leave empty to go by the group (Friends-Anjul: Pranjal, Friends-Puru: Puru, others: Papa)'}
+        clearable={!guest}
+        placeholder="By group"
+        data={OWNERS.map((o) => ({ value: o, label: OWNER_LABEL[o] }))}
+        value={owner}
+        onChange={(v) => setOwner((v as Owner | null) ?? (guest ? owner : null))}
+      />
       <Group grow align="flex-start">
         <TextInput label="Where they live" value={location} onChange={(e) => setLocation(e.currentTarget.value)} />
         <Select
