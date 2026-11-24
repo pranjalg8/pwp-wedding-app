@@ -2,6 +2,12 @@
 
 Every version of the planner, newest first. This file is generated from `web/src/data/releases.json`; edit that file and run `npm run changelog`. The same list shows in the app under Activity, What's new.
 
+## 1.25 - 2026-11-25: No room question for wedding-only guests
+
+**Improved**
+
+- Wedding-only guests (15 Feb from the Baraat) are local and drive back, so their RSVP no longer asks about a room, and their personal link hides the Stay section and the room details. Whole-day 15 Feb guests are still asked about the night of 15 Feb, and two-day guests about 14 and 15 Feb.
+
 ## 1.24 - 2026-11-24: Invite codes from names
 
 **New**

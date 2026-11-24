@@ -51,12 +51,14 @@ export function kindOf(rows: { event_date: string; part?: string | null }[]): Ki
   return d1 ? 'day1' : 'none';
 }
 
-// The nights a household can ask a room for: both days can stay the night of 14 and 15 Feb; a 15 Feb invite (whole
-// day or wedding only) the night of 15 Feb, since the wedding runs to midnight.
-export const roomNights = (kind: Kind) => (kind === 'both' ? [DAY1, WEDDING_DAY] : kind === 'day1' ? [DAY1] : kind === 'none' ? [] : [WEDDING_DAY]);
+// The nights a household can ask a room for: both days can stay the night of 14 and 15 Feb; a 15 Feb whole-day invite
+// the night of 15 Feb, since the wedding runs to midnight. Wedding-only guests are local and drive back, so they are
+// offered no room (decided 25 Nov); the site then shows neither the room question nor the date pickers.
+export const roomNights = (kind: Kind) =>
+  kind === 'both' ? [DAY1, WEDDING_DAY] : kind === 'day1' ? [DAY1] : kind === 'day2' ? [WEDDING_DAY] : [];
 
-// Who gets the plain room question: Pranjal's own guests (Papa's room plan does not cover them), and anyone invited to
-// 15 Feb only, who can need at most that one night. Other families keep the arriving / leaving dates.
+// Who gets the plain room question instead of the arriving / leaving dates: Pranjal's own guests (Papa's room plan does
+// not cover them) and anyone invited to 15 Feb only. For wedding-only guests roomNights is empty, so nothing is asked.
 export const asksRoom = (handledBy: string | null | undefined, kind: Kind) => handledBy === 'pranjal' || kind === 'day2' || kind === 'wedding';
 
 const nextDay = (d: string) => new Date(Date.parse(d + 'T00:00:00Z') + 86_400_000).toISOString().slice(0, 10);
