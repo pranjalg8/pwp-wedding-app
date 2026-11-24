@@ -20,6 +20,8 @@ describe('checkReply', () => {
         leave_on: '2027-02-16',
         travel: null,
         note: 'Veg',
+        needs_room: null,
+        room_share: null,
       },
     });
   });
@@ -47,6 +49,52 @@ describe('checkReply', () => {
     expect(checkReply(form({ arrive_on: '2027-02-14' }), DAYS)).toHaveProperty('error');
     expect(checkReply(form({ arrive_on: '2027-02-15', leave_on: '2027-02-15' }), DAYS)).toHaveProperty('error');
     expect(checkReply(form({ arrive_on: '2027-02-31', leave_on: '2027-03-01' }), DAYS)).toHaveProperty('error');
+  });
+});
+
+describe('checkReply with the room question (Pranjal\'s friends)', () => {
+  const both = { '2027-02-14': { answer: 'yes', people: 2 }, '2027-02-15': { answer: 'yes', people: 2 } };
+  const ask = (over: Record<string, unknown>, days = DAYS) => checkReply(form({ days: both, ...over }), days, { askRoom: true });
+
+  it('turns the nights into arriving and leaving days', () => {
+    const out = ask({ room: { need: 'yes', nights: ['2027-02-15', '2027-02-14'] } });
+    expect(out).toMatchObject({ reply: { needs_room: true, room_share: null, arrive_on: '2027-02-14', leave_on: '2027-02-16' } });
+    expect(ask({ room: { need: 'yes', nights: ['2027-02-15'] } })).toMatchObject({ reply: { arrive_on: '2027-02-15', leave_on: '2027-02-16' } });
+  });
+
+  it('records heading home, and ignores the old date pickers for these households', () => {
+    const out = ask({ room: { need: 'no' }, arrive_on: '2027-02-14', leave_on: '2027-02-16' });
+    expect(out).toMatchObject({ reply: { needs_room: false, room_share: null, arrive_on: null, leave_on: null } });
+  });
+
+  it('falls back to the dates when the form has no room question (an older copy of the site)', () => {
+    expect(ask({ arrive_on: '2027-02-14', leave_on: '2027-02-16' })).toMatchObject({ reply: { needs_room: null, arrive_on: '2027-02-14', leave_on: '2027-02-16' } });
+  });
+
+  it('insists on an answer and at least one night', () => {
+    expect(ask({ room: {} })).toHaveProperty('error');
+    expect(ask({ room: null })).toHaveProperty('error');
+    expect(ask({ room: { need: 'maybe' } })).toHaveProperty('error');
+    expect(ask({ room: { need: 'yes', nights: [] } })).toHaveProperty('error');
+  });
+
+  it('keeps only nights on days they are coming, in a row', () => {
+    const office = { '2027-02-15': { answer: 'yes', people: 1 } };
+    expect(ask({ days: office, room: { need: 'yes', nights: ['2027-02-14'] } }, ['2027-02-15'])).toHaveProperty('error');
+    const gap = checkReply(form({ days: both, room: { need: 'yes', nights: ['2027-02-14', '2027-02-16'] } }), DAYS, { askRoom: true });
+    expect(gap).toMatchObject({ reply: { arrive_on: '2027-02-14', leave_on: '2027-02-15' } }); // 16 Feb is not a coming day
+  });
+
+  it('asks about sharing only when someone comes alone', () => {
+    const alone = { '2027-02-14': { answer: 'yes', people: 1 }, '2027-02-15': { answer: 'maybe', people: 1 } };
+    expect(ask({ days: alone, room: { need: 'yes', nights: ['2027-02-14'], share: true } })).toMatchObject({ reply: { room_share: true } });
+    expect(ask({ days: alone, room: { need: 'yes', nights: ['2027-02-14'] } })).toMatchObject({ reply: { room_share: false } });
+    expect(ask({ room: { need: 'yes', nights: ['2027-02-14'], share: true } })).toMatchObject({ reply: { room_share: null } });
+  });
+
+  it('skips the question when they cannot come at all', () => {
+    const none = { '2027-02-14': { answer: 'no', people: 0 }, '2027-02-15': { answer: 'no', people: 0 } };
+    expect(ask({ days: none })).toMatchObject({ reply: { needs_room: null, arrive_on: null, leave_on: null } });
   });
 });
 

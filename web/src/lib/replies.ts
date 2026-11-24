@@ -30,6 +30,8 @@ export type InviteReply = {
   leave_on: string | null;
   travel: string | null;
   note: string | null;
+  needs_room: boolean | null; // asked of Pranjal's friends only; null = not asked
+  room_share: boolean | null; // coming alone and happy to share a room
   status: ReplyStatus;
   reviewed_at: string | null;
   submitted_at: string;
@@ -72,6 +74,44 @@ export function latestNew(replies: InviteReply[]) {
     if (!cur || r.submitted_at > cur.submitted_at) byGuest.set(r.guest_id, r);
   }
   return [...byGuest.values()].sort((a, b) => b.submitted_at.localeCompare(a.submitted_at));
+}
+
+// Friends' answers to the room question, from each household's latest reply that was not dismissed. Nights run from
+// arrive_on up to the night before leave_on; people per night come from that day's answer.
+export type RoomTally = {
+  asked: number; // households whose latest reply answers the room question
+  no: number; // heading home
+  nights: { night: string; households: number; people: number; sharers: number; rooms: number }[];
+};
+
+export function roomTally(replies: InviteReply[]): RoomTally {
+  const latest = new Map<string, InviteReply>();
+  for (const r of replies) {
+    if (r.status === 'dismissed' || r.needs_room === null) continue;
+    const cur = latest.get(r.guest_id);
+    if (!cur || r.submitted_at > cur.submitted_at) latest.set(r.guest_id, r);
+  }
+  const byNight = new Map<string, { households: number; people: number; sharers: number; own: number }>();
+  let no = 0;
+  for (const r of latest.values()) {
+    if (!r.needs_room) {
+      no++;
+      continue;
+    }
+    if (!r.arrive_on || !r.leave_on) continue;
+    for (let d = r.arrive_on; d < r.leave_on; d = new Date(Date.parse(d + 'T00:00:00Z') + 86_400_000).toISOString().slice(0, 10)) {
+      const n = byNight.get(d) ?? { households: 0, people: 0, sharers: 0, own: 0 };
+      n.households++;
+      n.people += r.answers[d]?.people ?? 0;
+      if (r.room_share) n.sharers++;
+      else n.own++;
+      byNight.set(d, n);
+    }
+  }
+  const nights = [...byNight.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([night, n]) => ({ night, households: n.households, people: n.people, sharers: n.sharers, rooms: n.own + Math.ceil(n.sharers / 2) }));
+  return { asked: latest.size, no, nights };
 }
 
 const csvCell = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;

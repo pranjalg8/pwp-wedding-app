@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { CODE_PATTERN, inviteLink, latestNew, linksCsv, makeCode, replyPlan, type InviteReply } from '../replies';
+import { CODE_PATTERN, inviteLink, latestNew, linksCsv, makeCode, replyPlan, roomTally, type InviteReply } from '../replies';
 import { DAY1, DAY2 } from './fixtures';
 
 const reply = (over: Partial<InviteReply>): InviteReply => ({
   id: 'r1', guest_id: 'a', code: 'K7M2QXAB', responder_name: 'Asha', answers: {}, arrive_on: null, leave_on: null,
-  travel: null, note: null, status: 'new', reviewed_at: null, submitted_at: '2026-12-01T10:00:00Z', ...over,
+  travel: null, note: null, needs_room: null, room_share: null, status: 'new', reviewed_at: null, submitted_at: '2026-12-01T10:00:00Z', ...over,
 });
 
 describe('makeCode', () => {
@@ -61,5 +61,38 @@ describe('linksCsv', () => {
     const rows = [{ name: 'Sharma "Ji"', persons: 4, code: 'K7M2QXAB' }];
     expect(linksCsv(rows, 'https://example.com/').split('\n')[1]).toBe('"Sharma ""Ji""","4","K7M2QXAB","https://example.com/?code=K7M2QXAB"');
     expect(linksCsv(rows, null).split('\n')[1].endsWith(',""')).toBe(true);
+  });
+});
+
+describe('roomTally', () => {
+  const both = { [DAY1]: { answer: 'yes' as const, people: 2 }, [DAY2]: { answer: 'yes' as const, people: 2 } };
+  const alone = { [DAY1]: { answer: 'yes' as const, people: 1 }, [DAY2]: { answer: 'yes' as const, people: 1 } };
+  const room = (guest: string, over: Partial<InviteReply>) =>
+    reply({ id: guest + (over.submitted_at ?? ''), guest_id: guest, needs_room: true, arrive_on: DAY1, leave_on: '2027-02-16', answers: both, ...over });
+
+  it('counts households, people and rooms per night, pairing up singles who will share', () => {
+    const t = roomTally([
+      room('a', {}),
+      room('b', { answers: alone, room_share: true }),
+      room('c', { answers: alone, room_share: true, arrive_on: DAY2 }),
+      room('d', { answers: alone, room_share: false, leave_on: DAY2 }),
+      reply({ guest_id: 'e', needs_room: false }),
+      reply({ guest_id: 'f' }), // not asked
+    ]);
+    expect(t.asked).toBe(5);
+    expect(t.no).toBe(1);
+    expect(t.nights).toEqual([
+      { night: DAY1, households: 3, people: 4, sharers: 1, rooms: 3 },
+      { night: DAY2, households: 3, people: 4, sharers: 2, rooms: 2 },
+    ]);
+  });
+
+  it('uses only the latest reply per household and skips dismissed ones', () => {
+    const t = roomTally([
+      room('a', { submitted_at: '2026-12-01T10:00:00Z' }),
+      room('a', { submitted_at: '2026-12-02T10:00:00Z', needs_room: false, arrive_on: null, leave_on: null }),
+      room('b', { status: 'dismissed' }),
+    ]);
+    expect(t).toEqual({ asked: 1, no: 1, nights: [] });
   });
 });

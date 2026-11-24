@@ -1,5 +1,20 @@
 [
   {
+    "version": "1.22",
+    "date": "2026-11-24",
+    "title": "Room question for friends",
+    "items": [
+      {
+        "kind": "new",
+        "text": "The RSVP for your own guests (the households you handle) now asks plainly whether they need a room and for which nights, 14 and 15 Feb. Someone coming alone can say they are happy to share. Everyone else still sees the arriving and leaving dates."
+      },
+      {
+        "kind": "new",
+        "text": "Guests, Replies: a Rooms for your friends card adds up the answers per night (households, people and about how many rooms, pairing up those happy to share), and each reply shows its room answer. Apply saves the nights as the household's stay dates, as before."
+      }
+    ]
+  },
+  {
     "version": "1.21",
     "date": "2026-11-24",
     "title": "Family accounts",

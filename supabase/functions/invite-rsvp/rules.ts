@@ -32,10 +32,33 @@ export type Reply = {
   leave_on: string | null;
   travel: string | null;
   note: string | null;
+  needs_room: boolean | null; // asked only when askRoom; null otherwise
+  room_share: boolean | null; // asked only of a guest coming alone who needs a room
 };
 
+const nextDay = (d: string) => new Date(Date.parse(d + 'T00:00:00Z') + 86_400_000).toISOString().slice(0, 10);
+
+// The room answer of a household that is asked (Pranjal's friends). The nights must be days they are coming and follow
+// one another; they become arrive_on (first night) and leave_on (the morning after the last night).
+function roomAnswer(room: unknown, answers: Reply['answers']) {
+  const coming = Object.keys(answers).filter((d) => answers[d].answer !== 'no').sort();
+  if (coming.length === 0) return { needs_room: null, room_share: null, arrive_on: null, leave_on: null };
+  const r = isObject(room) ? room : {};
+  if (r.need === 'no') return { needs_room: false, room_share: null, arrive_on: null, leave_on: null };
+  if (r.need !== 'yes') return { error: 'Please tell us if you need a room.' };
+  const nights = [...new Set((Array.isArray(r.nights) ? r.nights : []).filter((d): d is string => isDay(d) && coming.includes(d)))].sort();
+  if (nights.length === 0) return { error: 'Please pick the nights you need a room.' };
+  for (let i = 1; i < nights.length; i++) if (nights[i] !== nextDay(nights[i - 1])) return { error: 'Please pick nights that follow one another.' };
+  const alone = coming.every((d) => answers[d].people === 1);
+  return { needs_room: true, room_share: alone ? r.share === true : null, arrive_on: nights[0], leave_on: nextDay(nights[nights.length - 1]) };
+}
+
 // Checks a submitted form against the days the household is invited to. Only those days are kept.
-export function checkReply(body: Record<string, unknown>, days: string[]): { reply: Reply } | { error: string } {
+export function checkReply(
+  body: Record<string, unknown>,
+  days: string[],
+  opts: { askRoom?: boolean } = {},
+): { reply: Reply } | { error: string } {
   const name = text(body.name, 80);
   if (!name) return { error: 'Please tell us your name.' };
   if (days.length === 0) return { error: 'We could not find your invitation days. Please tell a family member.' };
@@ -51,12 +74,18 @@ export function checkReply(body: Record<string, unknown>, days: string[]): { rep
     answers[day] = { answer: a.answer, people };
   }
 
+  const base = { responder_name: name, answers, travel: text(body.travel, 120) || null, note: text(body.note, 300) || null };
+  // A form without the room question (an older copy of the site) answers with dates, as everyone else does.
+  if (opts.askRoom && body.room !== undefined) {
+    const room = roomAnswer(body.room, answers);
+    if ('error' in room) return { error: room.error as string };
+    return { reply: { ...base, ...room } };
+  }
+
   const arrive = isDay(body.arrive_on) ? body.arrive_on : null;
   const leave = isDay(body.leave_on) ? body.leave_on : null;
   if (!arrive !== !leave) return { error: 'Please pick both the arriving and the leaving day, or neither.' };
   if (arrive && leave && leave <= arrive) return { error: 'The leaving day has to be after the arriving day.' };
 
-  return {
-    reply: { responder_name: name, answers, arrive_on: arrive, leave_on: leave, travel: text(body.travel, 120) || null, note: text(body.note, 300) || null },
-  };
+  return { reply: { ...base, arrive_on: arrive, leave_on: leave, needs_room: null, room_share: null } };
 }
