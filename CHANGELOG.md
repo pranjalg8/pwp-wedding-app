@@ -2,6 +2,13 @@
 
 Every version of the planner, newest first. This file is generated from `web/src/data/releases.json`; edit that file and run `npm run changelog`. The same list shows in the app under Activity, What's new.
 
+## 1.24 - 2026-11-24: Invite codes from names
+
+**New**
+
+- New personal links get a code made from the guest's name and three digits, like ASHA472, so it is easy to say on a call or type from a card. The digits stop someone who only knows the name from opening that RSVP.
+- Send invite: before making a link you can change the name part, for example to the nickname everyone uses. Make codes for everyone without a link uses names too. Links already sent keep their old codes and keep working.
+
 ## 1.23 - 2026-11-24: Three kinds of invite
 
 **New**

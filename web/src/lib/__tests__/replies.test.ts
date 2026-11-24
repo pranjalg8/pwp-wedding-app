@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CODE_PATTERN, inviteLink, latestNew, linksCsv, makeCode, replyPlan, roomTally, type InviteReply } from '../replies';
+import { CODE_PATTERN, cleanStem, inviteLink, latestNew, linksCsv, makeCode, nameCode, nameStem, replyPlan, roomTally, type InviteReply } from '../replies';
 import { DAY1, DAY2 } from './fixtures';
 
 const reply = (over: Partial<InviteReply>): InviteReply => ({
@@ -94,5 +94,31 @@ describe('roomTally', () => {
       room('b', { status: 'dismissed' }),
     ]);
     expect(t).toEqual({ asked: 1, no: 1, nights: [] });
+  });
+});
+
+describe('name codes', () => {
+  it('takes the name people call them, skipping titles, places and brackets', () => {
+    expect(nameStem('Asha Verma')).toBe('ASHA');
+    expect(nameStem('Meera (Mini) - Pune')).toBe('MEERA');
+    expect(nameStem('Dr Ravi (Bittu)')).toBe('RAVI');
+    expect(nameStem('Guru Ji - Anandmohan Ji')).toBe('ANANDMOHA');
+    expect(nameStem('-')).toBe('GUEST');
+    expect(nameStem('Venkataraman Iyer')).toBe('VENKATARA');
+    expect(nameStem('Jo Ann Mathew - Pune')).toBe('JOANN');
+    expect(nameStem('Mohan / Sohan - Agra')).toBe('MOHAN');
+  });
+
+  it('adds three digits from 2-9, avoids codes in use, and fits the database pattern', () => {
+    const seq = (bytes: number[]) => () => new Uint8Array(bytes);
+    expect(nameCode('Asha', new Set(), seq([0, 7, 2]))).toBe('ASHA294');
+    let n = 0;
+    const counting = () => new Uint8Array([n, n + 1, n++ + 2]);
+    expect(nameCode('ASHA', new Set(['ASHA234']), counting)).toBe('ASHA345');
+    for (const name of ['Asha Verma', 'Meera (Mini) - Pune', 'Jo Ann Mathew - Pune', 'Dr Ravi (Bittu)']) {
+      expect(nameCode(nameStem(name), new Set())).toMatch(CODE_PATTERN);
+    }
+    expect('K7M2QXAB').toMatch(CODE_PATTERN); // links already sent keep working
+    expect(cleanStem(' ravi 2 ')).toBe('RAVI');
   });
 });

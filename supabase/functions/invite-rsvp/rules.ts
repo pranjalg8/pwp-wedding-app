@@ -1,6 +1,7 @@
 // The checks behind the invite-rsvp function. No imports, so the web test suite can run them.
 
-export const CODE = /^[A-HJ-NP-Z2-9]{6,10}$/;
+// Name codes (ASHA472) and the older random codes (K7M2QXAB) both match. Digits are 2-9 only.
+export const CODE = /^[A-Z2-9]{6,12}$/;
 export const PER_IP = 60; // calls an hour
 export const PER_CODE = 20;
 export const MAX_PEOPLE = 20;

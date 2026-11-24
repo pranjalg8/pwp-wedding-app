@@ -10,7 +10,7 @@ import { EmptyState } from './EmptyState';
 import type { RsvpDay } from '../lib/rsvp';
 import type { Invite } from '../lib/rsvp';
 import type { GuestContact } from './HouseholdList';
-import { inviteLink, makeCode, type InviteCode, type InviteReply } from '../lib/replies';
+import { cleanStem, inviteLink, nameCode, nameStem, type InviteCode, type InviteReply } from '../lib/replies';
 import {
   CHANNEL_LABEL,
   KIND_LABEL,
@@ -539,11 +539,11 @@ function SendModal({
     setText(make(l, link));
   };
 
+  const [stem, setStem] = useState(() => nameStem(guest.name));
+
   async function makeLink() {
     setMaking(true);
-    const taken = new Set(takenCodes);
-    let c = makeCode();
-    while (taken.has(c)) c = makeCode();
+    const c = nameCode(stem, new Set(takenCodes));
     const { error } = await supabase.from('invite_codes').upsert({ code: c, guest_id: guest.id, revoked_at: null }, { onConflict: 'guest_id' });
     setMaking(false);
     if (error) return fail('Could not make the link', error.message);
@@ -595,9 +595,19 @@ function SendModal({
             <Group justify="space-between" gap="xs">
               <Text size="sm">{siteUrl ? 'This household has no personal RSVP link yet.' : 'The invite site address is not set (Guests, Replies).'}</Text>
               {siteUrl && (
-                <Button size="compact-md" variant="light" loading={making} onClick={() => void makeLink()}>
-                  Make link
-                </Button>
+                <Group gap={6} wrap="nowrap" align="flex-end">
+                  <TextInput
+                    size="xs"
+                    w={130}
+                    label="Name in the code"
+                    description="3 digits are added"
+                    value={stem}
+                    onChange={(e) => setStem(cleanStem(e.currentTarget.value))}
+                  />
+                  <Button size="compact-md" variant="light" loading={making} disabled={stem.length < 3} onClick={() => void makeLink()}>
+                    Make link
+                  </Button>
+                </Group>
               )}
             </Group>
           </Alert>
