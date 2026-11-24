@@ -107,10 +107,10 @@ describe('invite kinds and room nights', () => {
     expect(kindOf([])).toBe('none');
   });
 
-  it('offers both nights only to two-day guests, the 15 Feb night to the rest', () => {
+  it('offers both nights to two-day guests, the 15 Feb night to whole-day guests, and none to wedding-only guests', () => {
     expect(roomNights('both')).toEqual(['2027-02-14', '2027-02-15']);
     expect(roomNights('day2')).toEqual(['2027-02-15']);
-    expect(roomNights('wedding')).toEqual(['2027-02-15']);
+    expect(roomNights('wedding')).toEqual([]);
     expect(roomNights('none')).toEqual([]);
   });
 
@@ -125,6 +125,16 @@ describe('invite kinds and room nights', () => {
     const d = { '2027-02-15': { answer: 'yes', people: 2 } };
     const out = checkReply(form({ days: d, room: { need: 'yes', nights: ['2027-02-14', '2027-02-15'] } }), ['2027-02-15'], { askRoom: true, nights: ['2027-02-15'] });
     expect(out).toMatchObject({ reply: { arrive_on: '2027-02-15', leave_on: '2027-02-16' } });
+  });
+});
+
+describe('wedding-only guests and rooms', () => {
+  it('records no room for a wedding-only reply, even if one is sent', () => {
+    const d = { '2027-02-15': { answer: 'yes', people: 2 } };
+    const sent = checkReply(form({ days: d, room: { need: 'yes', nights: ['2027-02-15'] } }), ['2027-02-15'], { askRoom: true, nights: [] });
+    expect(sent).toMatchObject({ reply: { needs_room: null, arrive_on: null, leave_on: null } });
+    const site = checkReply(form({ days: d }), ['2027-02-15'], { askRoom: true, nights: [] }); // the site sends no room field
+    expect(site).toMatchObject({ reply: { needs_room: null, arrive_on: null, leave_on: null } });
   });
 });
 

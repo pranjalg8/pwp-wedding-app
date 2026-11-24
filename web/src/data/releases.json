@@ -1,5 +1,16 @@
 [
   {
+    "version": "1.25",
+    "date": "2026-11-25",
+    "title": "No room question for wedding-only guests",
+    "items": [
+      {
+        "kind": "improved",
+        "text": "Wedding-only guests (15 Feb from the Baraat) are local and drive back, so their RSVP no longer asks about a room, and their personal link hides the Stay section and the room details. Whole-day 15 Feb guests are still asked about the night of 15 Feb, and two-day guests about 14 and 15 Feb."
+      }
+    ]
+  },
+  {
     "version": "1.24",
     "date": "2026-11-24",
     "title": "Invite codes from names",
