@@ -36,12 +36,34 @@ export type Reply = {
   room_share: boolean | null; // asked only of a guest coming alone who needs a room
 };
 
+// The three printed cards. The kind follows from the invited days; 'part' on the 15 Feb row says whole day or wedding
+// only (from the Baraat). Kept in step with inviteKind in web/src/lib/rsvp.ts.
+export const DAY1 = '2027-02-14';
+export const WEDDING_DAY = '2027-02-15';
+export type Kind = 'both' | 'day2' | 'wedding' | 'day1' | 'none';
+
+export function kindOf(rows: { event_date: string; part?: string | null }[]): Kind {
+  const d1 = rows.some((r) => r.event_date === DAY1);
+  const d2 = rows.find((r) => r.event_date === WEDDING_DAY);
+  if (d1 && d2) return 'both';
+  if (d2) return d2.part === 'wedding' ? 'wedding' : 'day2';
+  return d1 ? 'day1' : 'none';
+}
+
+// The nights a household can ask a room for: both days can stay the night of 14 and 15 Feb; a 15 Feb invite (whole
+// day or wedding only) the night of 15 Feb, since the wedding runs to midnight.
+export const roomNights = (kind: Kind) => (kind === 'both' ? [DAY1, WEDDING_DAY] : kind === 'day1' ? [DAY1] : kind === 'none' ? [] : [WEDDING_DAY]);
+
+// Who gets the plain room question: Pranjal's own guests (Papa's room plan does not cover them), and anyone invited to
+// 15 Feb only, who can need at most that one night. Other families keep the arriving / leaving dates.
+export const asksRoom = (handledBy: string | null | undefined, kind: Kind) => handledBy === 'pranjal' || kind === 'day2' || kind === 'wedding';
+
 const nextDay = (d: string) => new Date(Date.parse(d + 'T00:00:00Z') + 86_400_000).toISOString().slice(0, 10);
 
 // The room answer of a household that is asked (Pranjal's friends). The nights must be days they are coming and follow
 // one another; they become arrive_on (first night) and leave_on (the morning after the last night).
-function roomAnswer(room: unknown, answers: Reply['answers']) {
-  const coming = Object.keys(answers).filter((d) => answers[d].answer !== 'no').sort();
+function roomAnswer(room: unknown, answers: Reply['answers'], allowed: string[]) {
+  const coming = Object.keys(answers).filter((d) => answers[d].answer !== 'no' && allowed.includes(d)).sort();
   if (coming.length === 0) return { needs_room: null, room_share: null, arrive_on: null, leave_on: null };
   const r = isObject(room) ? room : {};
   if (r.need === 'no') return { needs_room: false, room_share: null, arrive_on: null, leave_on: null };
@@ -57,7 +79,7 @@ function roomAnswer(room: unknown, answers: Reply['answers']) {
 export function checkReply(
   body: Record<string, unknown>,
   days: string[],
-  opts: { askRoom?: boolean } = {},
+  opts: { askRoom?: boolean; nights?: string[] } = {},
 ): { reply: Reply } | { error: string } {
   const name = text(body.name, 80);
   if (!name) return { error: 'Please tell us your name.' };
@@ -77,7 +99,7 @@ export function checkReply(
   const base = { responder_name: name, answers, travel: text(body.travel, 120) || null, note: text(body.note, 300) || null };
   // A form without the room question (an older copy of the site) answers with dates, as everyone else does.
   if (opts.askRoom && body.room !== undefined) {
-    const room = roomAnswer(body.room, answers);
+    const room = roomAnswer(body.room, answers, opts.nights ?? days);
     if ('error' in room) return { error: room.error as string };
     return { reply: { ...base, ...room } };
   }

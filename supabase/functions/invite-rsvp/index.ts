@@ -1,8 +1,10 @@
 // Public endpoint behind the invite site's reply form. A household sends the code from its personal link.
-//   GET  ?code=K7M2QX  -> { open, days: ["2027-02-14", ...], max, room }   its days, its size, and whether to ask about a room
+//   GET  ?code=K7M2QX  -> { open, days: ["2027-02-14", ...], max, kind, room, nights }
+//        kind: 'both' | 'day2' (15 Feb, whole day) | 'wedding' (15 Feb from the Baraat); room: whether to ask about a
+//        room; nights: the nights it may ask for
 //   POST { code, name, days, arrive_on, leave_on, travel, note, room? }  -> { ok: true }
-// room is asked of Pranjal's own guests (handled_by = 'pranjal'): { need: 'yes' | 'no', nights: [days], share }. For them
-// the nights replace arrive_on / leave_on; everyone else answers with arrive_on / leave_on as before.
+// room is asked of Pranjal's own guests and of anyone invited to 15 Feb only: { need: 'yes' | 'no', nights: [days],
+// share }. For them the nights replace arrive_on / leave_on; everyone else answers with arrive_on / leave_on as before.
 // Replies are only stored (append only) for the couple to review in the planner; nothing here changes the guest list.
 // While replies are closed (invite_settings.open = false) both calls answer { open: false } and nothing at all is
 // written. An unknown or revoked code looks the same as a closed form: no hint about which codes exist. The answer
@@ -10,7 +12,7 @@
 // counts against a per-IP limit and, for a real code, a per-code limit. If the limit cannot be checked the call is
 // refused rather than let through.
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { CODE, PER_CODE, PER_IP, checkReply, clientIp, isObject, text } from './rules.ts';
+import { CODE, PER_CODE, PER_IP, asksRoom, checkReply, clientIp, isObject, kindOf, roomNights, text } from './rules.ts';
 
 const CORS = {
   'Access-Control-Allow-Origin': Deno.env.get('INVITE_ORIGIN') || '*',
@@ -70,16 +72,18 @@ Deno.serve(async (req) => {
 
   const [{ data: guest }, { data: rsvps }] = await Promise.all([
     sb.from('guests').select('persons, handled_by').eq('id', link.guest_id).maybeSingle(),
-    sb.from('guest_rsvps').select('event_date').eq('guest_id', link.guest_id).order('event_date'),
+    sb.from('guest_rsvps').select('event_date, part').eq('guest_id', link.guest_id).order('event_date'),
   ]);
   if (!guest) return closed();
   const days = (rsvps ?? []).map((r: { event_date: string }) => r.event_date);
 
-  const askRoom = guest.handled_by === 'pranjal';
-  if (req.method === 'GET') return json({ open: true, days, max: Math.max(1, Number(guest.persons) || 1), room: askRoom });
+  const kind = kindOf(rsvps ?? []);
+  const askRoom = asksRoom(guest.handled_by, kind);
+  const nights = roomNights(kind);
+  if (req.method === 'GET') return json({ open: true, days, max: Math.max(1, Number(guest.persons) || 1), kind, room: askRoom, nights });
 
   if (typeof body.website === 'string' && body.website !== '') return json({ ok: true }); // honeypot: pretend it worked
-  const checked = checkReply(body, days, { askRoom });
+  const checked = checkReply(body, days, { askRoom, nights });
   if ('error' in checked) return json({ error: checked.error }, 400);
 
   const { error } = await sb.from('invite_responses').insert({ guest_id: link.guest_id, code, ...checked.reply });

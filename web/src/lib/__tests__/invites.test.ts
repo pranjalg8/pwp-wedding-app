@@ -164,3 +164,23 @@ describe('countByOwner', () => {
     expect(c.puru.households).toBe(0);
   });
 });
+
+describe('invite kinds in the tracker', () => {
+  it('reads the card per household and counts cards per owner', () => {
+    const ivs = [inv('a', DAY1), inv('a', DAY2), { ...inv('b', DAY2), part: 'wedding' as const }, inv('c', DAY2)];
+    const guests = [
+      { id: 'a', persons: 3, handled_by: 'pranjal' as const },
+      { id: 'b', persons: 2, handled_by: 'pranjal' as const },
+      { id: 'c', persons: 1, handled_by: 'pranjal' as const },
+    ];
+    const tracks = Object.fromEntries(guests.map((g) => [g.id, trackHousehold(g, [], ivs, [], NOW)]));
+    expect([tracks.a.kind, tracks.b.kind, tracks.c.kind]).toEqual(['both', 'wedding', 'day2']);
+    expect(countByOwner(guests, tracks, [{ date: DAY1, label: '', functions: [] }, { date: DAY2, label: '', functions: [] }]).pranjal.cards).toEqual({ both: 1, day2: 1, wedding: 1 });
+  });
+
+  it('says wedding only in the invite message', () => {
+    const text = inviteMessage({ lang: 'en', kind: 'invite', name: 'Asha', days: [DAY2], link: null, sender: 'pranjal', weddingOnly: true });
+    expect(text).toContain('from the Baraat in the evening');
+    expect(inviteMessage({ lang: 'hi', kind: 'invite', name: 'Asha', days: [DAY2], link: null, sender: 'pranjal', weddingOnly: true })).toContain('(बारात से)');
+  });
+});

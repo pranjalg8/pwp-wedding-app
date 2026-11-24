@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Alert, Badge, Box, Button, Group, Menu, Modal, Paper, SegmentedControl, Select, SimpleGrid, Stack, Text, Textarea, TextInput, UnstyledButton } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
+import { WEDDING_DAY } from '../lib/rsvp';
 import { supabase } from '../lib/supabase';
 import { useProfile } from '../hooks/useProfile';
 import { UndoMessage } from './UndoMessage';
@@ -74,6 +75,11 @@ function DayChips({ track }: { track: HouseholdTrack }) {
             <Text size="sm" fw={700} w={56}>
               {shortDay(d.date)}
             </Text>
+            {track.kind === 'wedding' && d.date === WEDDING_DAY && (
+              <Text size="sm" c="grape.8" fw={600}>
+                wedding only
+              </Text>
+            )}
             {parts.map((p) => (
               <Text key={p.t} size="sm" fw={600} c={p.c}>
                 {p.t}
@@ -301,7 +307,10 @@ export function InviteTracker({
                   </Text>
                 </div>
               </Group>
-              <Stack gap={2} mt="sm">
+              <Text size="xs" c="dimmed" mt="sm">
+                Cards: {c.cards.both} both days · {c.cards.day2} 15 Feb whole day · {c.cards.wedding} wedding only
+              </Text>
+              <Stack gap={2} mt={4}>
                 {days.map((d) => {
                   const b = c.byDay[d.date];
                   return (
@@ -522,7 +531,7 @@ function SendModal({
   const [phone, setPhone] = useState<string | null>(phones[0]?.value ?? null);
   const [making, setMaking] = useState(false);
   const link = code && siteUrl ? inviteLink(code, siteUrl) : null;
-  const make = (l: Lang, lk: string | null) => inviteMessage({ lang: l, kind, name: guest.name, days: track.days.map((d) => d.date), link: lk, sender });
+  const make = (l: Lang, lk: string | null) => inviteMessage({ lang: l, kind, name: guest.name, days: track.days.map((d) => d.date), link: lk, sender, weddingOnly: track.kind === 'wedding' });
   const [text, setText] = useState(() => make(lang, link));
   const setLang = (l: Lang) => {
     writeLocal(LANG_KEY, l);

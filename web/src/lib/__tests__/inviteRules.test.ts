@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkReply, clientIp, isDay, isObject } from '../../../../supabase/functions/invite-rsvp/rules';
+import { asksRoom, checkReply, clientIp, isDay, isObject, kindOf, roomNights } from '../../../../supabase/functions/invite-rsvp/rules';
 
 const DAYS = ['2027-02-14', '2027-02-15'];
 const form = (over: Record<string, unknown> = {}) => ({
@@ -95,6 +95,36 @@ describe('checkReply with the room question (Pranjal\'s friends)', () => {
   it('skips the question when they cannot come at all', () => {
     const none = { '2027-02-14': { answer: 'no', people: 0 }, '2027-02-15': { answer: 'no', people: 0 } };
     expect(ask({ days: none })).toMatchObject({ reply: { needs_room: null, arrive_on: null, leave_on: null } });
+  });
+});
+
+describe('invite kinds and room nights', () => {
+  it('reads the card from the invited days and the part of 15 Feb', () => {
+    expect(kindOf([{ event_date: '2027-02-14' }, { event_date: '2027-02-15', part: 'full' }])).toBe('both');
+    expect(kindOf([{ event_date: '2027-02-15', part: 'full' }])).toBe('day2');
+    expect(kindOf([{ event_date: '2027-02-15', part: 'wedding' }])).toBe('wedding');
+    expect(kindOf([{ event_date: '2027-02-14' }])).toBe('day1');
+    expect(kindOf([])).toBe('none');
+  });
+
+  it('offers both nights only to two-day guests, the 15 Feb night to the rest', () => {
+    expect(roomNights('both')).toEqual(['2027-02-14', '2027-02-15']);
+    expect(roomNights('day2')).toEqual(['2027-02-15']);
+    expect(roomNights('wedding')).toEqual(['2027-02-15']);
+    expect(roomNights('none')).toEqual([]);
+  });
+
+  it("asks Pranjal's guests and anyone invited to 15 Feb only", () => {
+    expect(asksRoom('pranjal', 'both')).toBe(true);
+    expect(asksRoom('papa', 'both')).toBe(false);
+    expect(asksRoom('papa', 'wedding')).toBe(true);
+    expect(asksRoom('puru', 'day2')).toBe(true);
+  });
+
+  it('keeps a 15 Feb guest to the night of 15 Feb even if 14 Feb is sent', () => {
+    const d = { '2027-02-15': { answer: 'yes', people: 2 } };
+    const out = checkReply(form({ days: d, room: { need: 'yes', nights: ['2027-02-14', '2027-02-15'] } }), ['2027-02-15'], { askRoom: true, nights: ['2027-02-15'] });
+    expect(out).toMatchObject({ reply: { arrive_on: '2027-02-15', leave_on: '2027-02-16' } });
   });
 });
 
